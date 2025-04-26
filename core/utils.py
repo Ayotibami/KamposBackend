@@ -13,6 +13,10 @@ from rest_framework import status
 from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
+import requests
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+from jose import jwt as jose_jwt
 
 
 def generate_unique_id():
@@ -126,3 +130,86 @@ def create_directory_if_not_exists(directory_path):
     """Create a directory if it doesn't exist"""
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)
+
+
+def handle_oauth_google(token):
+    """Handle Google OAuth authentication"""
+    try:
+        idinfo = id_token.verify_oauth2_token(
+            token, google_requests.Request(), settings.OAUTH_CREDENTIALS['google']['client_id']
+        )
+        
+        if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+            raise ValueError('Invalid issuer')
+            
+        return {
+            'id': idinfo['sub'],
+            'email': idinfo['email'],
+            'email_verified': idinfo['email_verified'],
+            'name': idinfo.get('name'),
+            'picture': idinfo.get('picture')
+        }
+    except Exception as e:
+        raise CustomAPIException(f"Invalid Google token: {str(e)}")
+
+
+def handle_oauth_facebook(token):
+    """Handle Facebook OAuth authentication"""
+    try:
+        # Verify token with Facebook
+        response = requests.get(
+            'https://graph.facebook.com/me',
+            params={
+                'fields': 'id,email,name,picture',
+                'access_token': token
+            }
+        )
+        data = response.json()
+        
+        if 'error' in data:
+            raise ValueError(data['error']['message'])
+            
+        return {
+            'id': data['id'],
+            'email': data.get('email'),
+            'name': data.get('name'),
+            'picture': data.get('picture', {}).get('data', {}).get('url')
+        }
+    except Exception as e:
+        raise CustomAPIException(f"Invalid Facebook token: {str(e)}")
+
+
+def handle_oauth_apple(token):
+    """Handle Apple OAuth authentication"""
+    try:
+        # Verify Apple ID token
+        headers = jose_jwt.get_unverified_headers(token)
+        public_key = get_apple_public_key(headers['kid'])
+        
+        payload = jose_jwt.decode(
+            token,
+            public_key,
+            algorithms=['RS256'],
+            audience=settings.OAUTH_CREDENTIALS['apple']['service_id']
+        )
+        
+        return {
+            'id': payload['sub'],
+            'email': payload.get('email'),
+            'email_verified': payload.get('email_verified', True)
+        }
+    except Exception as e:
+        raise CustomAPIException(f"Invalid Apple token: {str(e)}")
+
+
+def get_apple_public_key(kid):
+    """Get Apple's public key for token verification"""
+    try:
+        response = requests.get('https://appleid.apple.com/auth/keys')
+        keys = response.json()['keys']
+        key = next((k for k in keys if k['kid'] == kid), None)
+        if not key:
+            raise ValueError('Key not found')
+        return key
+    except Exception as e:
+        raise CustomAPIException(f"Error getting Apple public key: {str(e)}")

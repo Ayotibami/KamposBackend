@@ -46,6 +46,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'account.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -130,7 +131,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # REST Framework settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'account.middleware.CustomJWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -196,17 +198,18 @@ DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
 # OAuth settings
 OAUTH_CREDENTIALS = {
     'google': {
-        'client_id': os.getenv('GOOGLE_CLIENT_ID', ''),
-        'client_secret': os.getenv('GOOGLE_CLIENT_SECRET', ''),
+        'client_id': os.getenv('GOOGLE_CLIENT_ID'),
+        'client_secret': os.getenv('GOOGLE_CLIENT_SECRET'),
+        'redirect_uri': os.getenv('GOOGLE_REDIRECT_URI'),
     },
     'facebook': {
-        'app_id': os.getenv('FACEBOOK_APP_ID', ''),
-        'app_secret': os.getenv('FACEBOOK_APP_SECRET', ''),
+        'app_id': os.getenv('FACEBOOK_APP_ID'),
+        'app_secret': os.getenv('FACEBOOK_APP_SECRET'),
     },
     'apple': {
-        'service_id': os.getenv('APPLE_SERVICE_ID', ''),
-        'team_id': os.getenv('APPLE_TEAM_ID', ''),
-        'key_id': os.getenv('APPLE_KEY_ID', ''),
+        'service_id': os.getenv('APPLE_SERVICE_ID'),
+        'team_id': os.getenv('APPLE_TEAM_ID'),
+        'key_id': os.getenv('APPLE_KEY_ID'),
     }
 }
 

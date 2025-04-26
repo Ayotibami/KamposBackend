@@ -27,8 +27,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     
     # API endpoints
-    path('api/auth/', include('account.urls.auth')),
-    path('api/account/', include('account.urls.account')),
+    path('api/', include('account.urls')),
     
     # Swagger documentation
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
