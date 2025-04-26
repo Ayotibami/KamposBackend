@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "kampos"
+version = "0.1.0"
+description = "College Social Platform"
+authors = ["Eric Alfred"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+djangorestframework-simplejwt = "^5.5.0"
+pyjwt = ">=1.7.1,<2.10.0"
+django = "^5.2"
+djangorestframework = "^3.16.0"
+django-cors-headers = "^4.7.0"
+django-environ = "^0.12.0"
+psycopg2-binary = "^2.9.10"
+python-jose = "^3.4.0"
+drf-yasg = "^1.21.10"
+python-dotenv = "^1.1.0"
+django-cloudinary-storage = "^0.3.0"
+pyotp = "^2.9.0"
+pillow = "^11.2.1"
+gunicorn = "^23.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
