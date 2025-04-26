@@ -74,12 +74,12 @@ WSGI_APPLICATION = 'kampos.wsgi.application'
 # Database
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT'),
+        'ENGINE': 'django.db.backends.sqlite3' if DEBUG else 'django.db.backends.postgresql',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3') if DEBUG else os.getenv('DB_NAME'),
+        'USER': '' if DEBUG else os.getenv('DB_USER'),
+        'PASSWORD': '' if DEBUG else os.getenv('DB_PASSWORD'), 
+        'HOST': '' if DEBUG else os.getenv('DB_HOST'),
+        'PORT': '' if DEBUG else os.getenv('DB_PORT'),
     }
 }
 
@@ -215,3 +215,9 @@ OAUTH_CREDENTIALS = {
 
 # OTP settings
 OTP_EXPIRY_MINUTES = 10
+
+# Firebase Settings
+FIREBASE_PROJECT_ID = os.getenv('FIREBASE_PROJECT_ID')
+FIREBASE_PRIVATE_KEY_ID = os.getenv('FIREBASE_PRIVATE_KEY_ID')
+FIREBASE_PRIVATE_KEY = os.getenv('FIREBASE_PRIVATE_KEY')
+FIREBASE_CLIENT_EMAIL = os.getenv('FIREBASE_CLIENT_EMAIL')

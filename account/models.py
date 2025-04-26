@@ -49,6 +49,7 @@ class Account(models.Model):
     oauth_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
     otp_secret = models.CharField(max_length=255, null=True, blank=True)
     otp_created_at = models.DateTimeField(null=True, blank=True)
+    firebase_uid = models.CharField(max_length=128, unique=True, null=True, blank=True)
     
     class Meta:
         db_table = 'accounts'

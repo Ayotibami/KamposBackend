@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     RegisterView, LoginView, LogoutView, 
     VerifyOTPView, ForgotPasswordView, ResetPasswordView,
-    AccountViewSet
+    AccountViewSet, FirebaseAuthView
 )
 
 router = DefaultRouter()
@@ -18,6 +18,7 @@ urlpatterns = [
     path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
     path('auth/forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
     path('auth/reset-password/', ResetPasswordView.as_view(), name='reset-password'),
+    path('auth/firebase/', FirebaseAuthView.as_view(), name='firebase-auth'),
     
     # Account management endpoints are handled by the router
     path('', include(router.urls)),

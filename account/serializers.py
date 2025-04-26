@@ -142,3 +142,18 @@ class ChangePasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError({"new_password": list(e.messages)})
         
         return attrs
+
+
+class FirebaseAuthSerializer(serializers.Serializer):
+    """Serializer for Firebase authentication"""
+    id_token = serializers.CharField(required=True)
+
+    def validate(self, attrs):
+        id_token = attrs.get('id_token')
+        try:
+            from .utils import verify_firebase_token, get_firebase_user_info
+            decoded_token = verify_firebase_token(id_token)
+            firebase_uid = decoded_token['uid']
+            return {'firebase_uid': firebase_uid, 'decoded_token': decoded_token}
+        except Exception as e:
+            raise serializers.ValidationError(str(e))

@@ -18,7 +18,8 @@ from .permissions import IsAccountOwner
 from .serializers import (
     RegisterSerializer, LoginSerializer, OAuthLoginSerializer,
     VerifyOTPSerializer, ForgotPasswordSerializer, ResetPasswordSerializer,
-    AccountSerializer, UpdateAccountSerializer, ChangePasswordSerializer
+    AccountSerializer, UpdateAccountSerializer, ChangePasswordSerializer,
+    FirebaseAuthSerializer
 )
 
 
@@ -456,3 +457,46 @@ class GoogleOAuthView(APIView):
             return Response({
                 'error': f'Authentication failed: {str(e)}'
             }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class FirebaseAuthView(APIView):
+    """
+    API view for Firebase authentication
+    """
+    permission_classes = [AllowAny]
+    
+    @swagger_auto_schema(
+        request_body=FirebaseAuthSerializer,
+        responses={200: 'OK', 400: 'Bad Request', 401: 'Unauthorized'}
+    )
+    def post(self, request):
+        serializer = FirebaseAuthSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        firebase_uid = serializer.validated_data['firebase_uid']
+        decoded_token = serializer.validated_data['decoded_token']
+        
+        try:
+            account = Account.objects.get(firebase_uid=firebase_uid)
+        except Account.DoesNotExist:
+            # Get user info from Firebase
+            from .utils import get_firebase_user_info
+            firebase_user = get_firebase_user_info(firebase_uid)
+            
+            # Create new account
+            account = Account.objects.create(
+                email=firebase_user.email,
+                firebase_uid=firebase_uid,
+                auth_provider=AuthProvider.GOOGLE if 'google.com' in decoded_token.get('firebase', {}).get('sign_in_provider', '') else AuthProvider.EMAIL
+            )
+        
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(account)
+        
+        return Response({
+            'token': {
+                'access': str(refresh.access_token),
+                'refresh': str(refresh)
+            },
+            'account': AccountSerializer(account).data
+        })

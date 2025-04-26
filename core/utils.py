@@ -60,7 +60,7 @@ def send_email_template(to_email, subject, template_name, context, from_email=No
 
 
 def generate_password_reset_token(user_id):
-    """Generate a token for password reset"""
+    """Generate a token for password reset""" 
     import jwt
     
     token = jwt.encode({
