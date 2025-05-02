@@ -262,11 +262,19 @@ class AccountViewSet(viewsets.ModelViewSet):
     ViewSet for account management
     """
     serializer_class = AccountSerializer
-    permission_classes = [IsAuthenticated, IsAccountOwner]
+    permission_classes = [IsAuthenticated]
     http_method_names = ['get', 'patch', 'delete']
     
     def get_queryset(self):
-        return Account.objects.filter(account_id=self.request.user.account_id)
+        # Check if this is a schema generation request
+        if getattr(self, 'swagger_fake_view', False):
+            # Return empty queryset for schema generation
+            return Account.objects.none()
+        
+        # Normal request handling
+        if self.request.user and hasattr(self.request.user, 'account_id'):
+            return Account.objects.filter(account_id=self.request.user.account_id)
+        return Account.objects.none()
     
     def get_object(self):
         return self.request.user

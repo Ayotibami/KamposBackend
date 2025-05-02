@@ -10,21 +10,7 @@ from django.db import models
 from django.utils import timezone
 
 from core.utils import encrypt_token, generate_otp
-
-
-class AuthProvider(models.TextChoices):
-    """Authentication provider choices"""
-    EMAIL = 'email', 'Email'
-    GOOGLE = 'google', 'Google'
-    FACEBOOK = 'facebook', 'Facebook'
-    APPLE = 'apple', 'Apple'
-
-
-class AccountStatus(models.TextChoices):
-    """Account status choices"""
-    ACTIVE = 'active', 'Active'
-    DELETED = 'deleted', 'Deleted'
-    SUSPENDED = 'suspended', 'Suspended'
+from .choices import AuthProvider, AccountStatus
 
 
 class Account(models.Model):

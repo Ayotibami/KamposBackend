@@ -3,8 +3,7 @@ from rest_framework import authentication, exceptions
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
-
-from .models import Account, AccountStatus
+from .choices import AccountStatus
 
 
 class CustomJWTAuthentication(JWTAuthentication):
@@ -22,8 +21,9 @@ class CustomJWTAuthentication(JWTAuthentication):
             raise InvalidToken(_('Token contained no recognizable user identification'))
 
         try:
-            user = self.user_model.objects.get(**{self.user_id_field: user_id})
-        except self.user_model.DoesNotExist:
+            from .models import Account  # Import here to avoid circular import
+            user = Account.objects.get(**{self.user_id_field: user_id})
+        except Account.DoesNotExist:
             raise AuthenticationFailed(_('User not found'), code='user_not_found')
 
         # Check if the account is active
