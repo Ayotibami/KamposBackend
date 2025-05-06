@@ -18,6 +18,8 @@ class Account(models.Model):
     account_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)
     password_hash = models.CharField(max_length=255, null=True, blank=True)
+    first_name = models.CharField(max_length=100, blank=True)
+    last_name = models.CharField(max_length=100, blank=True)
     auth_provider = models.CharField(
         max_length=20,
         choices=AuthProvider.choices,
@@ -98,6 +100,21 @@ class Account(models.Model):
         """Soft delete the account"""
         self.account_status = AccountStatus.DELETED
         self.save(update_fields=['account_status'])
+    
+    # Add these properties to make the model compatible with Django's auth system
+    @property
+    def id(self):
+        return self.account_id
+    
+    @property
+    def username(self):
+        return self.email
+    
+    def is_authenticated(self):
+        return True
+    
+    def is_anonymous(self):
+        return False
 
 
 class OAuthSession(models.Model):

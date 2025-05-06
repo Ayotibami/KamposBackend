@@ -5,41 +5,17 @@ from django.core.exceptions import ValidationError
 from .models import Account, AuthProvider, AccountStatus
 
 
-class RegisterSerializer(serializers.ModelSerializer):
+class RegisterSerializer(serializers.Serializer):
     """Serializer for user registration"""
-    password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
-    confirm_password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(write_only=True, required=True)
+    first_name = serializers.CharField(required=True)
+    last_name = serializers.CharField(required=True)
     
-    class Meta:
-        model = Account
-        fields = ['email', 'password', 'confirm_password']
-    
-    def validate(self, attrs):
-        if attrs.get('password') != attrs.get('confirm_password'):
-            raise serializers.ValidationError({"confirm_password": "Password fields didn't match."})
-        
-        try:
-            validate_password(attrs.get('password'))
-        except ValidationError as e:
-            raise serializers.ValidationError({"password": list(e.messages)})
-        
-        return attrs
-    
-    def create(self, validated_data):
-        validated_data.pop('confirm_password')
-        password = validated_data.pop('password')
-        
-        account = Account.objects.create(
-            email=validated_data['email'],
-            auth_provider=AuthProvider.EMAIL,
-        )
-        account.set_password(password)
-        account.save()
-        
-        # Generate OTP for email verification
-        account.generate_and_save_otp()
-        
-        return account
+    def validate_email(self, value):
+        if Account.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Account with this email already exists.")
+        return value
 
 
 class LoginSerializer(serializers.Serializer):

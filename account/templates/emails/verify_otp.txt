@@ -1,0 +1,17 @@
+Verify Your Kampos Account
+
+Hello,
+
+Thank you for registering with Kampos! To complete your registration, please use the following verification code:
+
+{{ otp }}
+
+This code will expire in {{ expiry_minutes }} minutes.
+
+If you did not request this verification code, please ignore this email.
+
+Best regards,
+The Kampos Team
+
+This is an automated message. Please do not reply to this email.
+© {{ current_year }} Kampos. All rights reserved.

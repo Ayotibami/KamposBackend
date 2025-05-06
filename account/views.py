@@ -11,6 +11,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 import requests
+from django.contrib.auth.hashers import check_password, make_password
+import pyotp
+import logging
 
 from core.utils import send_email_template, handle_oauth_google, handle_oauth_facebook, handle_oauth_apple, encrypt_token
 from .models import Account, AccountStatus, AuthProvider, OAuthSession
@@ -21,6 +24,25 @@ from .serializers import (
     AccountSerializer, UpdateAccountSerializer, ChangePasswordSerializer,
     FirebaseAuthSerializer
 )
+
+# Get a logger for this module
+logger = logging.getLogger(__name__)
+
+
+def send_otp_email(email, otp):
+    """
+    Send OTP verification code to user's email
+    """
+    send_email_template(
+        to_email=email,
+        subject="Verify Your Kampos Account",
+        template_name="verify_otp",
+        context={
+            "otp": otp,
+            "expiry_minutes": settings.OTP_EXPIRY_MINUTES,
+            "current_year": timezone.now().year
+        }
+    )
 
 
 class RegisterView(APIView):
@@ -34,25 +56,59 @@ class RegisterView(APIView):
         responses={201: 'Created', 400: 'Bad Request'}
     )
     def post(self, request):
+        logger.info(f"Registration attempt for email: {request.data.get('email', 'unknown')}")
+        
         serializer = RegisterSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        account = serializer.save()
+        if not serializer.is_valid():
+            logger.warning(f"Registration validation failed: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        # Send OTP via email
-        send_email_template(
-            subject="Verify Your Kampos Account",
-            recipient_email=account.email,
-            template_name="emails/verify_otp.html",
-            context={
-                "otp": account.otp_secret,
-                "expiry_minutes": settings.OTP_EXPIRY_MINUTES
-            }
-        )
-        
-        return Response({
-            "message": "Account created successfully. Check your email for verification code.",
-            "email": account.email
-        }, status=status.HTTP_201_CREATED)
+        try:
+            email = serializer.validated_data['email']
+            password = serializer.validated_data['password']
+            first_name = serializer.validated_data['first_name']
+            last_name = serializer.validated_data['last_name']
+            
+            # Create account
+            account = Account.objects.create(
+                email=email,
+                password_hash=make_password(password),
+                first_name=first_name,
+                last_name=last_name,
+                auth_provider=AuthProvider.EMAIL
+            )
+            
+            # Generate OTP
+            otp_secret = pyotp.random_base32()
+            totp = pyotp.TOTP(otp_secret, interval=settings.OTP_EXPIRY_MINUTES * 60)
+            otp = totp.now()
+            
+            # Log the OTP details for debugging
+            logger.info(f"Generated OTP for {email}. OTP: {otp}, Secret: {otp_secret}, Interval: {settings.OTP_EXPIRY_MINUTES * 60}")
+            
+            # Save OTP to account
+            account.otp_secret = otp_secret
+            account.otp_created_at = timezone.now()
+            account.save()
+            
+            # Send OTP email
+            logger.info(f"Sending OTP email to {email} with OTP: {otp}")
+            try:
+                send_otp_email(email, otp)
+                logger.info(f"OTP email sent successfully to {email}")
+            except Exception as e:
+                logger.error(f"Failed to send OTP email: {str(e)}")
+                # Continue even if email fails - we'll log the OTP for development
+            
+            return Response({
+                "message": "Account created successfully. Check your email for verification code.",
+                "email": email,
+                "otp": otp if settings.DEBUG else None  # Only include OTP in response during development
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            logger.error(f"Registration failed: {str(e)}", exc_info=True)
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class LoginView(APIView):
@@ -69,42 +125,46 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        account = serializer.validated_data['account']
+        email = serializer.validated_data['email']
+        password = serializer.validated_data['password']
         
-        # Check if account is verified
-        if not account.is_otp_verified:
-            # Generate a new OTP and send it
-            otp = account.generate_and_save_otp()
-            send_email_template(
-                subject="Verify Your Kampos Account",
-                recipient_email=account.email,
-                template_name="emails/verify_otp.html",
-                context={
-                    "otp": otp,
-                    "expiry_minutes": settings.OTP_EXPIRY_MINUTES
-                }
-            )
-            
-            return Response({
-                "message": "Account not verified. A new verification code has been sent to your email.",
-                "email": account.email,
-                "verified": False
-            }, status=status.HTTP_200_OK)
+        # Try to authenticate with Account model
+        try:
+            account = Account.objects.get(email=email)
+            if not check_password(password, account.password_hash):
+                return Response({"message": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+        except Account.DoesNotExist:
+            # Try Django's user model for superusers
+            from django.contrib.auth import authenticate
+            user = authenticate(username=email, password=password)
+            if user is not None and user.is_superuser:
+                # Create an Account for this superuser if it doesn't exist
+                account, created = Account.objects.get_or_create(
+                    email=email,
+                    defaults={
+                        'password_hash': make_password(password),
+                        'auth_provider': AuthProvider.EMAIL,
+                        'is_otp_verified': True
+                    }
+                )
+            else:
+                return Response({"message": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
         
         # Update last login
-        account.update_last_login()
+        account.last_login = timezone.now()
+        account.save()
         
-        # Generate JWT token
+        # Generate JWT tokens
         refresh = RefreshToken.for_user(account)
         
         return Response({
             "message": "Login successful",
             "token": {
                 "refresh": str(refresh),
-                "access": str(refresh.access_token),
+                "access": str(refresh.access_token)
             },
             "account": AccountSerializer(account).data
-        }, status=status.HTTP_200_OK)
+        })
 
 
 class LogoutView(APIView):
@@ -135,35 +195,57 @@ class VerifyOTPView(APIView):
     
     @swagger_auto_schema(
         request_body=VerifyOTPSerializer,
-        responses={200: 'OK', 400: 'Bad Request', 404: 'Not Found'}
+        responses={200: 'OK', 400: 'Bad Request'}
     )
     def post(self, request):
         serializer = VerifyOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
+        email = serializer.validated_data['email']
+        otp = serializer.validated_data['otp']
+        
         try:
-            account = Account.objects.get(email=serializer.validated_data['email'])
-        except Account.DoesNotExist:
-            return Response({
-                "message": "Account not found"
-            }, status=status.HTTP_404_NOT_FOUND)
-        
-        if account.verify_otp(serializer.validated_data['otp']):
-            # Generate JWT token
-            refresh = RefreshToken.for_user(account)
+            account = Account.objects.get(email=email)
             
-            return Response({
-                "message": "OTP verified successfully",
-                "token": {
-                    "refresh": str(refresh),
-                    "access": str(refresh.access_token),
-                },
-                "account": AccountSerializer(account).data
-            }, status=status.HTTP_200_OK)
-        
-        return Response({
-            "message": "Invalid or expired OTP"
-        }, status=status.HTTP_400_BAD_REQUEST)
+            # Log the OTP details for debugging
+            logger.info(f"Verifying OTP for {email}. Provided OTP: {otp}, Stored secret: {account.otp_secret}, Created at: {account.otp_created_at}")
+            
+            # Check if OTP is expired
+            if not account.otp_created_at or timezone.now() > account.otp_created_at + timezone.timedelta(minutes=settings.OTP_EXPIRY_MINUTES):
+                logger.warning(f"OTP expired for {email}")
+                return Response({"message": "OTP has expired. Please request a new one."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Verify OTP
+            totp = pyotp.TOTP(account.otp_secret, interval=settings.OTP_EXPIRY_MINUTES * 60)
+            if totp.verify(otp, valid_window=1):  # Allow a window of 1 interval
+                # Mark account as verified
+                account.is_otp_verified = True
+                account.save()
+                
+                # Generate JWT tokens
+                refresh = RefreshToken()
+                refresh['user_id'] = str(account.account_id)
+                refresh['email'] = account.email
+                
+                logger.info(f"OTP verified successfully for {email}")
+                return Response({
+                    "message": "OTP verified successfully",
+                    "token": {
+                        "refresh": str(refresh),
+                        "access": str(refresh.access_token)
+                    },
+                    "account": AccountSerializer(account).data
+                })
+            else:
+                logger.warning(f"Invalid OTP for {email}")
+                return Response({"message": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Account.DoesNotExist:
+            logger.warning(f"Account not found for email: {email}")
+            return Response({"message": "Account not found"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"OTP verification failed: {str(e)}", exc_info=True)
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ForgotPasswordView(APIView):
