@@ -23,6 +23,7 @@ Swagger UI: `http://localhost:8000/swagger/?format=openapi`
   - [Reset Password](#reset-password)
 - [Development](#development)
 - [Testing](#testing)
+- [Profile Types](#profile-types)
 
 ## Authentication
 
@@ -362,3 +363,58 @@ BSD License
 
 ## Contact
 Developer: [Your Name](mailto:your.email@example.com)
+
+## Profile Types
+
+Kampos supports different types of user profiles:
+
+1. **Admin** - Kampos administrators
+2. **Kompany** - Affiliated companies and partners
+3. **Student** - Student users
+4. **School** - Educational institutions and student unions
+5. **Kreator** - Content creators and media
+
+### Profile Endpoints
+
+```http
+PATCH /api/account/profile/update/
+```
+
+**Request Body:**
+```json
+{
+  "profile_data": {
+    // Fields specific to the profile type
+  }
+}
+```
+
+**Profile-specific fields:**
+
+For Student profiles:
+```json
+{
+  "profile_data": {
+    "school": "University Name",
+    "department": "Computer Science",
+    "graduation_year": 2025,
+    "student_id": "CS12345",
+    "bio": "Computer Science student interested in AI"
+  }
+}
+```
+
+For Kompany profiles:
+```json
+{
+  "profile_data": {
+    "company_name": "Tech Solutions Inc.",
+    "industry": "Technology",
+    "website": "https://techsolutions.example.com",
+    "description": "Providing innovative tech solutions",
+    "logo_url": "https://example.com/logo.png"
+  }
+}
+```
+
+Similar examples for other profile types...

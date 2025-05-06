@@ -11,4 +11,11 @@ class AccountStatus(models.TextChoices):
     """Account status choices"""
     ACTIVE = 'active', 'Active'
     DELETED = 'deleted', 'Deleted'
-    SUSPENDED = 'suspended', 'Suspended' 
+    SUSPENDED = 'suspended', 'Suspended'
+
+class ProfileType(models.TextChoices):
+    ADMIN = 'admin', 'Admin (Kampos)'
+    KOMPANY = 'kompany', 'Kompany (Affiliated Companies & Partners)'
+    STUDENT = 'student', 'Student'
+    SCHOOL = 'school', 'School/Institution/SUG'
+    KREATOR = 'kreator', 'Creator & Media' 

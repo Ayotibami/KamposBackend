@@ -10,7 +10,7 @@ from django.db import models
 from django.utils import timezone
 
 from core.utils import encrypt_token, generate_otp
-from .choices import AuthProvider, AccountStatus
+from .choices import AuthProvider, AccountStatus, ProfileType
 
 
 class Account(models.Model):
@@ -25,6 +25,11 @@ class Account(models.Model):
         choices=AuthProvider.choices,
         default=AuthProvider.EMAIL
     )
+    profile_type = models.CharField(
+        max_length=20,
+        choices=ProfileType.choices,
+        default=ProfileType.STUDENT
+    )
     is_otp_verified = models.BooleanField(default=False)
     account_status = models.CharField(
         max_length=20,
@@ -37,6 +42,8 @@ class Account(models.Model):
     oauth_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
     otp_secret = models.CharField(max_length=255, null=True, blank=True)
     otp_created_at = models.DateTimeField(null=True, blank=True)
+    reset_token = models.CharField(max_length=255, null=True, blank=True)
+    reset_token_created_at = models.DateTimeField(null=True, blank=True)
     firebase_uid = models.CharField(max_length=128, unique=True, null=True, blank=True)
     
     class Meta:
@@ -153,3 +160,58 @@ class OAuthSession(models.Model):
     def is_expired(self):
         """Check if the token has expired"""
         return timezone.now() >= self.token_expires_at
+
+
+class AdminProfile(models.Model):
+    """Profile for Kampos Administrators"""
+    account = models.OneToOneField(Account, on_delete=models.CASCADE, primary_key=True, related_name='admin_profile')
+    is_super_admin = models.BooleanField(default=False)
+    department = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+class KompanyProfile(models.Model):
+    """Profile for affiliated companies and partners"""
+    account = models.OneToOneField(Account, on_delete=models.CASCADE, primary_key=True, related_name='kompany_profile')
+    company_name = models.CharField(max_length=255)
+    industry = models.CharField(max_length=100, blank=True)
+    website = models.URLField(blank=True)
+    description = models.TextField(blank=True)
+    logo_url = models.URLField(blank=True)
+    verified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+class StudentProfile(models.Model):
+    """Profile for students"""
+    account = models.OneToOneField(Account, on_delete=models.CASCADE, primary_key=True, related_name='student_profile')
+    school = models.CharField(max_length=255, blank=True)
+    department = models.CharField(max_length=100, blank=True)
+    graduation_year = models.IntegerField(null=True, blank=True)
+    student_id = models.CharField(max_length=50, blank=True)
+    bio = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+class SchoolProfile(models.Model):
+    """Profile for schools, institutions, and SUGs"""
+    account = models.OneToOneField(Account, on_delete=models.CASCADE, primary_key=True, related_name='school_profile')
+    institution_name = models.CharField(max_length=255)
+    institution_type = models.CharField(max_length=100, blank=True)
+    address = models.TextField(blank=True)
+    website = models.URLField(blank=True)
+    logo_url = models.URLField(blank=True)
+    verified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+class KreatorProfile(models.Model):
+    """Profile for creators and media"""
+    account = models.OneToOneField(Account, on_delete=models.CASCADE, primary_key=True, related_name='kreator_profile')
+    creator_name = models.CharField(max_length=255, blank=True)
+    content_type = models.CharField(max_length=100, blank=True)
+    bio = models.TextField(blank=True)
+    portfolio_url = models.URLField(blank=True)
+    verified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)

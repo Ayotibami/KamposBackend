@@ -2,7 +2,8 @@ from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
-from .models import Account, AuthProvider, AccountStatus
+from .models import Account, AuthProvider, AccountStatus, AdminProfile, KompanyProfile, StudentProfile, SchoolProfile, KreatorProfile
+from .choices import ProfileType
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -11,6 +12,7 @@ class RegisterSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, required=True)
     first_name = serializers.CharField(required=True)
     last_name = serializers.CharField(required=True)
+    profile_type = serializers.ChoiceField(choices=ProfileType.choices, default=ProfileType.STUDENT)
     
     def validate_email(self, value):
         if Account.objects.filter(email=value).exists():
@@ -67,29 +69,55 @@ class ForgotPasswordSerializer(serializers.Serializer):
 
 class ResetPasswordSerializer(serializers.Serializer):
     """Serializer for password reset"""
-    token = serializers.CharField(required=True)
-    password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
-    confirm_password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
-    
-    def validate(self, attrs):
-        if attrs.get('password') != attrs.get('confirm_password'):
-            raise serializers.ValidationError({"confirm_password": "Password fields didn't match."})
-        
-        try:
-            validate_password(attrs.get('password'))
-        except ValidationError as e:
-            raise serializers.ValidationError({"password": list(e.messages)})
-        
-        return attrs
+    email = serializers.EmailField(required=True)
+    reset_code = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, min_length=8)
+
+
+class AdminProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AdminProfile
+        exclude = ('account',)
+
+
+class KompanyProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = KompanyProfile
+        exclude = ('account',)
+
+
+class StudentProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StudentProfile
+        exclude = ('account',)
+
+
+class SchoolProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SchoolProfile
+        exclude = ('account',)
+
+
+class KreatorProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = KreatorProfile
+        exclude = ('account',)
 
 
 class AccountSerializer(serializers.ModelSerializer):
     """Serializer for account profile"""
+    admin_profile = AdminProfileSerializer(read_only=True)
+    kompany_profile = KompanyProfileSerializer(read_only=True)
+    student_profile = StudentProfileSerializer(read_only=True)
+    school_profile = SchoolProfileSerializer(read_only=True)
+    kreator_profile = KreatorProfileSerializer(read_only=True)
     
     class Meta:
         model = Account
-        fields = ['account_id', 'email', 'auth_provider', 'is_otp_verified', 
-                  'account_status', 'created_at', 'last_login']
+        fields = ('account_id', 'email', 'first_name', 'last_name', 'profile_type', 
+                  'auth_provider', 'is_otp_verified', 'account_status', 'created_at', 
+                  'updated_at', 'last_login', 'admin_profile', 'kompany_profile', 
+                  'student_profile', 'school_profile', 'kreator_profile')
         read_only_fields = ['account_id', 'auth_provider', 'is_otp_verified', 
                             'account_status', 'created_at', 'last_login']
 
@@ -133,3 +161,33 @@ class FirebaseAuthSerializer(serializers.Serializer):
             return {'firebase_uid': firebase_uid, 'decoded_token': decoded_token}
         except Exception as e:
             raise serializers.ValidationError(str(e))
+
+
+class UpdateAdminProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AdminProfile
+        exclude = ('account', 'created_at', 'updated_at')
+
+
+class UpdateKompanyProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = KompanyProfile
+        exclude = ('account', 'created_at', 'updated_at', 'verified')
+
+
+class UpdateStudentProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StudentProfile
+        exclude = ('account', 'created_at', 'updated_at')
+
+
+class UpdateSchoolProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SchoolProfile
+        exclude = ('account', 'created_at', 'updated_at', 'verified')
+
+
+class UpdateKreatorProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = KreatorProfile
+        exclude = ('account', 'created_at', 'updated_at', 'verified')

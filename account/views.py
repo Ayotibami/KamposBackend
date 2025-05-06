@@ -14,16 +14,20 @@ import requests
 from django.contrib.auth.hashers import check_password, make_password
 import pyotp
 import logging
+import uuid
+import random
 
 from core.utils import send_email_template, handle_oauth_google, handle_oauth_facebook, handle_oauth_apple, encrypt_token
-from .models import Account, AccountStatus, AuthProvider, OAuthSession
+from .models import Account, AccountStatus, AuthProvider, OAuthSession, AdminProfile, KompanyProfile, StudentProfile, SchoolProfile, KreatorProfile
 from .permissions import IsAccountOwner
 from .serializers import (
     RegisterSerializer, LoginSerializer, OAuthLoginSerializer,
     VerifyOTPSerializer, ForgotPasswordSerializer, ResetPasswordSerializer,
     AccountSerializer, UpdateAccountSerializer, ChangePasswordSerializer,
-    FirebaseAuthSerializer
+    FirebaseAuthSerializer, UpdateAdminProfileSerializer, UpdateKompanyProfileSerializer,
+    UpdateStudentProfileSerializer, UpdateSchoolProfileSerializer, UpdateKreatorProfileSerializer
 )
+from .choices import ProfileType
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
@@ -68,6 +72,7 @@ class RegisterView(APIView):
             password = serializer.validated_data['password']
             first_name = serializer.validated_data['first_name']
             last_name = serializer.validated_data['last_name']
+            profile_type = serializer.validated_data.get('profile_type', ProfileType.STUDENT)
             
             # Create account
             account = Account.objects.create(
@@ -75,8 +80,21 @@ class RegisterView(APIView):
                 password_hash=make_password(password),
                 first_name=first_name,
                 last_name=last_name,
-                auth_provider=AuthProvider.EMAIL
+                auth_provider=AuthProvider.EMAIL,
+                profile_type=profile_type
             )
+            
+            # Create corresponding profile based on profile_type
+            if profile_type == ProfileType.ADMIN:
+                AdminProfile.objects.create(account=account)
+            elif profile_type == ProfileType.KOMPANY:
+                KompanyProfile.objects.create(account=account, company_name=f"{first_name} {last_name}'s Company")
+            elif profile_type == ProfileType.STUDENT:
+                StudentProfile.objects.create(account=account)
+            elif profile_type == ProfileType.SCHOOL:
+                SchoolProfile.objects.create(account=account, institution_name=f"{first_name} {last_name}'s Institution")
+            elif profile_type == ProfileType.KREATOR:
+                KreatorProfile.objects.create(account=account, creator_name=f"{first_name} {last_name}")
             
             # Generate OTP
             otp_secret = pyotp.random_base32()
@@ -103,7 +121,6 @@ class RegisterView(APIView):
             return Response({
                 "message": "Account created successfully. Check your email for verification code.",
                 "email": email,
-                "otp": otp if settings.DEBUG else None  # Only include OTP in response during development
             }, status=status.HTTP_201_CREATED)
             
         except Exception as e:
@@ -256,46 +273,58 @@ class ForgotPasswordView(APIView):
     
     @swagger_auto_schema(
         request_body=ForgotPasswordSerializer,
-        responses={200: 'OK', 404: 'Not Found'}
+        responses={200: 'OK', 400: 'Bad Request'}
     )
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
+        email = serializer.validated_data['email']
+        
         try:
-            account = Account.objects.get(
-                email=serializer.validated_data['email'],
-                account_status=AccountStatus.ACTIVE
+            account = Account.objects.get(email=email)
+            
+            # Generate a 6-digit reset code
+            reset_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            
+            # Store the code with an expiry time
+            account.reset_token = reset_code
+            account.reset_token_created_at = timezone.now()
+            account.save()
+            
+            # Send password reset email with code
+            send_email_template(
+                to_email=email,
+                subject="Reset Your Kampos Password",
+                template_name="reset_password_code",
+                context={
+                    "reset_code": reset_code,
+                    "expiry_hours": 24,  # Code valid for 24 hours
+                    "current_year": timezone.now().year
+                }
             )
-        except Account.DoesNotExist:
-            # Return success message even if account doesn't exist for security
+            
+            logger.info(f"Password reset code sent to {email}: {reset_code}")
+            
+            # Don't reveal if the account exists or not for security
             return Response({
-                "message": "If your email is registered, you will receive a password reset link"
-            }, status=status.HTTP_200_OK)
-        
-        # Generate password reset token
-        token = default_token_generator.make_token(account)
-        
-        # Send password reset email
-        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}&email={account.email}"
-        send_email_template(
-            subject="Reset Your Kampos Password",
-            recipient_email=account.email,
-            template_name="emails/reset_password.html",
-            context={
-                "reset_url": reset_url,
-                "expiry_hours": 24
-            }
-        )
-        
-        return Response({
-            "message": "If your email is registered, you will receive a password reset link"
-        }, status=status.HTTP_200_OK)
+                "message": "If an account with this email exists, a password reset code has been sent."
+            })
+            
+        except Account.DoesNotExist:
+            # Don't reveal if the account exists or not for security
+            logger.warning(f"Password reset requested for non-existent email: {email}")
+            return Response({
+                "message": "If an account with this email exists, a password reset code has been sent."
+            })
+        except Exception as e:
+            logger.error(f"Password reset failed: {str(e)}", exc_info=True)
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ResetPasswordView(APIView):
     """
-    API view for password reset
+    API view for resetting password using a verification code
     """
     permission_classes = [AllowAny]
     
@@ -307,36 +336,33 @@ class ResetPasswordView(APIView):
         serializer = ResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        token = serializer.validated_data['token']
-        email = request.query_params.get('email')
-        
-        if not email:
-            return Response({
-                "message": "Email parameter is required"
-            }, status=status.HTTP_400_BAD_REQUEST)
+        email = serializer.validated_data['email']
+        reset_code = serializer.validated_data['reset_code']
+        new_password = serializer.validated_data['new_password']
         
         try:
-            account = Account.objects.get(
-                email=email,
-                account_status=AccountStatus.ACTIVE
-            )
+            account = Account.objects.get(email=email, reset_token=reset_code)
+            
+            # Check if code is expired (24 hours)
+            if not account.reset_token_created_at or timezone.now() > account.reset_token_created_at + timezone.timedelta(hours=24):
+                return Response({"message": "Password reset code has expired."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Update password
+            account.password_hash = make_password(new_password)
+            account.reset_token = None
+            account.reset_token_created_at = None
+            account.save()
+            
+            logger.info(f"Password reset successful for {email}")
+            
+            return Response({"message": "Password has been reset successfully."})
+            
         except Account.DoesNotExist:
-            return Response({
-                "message": "Invalid token or email"
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Verify token
-        if not default_token_generator.check_token(account, token):
-            return Response({
-                "message": "Invalid or expired token"
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Update password
-        account.set_password(serializer.validated_data['password'])
-        
-        return Response({
-            "message": "Password reset successful"
-        }, status=status.HTTP_200_OK)
+            logger.warning(f"Invalid password reset attempt for {email}")
+            return Response({"message": "Invalid code or email."}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Password reset failed: {str(e)}", exc_info=True)
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class AccountViewSet(viewsets.ModelViewSet):
@@ -590,3 +616,54 @@ class FirebaseAuthView(APIView):
             },
             'account': AccountSerializer(account).data
         })
+
+
+class ProfileUpdateView(APIView):
+    """
+    API view for updating profile information
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'profile_data': openapi.Schema(type=openapi.TYPE_OBJECT, description='Profile data')
+            }
+        ),
+        responses={200: 'OK', 400: 'Bad Request', 401: 'Unauthorized'}
+    )
+    def patch(self, request):
+        account = request.user
+        profile_data = request.data.get('profile_data', {})
+        
+        try:
+            # Get the appropriate serializer based on profile type
+            if account.profile_type == ProfileType.ADMIN:
+                profile = AdminProfile.objects.get(account=account)
+                serializer = UpdateAdminProfileSerializer(profile, data=profile_data, partial=True)
+            elif account.profile_type == ProfileType.KOMPANY:
+                profile = KompanyProfile.objects.get(account=account)
+                serializer = UpdateKompanyProfileSerializer(profile, data=profile_data, partial=True)
+            elif account.profile_type == ProfileType.STUDENT:
+                profile = StudentProfile.objects.get(account=account)
+                serializer = UpdateStudentProfileSerializer(profile, data=profile_data, partial=True)
+            elif account.profile_type == ProfileType.SCHOOL:
+                profile = SchoolProfile.objects.get(account=account)
+                serializer = UpdateSchoolProfileSerializer(profile, data=profile_data, partial=True)
+            elif account.profile_type == ProfileType.KREATOR:
+                profile = KreatorProfile.objects.get(account=account)
+                serializer = UpdateKreatorProfileSerializer(profile, data=profile_data, partial=True)
+            else:
+                return Response({"message": "Invalid profile type"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if serializer.is_valid():
+                serializer.save()
+                # Return the updated account with profile
+                return Response(AccountSerializer(account).data)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            logger.error(f"Profile update failed: {str(e)}", exc_info=True)
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
