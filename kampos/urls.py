@@ -24,30 +24,7 @@ schema_view = get_schema_view(
     ),
     public=True,
     permission_classes=(permissions.AllowAny,),
-    patterns=[
-        path('api/', include('account.urls')),
-        path('api/', include('events.urls')),
-        path('api/kompany/', include('kompany.urls')),
-        path('api/kreator/', include('kreator.urls')),
-        path('api/admin/', include('admin_management.urls')),
-        path('api/campus/', include('campus.urls')),
-        path('api/major/', include('major.urls')),
-    ],
 )
-
-def swagger_ui_view(request, *args, **kwargs):
-    try:
-        return schema_view.with_ui('swagger', cache_timeout=0)(request, *args, **kwargs)
-    except Exception as e:
-        logger.error(f"Swagger UI Error: {str(e)}", exc_info=True)
-        raise
-
-def redoc_ui_view(request, *args, **kwargs):
-    try:
-        return schema_view.with_ui('redoc', cache_timeout=0)(request, *args, **kwargs)
-    except Exception as e:
-        logger.error(f"ReDoc UI Error: {str(e)}", exc_info=True)
-        raise
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -61,12 +38,13 @@ urlpatterns = [
     path('api/campus/', include('campus.urls')),
     path('api/major/', include('major.urls')),
     
-    # Swagger documentation with error handling
+    # Swagger documentation
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
-    path('swagger/', swagger_ui_view, name='schema-swagger-ui'),
-    path('redoc/', redoc_ui_view, name='schema-redoc'),
+    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 ]
 
-# Serve media files in development
+# Serve static files in development
 if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) 
