@@ -34,9 +34,14 @@ INSTALLED_APPS = [
     'corsheaders',
     'cloudinary_storage',
     'cloudinary',
-    
+    'gist',
     # Local apps
     'account',
+    'events',
+    'notifications',
+    
+    # Celery
+    'django_celery_beat',
 ]
 
 MIDDLEWARE = [
@@ -229,6 +234,9 @@ FIREBASE_PRIVATE_KEY_ID = os.getenv('FIREBASE_PRIVATE_KEY_ID')
 FIREBASE_PRIVATE_KEY = os.getenv('FIREBASE_PRIVATE_KEY')
 FIREBASE_CLIENT_EMAIL = os.getenv('FIREBASE_CLIENT_EMAIL')
 
+# Firebase Configuration
+FIREBASE_CREDENTIALS_BASE64 = os.getenv('FIREBASE_CREDENTIALS_BASE64')
+
 # Logging configuration
 LOGGING = {
     'version': 1,
@@ -282,3 +290,14 @@ LOGGING = {
 
 # Frontend URL for password reset links
 FRONTEND_URL = 'http://localhost:3000'  # Change this to your frontend URL in production
+
+# Celery Configuration
+CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Using Redis as message broker
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+
+# Celery Beat Settings (for periodic tasks)
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
