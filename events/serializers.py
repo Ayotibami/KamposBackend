@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Event, EventRegistration
+import json
 
 class EventRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -11,6 +12,7 @@ class EventSerializer(serializers.ModelSerializer):
     registration_count = serializers.SerializerMethodField()
     is_registered = serializers.SerializerMethodField()
     is_host = serializers.SerializerMethodField()
+    host_avi_tags = serializers.ListField(child=serializers.CharField())
 
     class Meta:
         model = Event
@@ -34,4 +36,14 @@ class EventSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return request.user.profile.avitag in obj.host_avi_tags
-        return False 
+        return False
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['host_avi_tags'] = instance.host_avi_tags
+        return data
+
+    def to_internal_value(self, data):
+        if 'host_avi_tags' in data:
+            data['_host_avi_tags'] = json.dumps(data.pop('host_avi_tags'))
+        return super().to_internal_value(data) 

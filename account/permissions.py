@@ -30,3 +30,19 @@ class IsAccountOwner(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         # Check if the user is the owner of the account
         return obj.account_id == request.user.account_id
+
+
+class IsProfileOwnerOrAdmin(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        # Read permissions are allowed to any request
+        if request.method in permissions.SAFE_METHODS:
+            return True
+
+        # Write permissions are only allowed to the profile owner or admin
+        return (obj.avitag == request.user.profile.avitag or 
+                request.user.profile.is_admin)
+
+
+class IsAdminUser(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user.profile.is_admin if hasattr(request.user, 'profile') else False

@@ -34,14 +34,18 @@ INSTALLED_APPS = [
     'corsheaders',
     'cloudinary_storage',
     'cloudinary',
-    'gist',
-    # Local apps
-    'account',
-    'events',
-    'notifications',
-    
-    # Celery
     'django_celery_beat',
+    
+    # Local apps
+    'account.apps.AccountConfig',
+    'gist.apps.GistConfig',
+    'events.apps.EventsConfig',
+    'notifications.apps.NotificationsConfig',
+    'kompany.apps.KompanyConfig',
+    'kreator.apps.KreatorConfig',
+    'admin_management.apps.AdminManagementConfig',
+    'campus.apps.CampusConfig',
+    'major.apps.MajorConfig',
 ]
 
 MIDDLEWARE = [

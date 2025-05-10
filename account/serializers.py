@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
-from .models import Account, AuthProvider, AccountStatus, AdminProfile, KompanyProfile, StudentProfile, SchoolProfile, KreatorProfile
+from .models import Account, AuthProvider, AccountStatus, AdminProfile, KompanyProfile, StudentProfile, SchoolProfile, KreatorProfile, Profile
 from .choices import ProfileType
 
 
@@ -86,16 +86,34 @@ class KompanyProfileSerializer(serializers.ModelSerializer):
         exclude = ('account',)
 
 
-class StudentProfileSerializer(serializers.ModelSerializer):
+class BaseProfileSerializer(serializers.ModelSerializer):
     class Meta:
-        model = StudentProfile
-        exclude = ('account',)
+        model = Profile
+        fields = ['avitag', 'account_id', 'profile_type', 'is_verified', 
+                 'status', 'created_at', 'updated_at']
+        read_only_fields = ['avitag', 'account_id', 'is_verified', 
+                          'status', 'created_at', 'updated_at']
 
 
-class SchoolProfileSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SchoolProfile
-        exclude = ('account',)
+class StudentProfileSerializer(BaseProfileSerializer):
+    class Meta(BaseProfileSerializer.Meta):
+        fields = BaseProfileSerializer.Meta.fields + [
+            'first_name', 'last_name', 'campus_tag', 'hobbies',
+            'degree', 'major_tag', 'bio', 'level', 'profile_picture'
+        ]
+
+    def validate_level(self, value):
+        if value not in dict(Profile.LEVEL_CHOICES).keys():
+            raise serializers.ValidationError("Invalid level")
+        return value
+
+
+class SchoolProfileSerializer(BaseProfileSerializer):
+    class Meta(BaseProfileSerializer.Meta):
+        fields = BaseProfileSerializer.Meta.fields + [
+            'display_name', 'description', 'campus_tag',
+            'logo', 'website'
+        ]
 
 
 class KreatorProfileSerializer(serializers.ModelSerializer):
@@ -191,3 +209,27 @@ class UpdateKreatorProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = KreatorProfile
         exclude = ('account', 'created_at', 'updated_at', 'verified')
+
+
+class ProfilePictureSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Profile
+        fields = ['profile_picture']
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    hobbies = serializers.ListField(child=serializers.CharField(), required=False)
+
+    class Meta:
+        model = Profile
+        fields = '__all__'
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['hobbies'] = instance.hobbies_list
+        return data
+
+    def to_internal_value(self, data):
+        if 'hobbies' in data:
+            data['hobbies'] = ','.join(data['hobbies'])
+        return super().to_internal_value(data)

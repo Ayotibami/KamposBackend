@@ -28,6 +28,12 @@ urlpatterns = [
     
     # API endpoints
     path('api/', include('account.urls')),
+    path('api/events/', include('events.urls')),
+    path('api/kompany/', include('kompany.urls')),
+    path('api/kreator/', include('kreator.urls')),
+    path('api/admin/', include('admin_management.urls')),
+    path('api/campus/', include('campus.urls')),
+    path('api/major/', include('major.urls')),
     
     # Swagger documentation
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),

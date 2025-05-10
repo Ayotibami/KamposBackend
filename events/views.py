@@ -10,15 +10,10 @@ from .permissions import IsEventHostOrReadOnly, IsRegistrationOwnerOrEventHost
 class EventViewSet(viewsets.ModelViewSet):
     queryset = Event.objects.all()
     serializer_class = EventSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEventHostOrReadOnly]
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['title', 'description', 'location']
+    permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        # Automatically add creator as first host
-        host_avi_tags = serializer.validated_data.get('host_avi_tags', [])
-        host_avi_tags.insert(0, self.request.user.profile.avitag)
-        serializer.save(host_avi_tags=host_avi_tags[:3])  # Ensure max 3 hosts
+        serializer.save()
 
     @action(detail=False, methods=['get'])
     def upcoming(self, request):
@@ -41,7 +36,10 @@ class EventViewSet(viewsets.ModelViewSet):
 class EventRegistrationViewSet(viewsets.ModelViewSet):
     queryset = EventRegistration.objects.all()
     serializer_class = EventRegistrationSerializer
-    permission_classes = [permissions.IsAuthenticated, IsRegistrationOwnerOrEventHost]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return EventRegistration.objects.filter(student_avi_tag=self.request.user.profile.avitag)
 
     def perform_create(self, serializer):
         # Check if event is in the future

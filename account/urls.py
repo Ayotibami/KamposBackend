@@ -4,11 +4,12 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     RegisterView, LoginView, LogoutView, 
     VerifyOTPView, ForgotPasswordView, ResetPasswordView,
-    AccountViewSet, FirebaseAuthView, ProfileUpdateView
+    AccountViewSet, FirebaseAuthView, ProfileUpdateView, ProfileViewSet
 )
 
 router = DefaultRouter()
 router.register(r'account', AccountViewSet, basename='account')
+router.register(r'profiles', ProfileViewSet, basename='profile')
 
 urlpatterns = [
     # Authentication endpoints
@@ -23,4 +24,13 @@ urlpatterns = [
     # Account management endpoints are handled by the router
     path('', include(router.urls)),
     path('profile/update/', ProfileUpdateView.as_view(), name='profile_update'),
+    path('profiles/students/', 
+         ProfileViewSet.as_view({'get': 'list', 'post': 'create'}),
+         {'profile_type': 'STUDENT'}, name='student-profiles'),
+    path('profiles/students/<str:avitag>/', 
+         ProfileViewSet.as_view({
+             'get': 'retrieve',
+             'put': 'update',
+             'delete': 'destroy'
+         }), name='student-profile-detail'),
 ]

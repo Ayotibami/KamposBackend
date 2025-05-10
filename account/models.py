@@ -3,11 +3,14 @@ Account models for the Kampos project
 """
 import uuid
 from datetime import datetime, timedelta
+import json
 
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import models
 from django.utils import timezone
+from django.contrib.postgres.fields import ArrayField
+from cloudinary.models import CloudinaryField
 
 from core.utils import encrypt_token, generate_otp
 from .choices import AuthProvider, AccountStatus, ProfileType
@@ -215,3 +218,114 @@ class KreatorProfile(models.Model):
     verified = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+class Profile(models.Model):
+    DEGREE_CHOICES = (
+        ('BACHELORS', 'Bachelors'),
+        ('MASTERS', 'Masters'),
+        ('PHD', 'PhD'),
+    )
+
+    LEVEL_CHOICES = (
+        (100, '100'),
+        (200, '200'),
+        (300, '300'),
+        (400, '400'),
+        (500, '500'),
+    )
+
+    PROFILE_TYPES = (
+        ('STUDENT', 'Student'),
+        ('KAMPOSER', 'Kamposer'),
+        ('CREATOR', 'Creator'),
+        ('ADMIN', 'Admin'),
+        ('SCHOOL', 'School'),
+    )
+
+    STATUS_CHOICES = (
+        ('ACTIVE', 'Active'),
+        ('DEACTIVATED', 'Deactivated'),
+        ('BANNED', 'Banned'),
+    )
+
+    # Common fields for all profile types
+    avitag = models.CharField(max_length=255, primary_key=True)
+    account_id = models.UUIDField(unique=True)
+    profile_type = models.CharField(max_length=20, choices=PROFILE_TYPES)
+    is_verified = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ACTIVE')
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # Student-specific fields
+    first_name = models.CharField(max_length=255, null=True, blank=True)
+    last_name = models.CharField(max_length=255, null=True, blank=True)
+    campus_tag = models.CharField(max_length=255, null=True, blank=True)
+    
+    # Modified hobbies field for SQLite compatibility
+    hobbies = models.TextField(null=True, blank=True, default='')
+
+    @property
+    def hobbies_list(self):
+        """Get hobbies as a list"""
+        if not self.hobbies:
+            return []
+        try:
+            return [x.strip() for x in self.hobbies.split(',') if x.strip()]
+        except:
+            return []
+
+    @hobbies_list.setter
+    def hobbies_list(self, value):
+        """Set hobbies from list"""
+        if not value:
+            self.hobbies = ''
+        else:
+            self.hobbies = ','.join(str(x) for x in value if str(x).strip())
+
+    def save(self, *args, **kwargs):
+        # Ensure hobbies is always a string
+        if isinstance(self.hobbies, (list, tuple)):
+            self.hobbies_list = self.hobbies
+        super().save(*args, **kwargs)
+
+    degree = models.CharField(
+        max_length=20,
+        choices=DEGREE_CHOICES,
+        null=True, blank=True
+    )
+    major_tag = models.CharField(max_length=255, null=True, blank=True)
+    bio = models.TextField(null=True, blank=True)
+    level = models.IntegerField(
+        choices=LEVEL_CHOICES,
+        null=True, blank=True
+    )
+    profile_picture = CloudinaryField('profile_picture', null=True, blank=True)
+
+    # School-specific fields
+    display_name = models.CharField(max_length=255, null=True, blank=True)
+    description = models.TextField(null=True, blank=True)
+    logo = CloudinaryField('logo', null=True, blank=True)
+    website = models.URLField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.profile_type} - {self.avitag}"
+
+    @property
+    def is_admin(self):
+        return self.profile_type == 'ADMIN'
+
+    def deactivate(self):
+        self.status = 'DEACTIVATED'
+        self.save()
+
+    def ban(self):
+        self.status = 'BANNED'
+        self.save()
+
+    def verify(self):
+        self.is_verified = True
+        self.save()

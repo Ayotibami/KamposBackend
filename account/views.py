@@ -2,7 +2,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.contrib.auth.tokens import default_token_generator
 from django.shortcuts import get_object_or_404
-from rest_framework import status, viewsets
+from rest_framework import status, viewsets, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -16,16 +16,18 @@ import pyotp
 import logging
 import uuid
 import random
+from django.core.mail import send_mail
 
 from core.utils import send_email_template, handle_oauth_google, handle_oauth_facebook, handle_oauth_apple, encrypt_token
-from .models import Account, AccountStatus, AuthProvider, OAuthSession, AdminProfile, KompanyProfile, StudentProfile, SchoolProfile, KreatorProfile
-from .permissions import IsAccountOwner
+from .models import Account, AccountStatus, AuthProvider, OAuthSession, AdminProfile, KompanyProfile, StudentProfile, SchoolProfile, KreatorProfile, Profile
+from .permissions import IsAccountOwner, IsProfileOwnerOrAdmin, IsAdminUser
 from .serializers import (
     RegisterSerializer, LoginSerializer, OAuthLoginSerializer,
     VerifyOTPSerializer, ForgotPasswordSerializer, ResetPasswordSerializer,
     AccountSerializer, UpdateAccountSerializer, ChangePasswordSerializer,
     FirebaseAuthSerializer, UpdateAdminProfileSerializer, UpdateKompanyProfileSerializer,
-    UpdateStudentProfileSerializer, UpdateSchoolProfileSerializer, UpdateKreatorProfileSerializer
+    UpdateStudentProfileSerializer, UpdateSchoolProfileSerializer, UpdateKreatorProfileSerializer,
+    StudentProfileSerializer, SchoolProfileSerializer, ProfilePictureSerializer
 )
 from .choices import ProfileType
 
@@ -667,3 +669,84 @@ class ProfileUpdateView(APIView):
         except Exception as e:
             logger.error(f"Profile update failed: {str(e)}", exc_info=True)
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ProfileViewSet(viewsets.ModelViewSet):
+    queryset = Profile.objects.all()
+    permission_classes = [permissions.IsAuthenticated, IsProfileOwnerOrAdmin]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['avitag', 'first_name', 'last_name', 'campus_tag', 'major_tag']
+
+    def get_serializer_class(self):
+        if self.request.user.profile.profile_type == 'SCHOOL':
+            return SchoolProfileSerializer
+        return StudentProfileSerializer
+
+    def get_queryset(self):
+        queryset = self.queryset
+        profile_type = self.request.query_params.get('profile_type', None)
+        if profile_type:
+            queryset = queryset.filter(profile_type=profile_type.upper())
+        return queryset
+
+    @action(detail=True, methods=['post'])
+    def upload_picture(self, request, pk=None):
+        profile = self.get_object()
+        serializer = ProfilePictureSerializer(
+            profile,
+            data=request.data,
+            partial=True
+        )
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'])
+    def verify(self, request, pk=None):
+        if not request.user.profile.is_admin:
+            return Response(
+                {'error': 'Only admins can verify profiles'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        profile = self.get_object()
+        profile.verify()
+        return Response({'status': 'profile verified'})
+
+    @action(detail=True, methods=['post'])
+    def ban(self, request, pk=None):
+        if not request.user.profile.is_admin:
+            return Response(
+                {'error': 'Only admins can ban profiles'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        profile = self.get_object()
+        profile.ban()
+        return Response({'status': 'profile banned'})
+
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        profile = self.get_object()
+        if not (request.user.profile.is_admin or 
+                request.user.profile.avitag == profile.avitag):
+            return Response(
+                {'error': 'Not authorized'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        profile.deactivate()
+        return Response({'status': 'profile deactivated'})
+
+    def perform_create(self, serializer):
+        profile = serializer.save()
+        # Send welcome email
+        send_mail(
+            'Welcome to Kampos!',
+            f'Welcome {profile.first_name}! Your profile has been created successfully.',
+            settings.DEFAULT_FROM_EMAIL,
+            [profile.account_id],  # Assuming account_id is email
+            fail_silently=False,
+        )
