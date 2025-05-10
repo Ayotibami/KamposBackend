@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+env/
 build/
 develop-eggs/
 dist/
@@ -102,4 +103,12 @@ var/
 wheels/
 *.egg-info/
 .installed.cfg
-*.egg 
+*.egg
+
+# Firebase credentials
+kampos-65ce9-firebase-adminsdk-fbsvc-d50fc9f4b5.json
+firebase_credentials.txt
+
+# Environment variables
+.env
+.env.* 

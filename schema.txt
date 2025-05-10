@@ -1,0 +1,718 @@
+
+PROFILE ENTITY TYPES
+
+1. Admin (Kampos )
+2. Kompany (Affiliated Companies & Partners)
+3. Student
+4. Schools , Institutions , Student Union Government (SUG). School
+5. Creators & Media.  Kreator
+
+
+ACCOUNT entity
+
+
+Column Name
+Data Type
+Description
+account_id
+UUID (Primary Key)
+Unique identifier for each account.
+email
+String (Unique)
+Email address used for login.
+password_hash
+String (Nullable)
+Hashed password (only if email/password is used). Nullable for OAuth users.
+auth_provider
+Enum (Email, Google, Facebook, Apple)
+Determines login method.
+is_otp_verified
+Boolean
+Whether the email has been verified.
+account_status
+Enum (Active, Deleted,  Suspended)
+Status of the account.
+created_at
+Timestamp
+Date and time the account was created.
+updated_at
+Timestamp
+Last updated time.
+last_login
+Timestamp (Nullable)
+Last time the user logged in.
+oauth_id
+String (Unique)
+The unique ID from the auth provider (e.g., Google sub, Facebook id, Apple user).
+
+
+New OAUTH_SESSIONS Table
+Instead of storing access tokens directly in the account table, we separate them into an OAuth session table that is managed securely.
+Column Name
+Data Type
+Description
+session_id
+UUID (Primary Key)
+Unique identifier for the session.
+account_id
+UUID (Foreign Key)
+Links to the ACCOUNT table.
+auth_provider
+Enum (Google, Facebook, Apple)
+The OAuth provider.
+encrypted_refresh_token
+String (Encrypted)
+Encrypted refresh token (if needed).
+token_expires_at
+Timestamp
+When the refresh token expires.
+created_at
+Timestamp
+When the session was created.
+updated_at
+Timestamp
+When the session was last updated.
+
+
+
+
+ENDPOINTS RELATED TO ACCOUNT ENTITY
+POST	/api/auth/register	Register a new user account
+POST	/api/auth/login	Log in a user and return a token
+POST	/api/auth/logout	Log out a user (invalidate token)
+POST	/api/auth/verify-otp	Verify a user's OTP for email/phone
+POST	/api/auth/forgot-password	Request a password reset link
+POST	/api/auth/reset-password	Reset password using a token
+GET	/api/account/profile	Get the logged-in user's profile
+PATCH	/api/account/update	Update user account details (email, name, etc.)
+PATCH	/api/account/change-password	Change user password
+DELETE	/api/account/delete	Soft delete (deactivate) an account
+
+
+
+
+
+
+
+
+
+
+
+
+GIST entity
+
+gist_id	UUID 		(Primary Key)	 	Unique identifier for the gist.
+gist_text		String			The main content of the gist.
+created_at		Timestamp			When the gist was created.
+edited_at	Timestamp (Nullable)		Timestamp of the last edit (nullable if never edited).
+avitag	String (Foreign Key)			The avitag of the user who created the gist.
+
+
+
+// I had like _count  and comment_count b4 but i was advised that it is not efficient
+
+
+Methods on a gist
+
+Report a gist
+Delete
+Create
+Edit
+Fetch all gists
+Fetch a particular gist 
+Like a Gist → Increases the likes_count.
+Unlike a Gist → Decreases the likes_count.
+View a Gist → Increases Views_count 
+Fetch Gists by Profile → Retrieves all gists created by a specific profile.
+Fetch Trending Gists → Fetches gists with the most likes/comments in a time range.
+Update Engagement Metrics → Recalculates likes, comments for accuracy.
+Fetches all gist which Is_reported is = true
+
+
+
+
+ENDPOINTS RELATED TO GIST  ENTITY
+
+
+POST	/api/gists/create	Create a new gist
+GET	/api/gists/	Get a list of all gists
+GET	/api/gists/{gist_id}	Get a single gist by ID
+PATCH	/api/gists/{gist_id}	Edit a gist (only by the creator)
+DELETE	/api/gists/{gist_id}	Delete a gist (only by the creator or admin)
+GET	/api/gists/user/{avi_tag}	Get all gists posted by a specific user
+GET	/api/gists/trending	Get trending gists based on reactions/comments
+GET	/api/gists/search?query=term	Search for gists by keyword
+
+COMMENT Entity
+
+
+comment_id	UUID (Primary Key)	Unique identifier for each comment.
+gist_id	UUID (Foreign Key)	References the gist this comment belongs to.
+avitag	String (Foreign Key)	The user who made the comment.
+text	String	The content of the comment.
+commented_at	Timestamp	When the comment was made.
+
+Methods
+
+Create
+Fetch all comments
+Delete a comment
+Fetch a particular comment
+Fetch Comments by Gist → Retrieves all comments under a specific gist.
+
+Endpoints for comment 
+
+Method	Endpoint	Description
+
+POST	/api/comments	  Create a new Comment
+GET	/api/comments         Get all Comments for a Gist
+GET	/api/comments/{comment_id}	Get a single comment by ID
+GET	/api/comments/user/{avi_tag}	Get all comments made by a user 
+PUT	/api/comments/{comment_id}	Update a Comment	
+DELETE	/api/comments/{comment_id}	Delete a Comment
+
+
+
+	
+
+
+
+
+
+MEDIA ENTITY
+
+
+
+media_id	UUID (Primary Key)	Unique identifier for each media file.
+entity_type	ENUM ('gist', 'event')	Defines whether the media belongs to a gist or an event.
+entity_id	UUID (Foreign Key)	References the gist_id or event_id based on entity_type.
+media_type	ENUM ('image', 'video')	Defines whether the media is an image or video.
+media_url	String (URL)	The location where the media is stored.
+uploaded_at	Timestamp	When the media was uploaded.
+edited_at          Timestamp      
+thumbnail_url	String (Nullable)	A preview image for videos (optional).
+
+
+Endpoints for media
+
+Upload Media (POST /upload) → Adds a new media file to a gist/event.
+Get Specific Media (GET /{media_id}) → Retrieves media details by its ID.
+Get Media for an Entity (GET /entity/{entity_type}/{entity_id}) → Fetches all media files linked to a specific gist or event.
+Update Media (PATCH /{media_id}) → Allows modification (e.g., replacing an image or updating timestamps).
+Delete Media (DELETE /{media_id}) → Removes a media file from storage.
+
+
+Reaction entity
+
+reaction_id	UUID (PK)	Unique identifier for each reaction (optional if using composite PK)
+avitag	UUID (FK)	The profile of the user reacting
+entity_type	Enum (GIST, COMMENT)	What the reaction is on (gist, comment, etc.)
+entity_id	UUID (FK)	The ID of the gist or comment being reacted to
+type	Enum (LIKE, LOVE, FIRE, SAD, WOW)	The type of reaction
+created_at	Timestamp	Time when the reaction was made
+
+
+Endpoints for reactions
+
+Add Reaction (POST /) → Allows users to react to gists or comments.
+Get Reactions for an Entity (GET /entity/{entity_type}/{entity_id}) → Fetches all reactions on a gist or comment.
+Get User's Reactions (GET /user/{avitag}) → Lists all reactions a user has made.
+Remove Reaction (DELETE /{reaction_id}) → Deletes a specific reaction by ID.
+Remove Reaction by User (DELETE /entity/{entity_type}/{entity_id}/user/{avitag}) → Allows users to remove their own reaction from a gist or comment.
+
+
+
+Event entity
+
+event_id	UUID	Primary Key, Auto-generated	Unique identifier for each event.
+title	VARCHAR(255)	Not Null	Name of the event.
+host_avi_tags	TEXT[] (Array)	 Not Null, Max 3 items	     (AviTags) organizing the event.
+location	Campustag	Not Null	Campus where the event is happening.
+description	TEXT	Not Null	Detailed event information.
+event_date	TIMESTAMP	Not Null	Date and time of the event.
+created_at	TIMESTAMP	Default: NOW()	Timestamp when the event was created.
+updated_at	TIMESTAMP	Default: NOW()  on update	Timestamp of the last update.
+Endpoints ENTITY for event 
+
+
+   Create an Event (POST /api/events) → Allows hosts to create events.
+
+
+Get Events (GET /api/events) → Fetches all events.
+
+
+Get a Specific Event (GET /api/events/{event_id}) → Fetch details of a particular event.
+
+
+Update an Event (PUT /api/events/{event_id}) → Allows event hosts to modify event details.
+
+
+Delete an Event (DELETE /api/events/{event_id}) → Removes an event.
+
+
+
+
+
+EVENT REGISTRATION entity
+
+
+id	SERIAL	Primary Key, auto-incrementing
+event_id	UUID	Foreign Key → references events(event_id), required
+student_avi_tag	VARCHAR(255)	Foreign Key → references profiles(avi_tag), 
+registered_at	TIMESTAMP	Default: NOW(), stores registration time
+
+
+EVENT REGISTRATION ENDPOINT
+
+
+Register for Event (POST /api/event-registrations) → Students can register for an event.
+
+
+Get Registered Students (GET /api/event-registrations/event/{event_id}) → Fetch all students registered for an event.
+
+
+Get Student's Registered Events (GET /api/event-registrations/student/{avi_tag}) → Fetch all events a student has registered for.
+
+
+Unregister from Event (DELETE /api/event-registrations/{id}) → Allows a student to cancel registration.
+
+
+
+
+Notification entity
+
+notification_id	UUID (Primary Key)	Unique identifier for each notification
+avi_tag (FK)	(FK to PROFILE)	The user receiving the notification
+type	ENUM (NEW_GIST, GIST_LIKE, GIST_COMMENT, MAJOR_GIST, INSTITUTION_GIST)	Type of notification
+message	String	 The notification message (e.g., "Your gist got a new comment!")
+reference_id	UUID (Nullable)	Links to the related entity (e.g., GIST ID, COMMENT ID)
+Is_read  Boolean (Default: false)  Indicates if the notification has been seen by the user
+created_at	Timestamp	The time the notification was generated
+
+
+Trigger notification
+
+ Notify users when about a gist with  high comments and likes
+ Notify users when a  gist from users with same major is posted
+ Notify users when a  gist from users with same institutions is posted
+Notify users when their gist gets a reaction or comment
+
+
+REPORT ENTITY
+
+report_id	UUID (Primary Key)	Unique identifier for each report
+reported_by	avi_tag 	The user who submitted the report
+Gist_id      The ID of the gist being reported 
+reason	String	The reason for reporting
+status	Enum (PENDING, REVIEWED, ACTION_TAKEN, DISMISSED)	Status of the report
+action_taken	String (Nullable)	Notes on what action was taken (if any)
+reviewed_by	UUID (FK → Avitag, Nullable)	The admin who reviewed the report
+reviewed_at	Timestamp (Nullable)	When the report was reviewed
+created_at	Timestamp	When the report was submitted
+
+
+Endpoints of report entity
+
+Submit a Report (POST /api/reports) → Allows users to report a gist.
+Get All Reports (GET /api/reports) → Admin can fetch all reported gists.
+Get a Specific Report (GET /api/reports/{report_id}) → Fetch details of a particular report.
+Get Reports by a User (GET /api/reports/user/{avi_tag}) → Retrieve all reports submitted by a specific user.
+Review a Report (PUT /api/reports/{report_id}/review) → Admin updates the report’s status (PENDING → REVIEWED/ACTION_TAKEN/DISMISSED).
+Delete a Report (DELETE /api/reports/{report_id}) → Admin removes a report if necessary.
+
+
+
+VIEW ENTITY
+
+view_id	UUID (PK)	Unique ID for each view record
+gist_id	UUID (FK)	The gist being viewed
+avi_tag	  (FK)	The user viewing the gist 
+viewed_at	Timestamp	Time the gist was viewed
+
+
+
+
+Profile endpoints
+Get all users based on avitag
+Get all users of a particular profile type (student ,creators)
+
+
+STUDENT
+
+Profile Entity
+
+
+
+Avitag( Primary Key): Unique identifier for each profile.
+account_id (UUID, Foreign Key): Links the profile to its associated account.
+first_name (String): The user’s first name.
+last_name (String): The user’s last name.
+campus_tag: FK      campus of student 
+Hoobies : Array , nullable
+Degree : (Enum Bachelors,Masters,Phd)
+major_tag Fk:  major of student
+bio (String, Nullable): A bio about the user.
+level ( Nullable      Enum: 100, 200, 300, 400, 500): Represents the year of study for students.
+is_verified (Boolean): Indicates if the profile is verified.
+profile_type (Enum: STUDENT, KAMPOSER, CREATOR, ADMIN, SCHOOL): Defines the type of profile.
+profile_picture_url (String, Nullable): URL to the user’s profile picture..
+created_at (Timestamp): The date and time when the profile was created.
+updated_at (Timestamp): The date and time when the profile was last updated.
+
+
+Methods
+
+Create a Profile → Registers a new profile.
+Edit a Profile → Updates profile information.
+Get All Profiles → Retrieves a list of all profiles.
+Get a Profile → Fetches details of a specific profile.
+Delete a Profile → Removes a profile from the system.
+Deactivate a Profile → Soft delete (instead of permanent deletion, sets status to "Deactivated").
+Ban a Profile → Marks a profile as "Banned" (useful for moderation).
+Verify a Profile → Marks a profile as verified.
+Upload Profile Picture → Allows users to upload/update their profile picture.
+Filter Profiles by Type → Retrieves profiles of a specific type (e.g., students, creators, schools).
+
+
+methods
+Send welcome mail after profile setup
+
+Endpoints
+POST	/profiles/students	Create a new student profile	✅ Yes (Authenticated User)
+GET	/profiles/students/{avitag}	Get a specific student profile by AviTag	✅ Yes (Public or Authenticated)
+GET	/profiles/students	Get a list of all student profiles (paginated)	✅ Yes (Admin or Public)
+PUT	/profiles/students/{avitag}	Update student profile details	✅ Yes (Profile Owner or Admin)
+PATCH	/profiles/students/{avitag}/verify	Verify a student profile	✅ Yes (Admin Only)
+DELETE	/profiles/students/{avitag}	Delete a student profile	✅ Yes (Admin Only)
+
+
+
+
+
+
+
+School
+
+
+PROFILE entity
+
+Displayname(string)
+Avitag(UUID, Primary Key): Unique identifier for each profile.
+account_id (UUID, Foreign Key): Links the profile to its associated account.
+is_verified (Boolean): Indicates if the profile is verified.
+Description: bio of the profile
+Campus_tag: FK   campus that the school account  belong to
+profile_type (Enum: STUDENT, KAMPOSER, CREATOR, ADMIN, SCHOOL)
+logo_url (String, Nullable): URL to the school logo..
+created_at (Timestamp): The date and time when the profile was created.
+updated_at (Timestamp): The date and time when the profile was last updated.
+website	String (Nullable)	Official website link of school
+
+
+
+
+
+Kompany ENTITY
+Displayname   The official name of the Kompany
+Avitag
+account_id (UUID, Foreign Key): Links the profile to its associated account.
+is_verified (Boolean): Indicates if the profile is verified.
+Description: description of organisation
+profile_type (Enum: STUDENT, KAMPOSER, CREATOR, ADMIN, SCHOOL)
+email	  required	Contact email for the Kamposer 
+phone_number	  required	Contact phone number
+logo	   required	URL to logo
+website	  required	Official website link
+social_links	JSON (Nullable)	List of social media links (Twitter, IG, etc.)
+created_at	Timestamp	When the Kamposer was created
+updated_at	Timestamp	Last updated time
+
+
+
+A Creator in Kampos is a student, influencer, or brand that creates and shares content (e.g., gists, media, educational posts, or event promotions).
+
+
+
+   KREATOR ENTITY
+
+display_name	String (Unique)	The  display name of the Kreator 
+avitag	
+Campustag  nullable          
+account_id (UUID, Foreign Key): Links the profile to its associated account.
+is_verified (Boolean): Indicates if the profile is verified.
+Description: bio of the profile
+profile_type (Enum: STUDENT, KAMPOSER, CREATOR, ADMIN, SCHOOL)
+profile_image		URL to the profile picture/logo
+engagement_score	Float (Nullable)	A computed metric based on reactions/comments
+earnings_balance	Float (Default: 0.00)	Revenue generated (if monetization is enabled)
+monetization_enabled	  Boolean (Default: False)	Whether the creator is eligible for monetization
+joined_at	Timestamp	When the creator account was created
+updated_at	Timestamp	Last updated time
+top_gist_id	UUID (Nullable, FK → Gist)	The creator’s most popular gist
+
+
+  
+
+
+
+ADMIN ENTITY
+
+
+avi_tag	 UUID (FK → Account)	Links to the account of the admin
+full_name	String	Admin's real name
+account_id (UUID, Foreign Key): Links the profile to its associated account.
+is_verified (Boolean): Indicates if the profile is verified.
+Description: bio of the profile
+profile_type (Enum: STUDENT, KAMPOSER, CREATOR, ADMIN, SCHOOL)
+profile_image		URL to the profile picture
+role	Enum (SUPER_ADMIN, MODERATOR, CONTENT_REVIEWER, SUPPORT)	Defines the admin’s role
+permissions	JSON	List of actions the admin can perform (e.g., BAN_USERS, DELETE_POSTS)
+created_at	Timestamp	When the admin account was created
+updated_at	Timestamp	Last time the admin account was updated
+
+
+
+
+
+
+CAMPUS Entity
+
+
+Campus_name  OA
+Campus_tag OAU
+
+MAJOR ENTITY
+
+Major_name   
+Major_tag   
+
+
+Mapping of campus name to campus tag
+
+Federal University Lokoja                     FUL
+Obafemi Awolowo University                OAU
+
+
+Mapping of major name to major tag
+Computer Science                 CSC
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+1️⃣ Authentication & Authorization
+🔹 Authentication (Auth)
+This ensures users can securely log in and access Kampos.
+✅ Options:
+Email & Password (Store hashed passwords)
+OAuth (Google, Facebook, Apple)
+OTP Verification (For phone/email authentication)
+Session vs. Token-Based Auth
+Session-based: Uses cookies to maintain login.
+Token-based: Uses JWT (JSON Web Tokens) for stateless auth.
+✅ How It Works:
+User logs in → Backend verifies credentials.
+Backend generates a JWT token and sends it.
+User includes JWT in requests to access protected routes.
+Backend validates JWT before allowing access.
+
+🔹 Authorization (Roles & Permissions)
+This determines what users can do based on their roles.
+✅ Roles in Kampos:
+Student: Can post gists, join events, comment, react.
+Creator: Can post premium content, monetize.
+Kamposer (Affiliated Company/Partner): Can create events, advertise.
+Admin: Can manage users, delete content, review reports.
+Super Admin: Manages all admins, system-wide control.
+✅ Implementing Role-Based Access Control (RBAC) Store user roles & permissions in the database:
+json
+CopyEdit
+{
+  "user_id": "123",
+  "role": "admin",
+  "permissions": ["delete_gist", "ban_user", "review_report"]
+}
+
+On each request:
+Extract user role from JWT.
+Check if the role has the required permission.
+Grant or deny access.
+
+2️⃣ Database Design & Optimization
+You already mapped out entities, but think about these:
+✅ Relational vs. NoSQL
+SQL (PostgreSQL, MySQL): Structured, relational, good for strong relationships.
+NoSQL (MongoDB, Firebase): Flexible, great for real-time data (e.g., chat, gist reactions).
+✅ Indexes for Performance
+Index frequent queries (e.g., avi_tag, gist_id).
+Use composite indexes for multi-field searches.
+✅ Data Partitioning (Sharding)
+Horizontal scaling (split users/events across multiple databases).
+Helps when millions of students are using Kampos.
+
+3️⃣ API Design (REST or GraphQL?)
+Your backend needs an API to communicate with the mobile app.
+✅ REST API (Traditional)
+Uses standard endpoints (e.g., /api/gists, /api/users).
+Each request gets all data (can be inefficient).
+✅ GraphQL (Flexible)
+Allows fetching only needed data (better for mobile).
+Query example:
+ graphql
+CopyEdit
+query {
+  gist(id: "123") {
+    text
+    author {
+      avi_tag
+      profile_picture
+    }
+  }
+}
+
+
+🚀 Best Approach:
+Use REST for authentication & core logic.
+Use GraphQL for flexible querying (especially for feed-based content like Gists).
+
+4️⃣ Caching & Performance Optimization
+To reduce load on the database, use caching.
+✅ Strategies:
+Store frequent queries in Redis (e.g., recent gists, trending topics).
+Cache user sessions to avoid repeated DB lookups.
+
+5️⃣ Background Jobs (Asynchronous Processing)
+Some tasks should not block API requests, e.g.: ✅ Examples:
+Email verification (send confirmation email in the background).
+Processing media uploads (resize images, convert videos).
+Analytics tracking (log views, user engagement).
+✅ How to Implement
+Use BullMQ (Redis-based) for Node.js.
+Use Celery (with Python) if you use Django.
+
+6️⃣ Notifications System
+Kampos needs real-time alerts for students & creators.
+✅ Types:
+🔔 Push Notifications (Expo/Firebase).
+📩 Email Notifications (New event invites).
+🔊 In-App Notifications (New followers, likes, comments).
+✅ Implementation Approaches:
+WebSockets (Real-time updates for chats, reactions).
+Polling (For less frequent notifications).
+
+7️⃣ Security Best Practices
+To protect user data, implement strong security:
+✅ User Security
+Hash passwords (bcrypt, Argon2).
+Prevent brute-force attacks (rate limiting).
+Enforce strong passwords.
+✅ API Security
+Use API rate limiting (to prevent spam).
+Validate all input data (avoid SQL injection).
+Use HTTPS (encrypt all data).
+✅ Database Security
+Backup database (daily backups).
+Use read replicas (for performance).
+Encrypt sensitive data (e.g., OAuth tokens).
+
+8️⃣ Logs & Monitoring
+To track issues, you need logs & analytics.
+✅ Tools:
+Winston (for logging backend errors).
+Sentry (to track crashes in production).
+Google Analytics (to monitor user behavior).
+✅ Example Log Entry:
+json
+CopyEdit
+{
+  "event": "LOGIN_ATTEMPT",
+  "user_id": "123",
+  "status": "FAILED",
+  "ip_address": "192.168.1.10",
+  "timestamp": "2025-02-26T12:34:56Z"
+}
+
+
+🚀 Summary: Key Backend Structures
+Component
+Why It’s Needed?
+Tech Stack
+Authentication (JWT, OAuth, OTP)
+Secure login
+Firebase Auth, Passport.js, Django Auth
+Role-Based Authorization (RBAC)
+Manage permissions
+Custom DB roles, Firebase Auth claims
+Database (SQL or NoSQL)
+Store user & content data
+PostgreSQL, MongoDB, Firebase
+API Design (REST/GraphQL)
+Communicate with frontend
+Express.js, Django REST, Apollo
+Caching (Redis, CDN)
+Speed up responses
+Redis, Cloudflare
+Background Jobs (Queues)
+Handle async tasks
+BullMQ (Redis), Celery (Python)
+Notifications (Push & Email)
+Keep users engaged
+Firebase Cloud Messaging, Nodemailer
+Security Best Practices
+Protect user data
+HTTPS, bcrypt, rate limiting
+Logging & Monitoring
+Track errors & performance
+Sentry, Winston
+
+
+🔥 Final Words
+Kampos isn’t just a social platform; it’s a scalable ecosystem. If you design the backend with these principles, it will handle millions of students, creators, and events smoothly. 🚀
+Where do you want to start implementing first? 😎
+
+
+ROLES 
+Roles	Define what a user can do (e.g., Student, Admin)
+RBAC	Role-Based Access Control (User → Role → Permissions)
+PBAC	Permission-Based Access Control (User → Permissions)
+Middleware	Protects API routes based on roles/permissions
+Role Hierarchy	Higher roles have more power
+
