@@ -497,47 +497,6 @@ Mapping of major name to major tag
 Computer Science                 CSC
  
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 1️⃣ Authentication & Authorization
 🔹 Authentication (Auth)
 This ensures users can securely log in and access Kampos.

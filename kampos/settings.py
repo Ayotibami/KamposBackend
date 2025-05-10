@@ -158,7 +158,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
     'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema',
-    'EXCEPTION_HANDLER': 'core.utils.custom_exception_handler',
+    'EXCEPTION_HANDLER': 'kampos.utils.custom_exception_handler',
 }
 
 # Authentication backends
@@ -185,6 +185,41 @@ SWAGGER_SETTINGS = {
         }
     },
     'USE_SESSION_AUTH': False,
+    'JSON_EDITOR': True,
+    'SUPPORTED_SUBMIT_METHODS': [
+        'get',
+        'post',
+        'put',
+        'patch',
+        'delete',
+    ],
+    'OPERATIONS_SORTER': 'alpha',
+    'TAGS_SORTER': 'alpha',
+    'DOC_EXPANSION': 'none',
+    'DEFAULT_MODEL_RENDERING': 'example',
+    'DEFAULT_INFO': None,
+    'DEFAULT_AUTO_SCHEMA_CLASS': 'drf_yasg.inspectors.SwaggerAutoSchema',
+    'DEFAULT_FIELD_INSPECTORS': [
+        'drf_yasg.inspectors.CamelCaseJSONFilter',
+        'drf_yasg.inspectors.ReferencingSerializerInspector',
+        'drf_yasg.inspectors.RelatedFieldInspector',
+        'drf_yasg.inspectors.ChoiceFieldInspector',
+        'drf_yasg.inspectors.FileFieldInspector',
+        'drf_yasg.inspectors.DictFieldInspector',
+        'drf_yasg.inspectors.SimpleFieldInspector',
+        'drf_yasg.inspectors.StringDefaultFieldInspector',
+    ],
+    'DEFAULT_PAGINATOR_INSPECTORS': [
+        'drf_yasg.inspectors.DjangoRestResponsePagination',
+        'drf_yasg.inspectors.CoreAPICompatInspector',
+    ],
+    'SECURITY': [{'Bearer': []}],
+    'VALIDATOR_URL': None,
+    'PERSIST_AUTH': True,
+    'REFETCH_SCHEMA_WITH_AUTH': True,
+    'REFETCH_SCHEMA_ON_LOGOUT': True,
+    'DEFAULT_MODEL_DEPTH': 3,
+    'DEFAULT_FILTER_INSPECTORS': [],
 }
 
 # CORS settings
@@ -241,7 +276,7 @@ FIREBASE_CLIENT_EMAIL = os.getenv('FIREBASE_CLIENT_EMAIL')
 # Firebase Configuration
 FIREBASE_CREDENTIALS_BASE64 = os.getenv('FIREBASE_CREDENTIALS_BASE64')
 
-# Logging configuration
+# Enhanced Logging configuration
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -254,43 +289,70 @@ LOGGING = {
             'format': '{levelname} {message}',
             'style': '{',
         },
+        'detailed': {
+            'format': '[{levelname}] {asctime} {module} {process:d} {thread:d}\n'
+                     'Path: {pathname}:{lineno}\n'
+                     'Function: {funcName}\n'
+                     'Message: {message}\n'
+                     'Exception: {exc_info}\n',
+            'style': '{',
+        },
     },
     'handlers': {
         'console': {
-            'level': 'DEBUG',
+            'level': 'INFO',
             'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
+            'formatter': 'detailed',
         },
         'file': {
-            'level': 'DEBUG',
+            'level': 'INFO',
             'class': 'logging.FileHandler',
-            'filename': 'debug.log',
-            'formatter': 'verbose',
+            'filename': os.path.join(BASE_DIR, 'logs', 'debug.log'),
+            'formatter': 'detailed',
+        },
+        'error_file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'error.log'),
+            'formatter': 'detailed',
         },
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console', 'file', 'error_file'],
             'level': 'INFO',
             'propagate': True,
         },
         'django.request': {
-            'handlers': ['console', 'file'],
-            'level': 'DEBUG',
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'INFO',
             'propagate': False,
         },
         'django.server': {
-            'handlers': ['console', 'file'],
-            'level': 'DEBUG',
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'INFO',
             'propagate': False,
         },
-        'account': {  # Add your app's logger
-            'handlers': ['console', 'file'],
-            'level': 'DEBUG',
+        'drf_yasg': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'events': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'account': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'INFO',
             'propagate': False,
         },
     },
 }
+
+# Create logs directory if it doesn't exist
+os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
 
 # Frontend URL for password reset links
 FRONTEND_URL = 'http://localhost:3000'  # Change this to your frontend URL in production
@@ -305,3 +367,49 @@ CELERY_TIMEZONE = TIME_ZONE
 
 # Celery Beat Settings (for periodic tasks)
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+# Add these settings for development
+if DEBUG:
+    # Disable file watching for virtualenv files
+    DJANGO_AUTORELOAD_IGNORE = [
+        r'\.git',
+        r'\.env',
+        r'\.venv',
+        r'venv',
+        r'env',
+        r'virtualenv',
+        r'node_modules',
+        r'__pycache__',
+        r'\.pyc$',
+        r'\.pyo$',
+        r'\.pyd$',
+        r'\.so$',
+        r'\.egg$',
+        r'\.egg-info$',
+        r'\.dist-info$',
+        r'\.egg-info$',
+        r'\.git$',
+        r'\.hg$',
+        r'\.svn$',
+        r'\.tox$',
+        r'\.nox$',
+        r'\.coverage$',
+        r'\.coverage\.',
+        r'\.cache$',
+        r'\.pytest_cache$',
+        r'\.mypy_cache$',
+        r'\.hypothesis$',
+        r'\.idea$',
+        r'\.vscode$',
+        r'\.DS_Store$',
+    ]
+
+    # Reduce logging noise
+    LOGGING['loggers']['django']['level'] = 'WARNING'
+    LOGGING['loggers']['django.request']['level'] = 'WARNING'
+    LOGGING['loggers']['django.server']['level'] = 'WARNING'
+    LOGGING['loggers']['drf_yasg']['level'] = 'WARNING'
+
+# Add this after your BASE_DIR definition
+WATCHMAN_TIMEOUT = 30  # seconds
+WATCHMAN_CHECK_INTERVAL = 5  # seconds

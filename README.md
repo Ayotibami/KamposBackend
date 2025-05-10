@@ -1,29 +1,20 @@
 # Kampos API Documentation
 
 ## Overview
-REST API for Kampos authentication and account management system.
+REST API for Kampos authentication, account management, campus, and more.
 
 Base URL: `http://localhost:8000/api`  
 Swagger UI: `http://localhost:8000/swagger/?format=openapi`
 
 ## Table of Contents
 - [Authentication](#authentication)
-  - [Register](#register)
-  - [Login](#login)
-  - [Firebase Auth](#firebase-authentication)
-  - [Verify OTP](#verify-otp)
-  - [Logout](#logout)
 - [Account Management](#account-management)
-  - [Get Profile](#get-profile)
-  - [Update Account](#update-account)
-  - [Change Password](#change-password)
-  - [Delete Account](#delete-account)
-- [Password Reset](#password-reset)
-  - [Forgot Password](#forgot-password)
-  - [Reset Password](#reset-password)
+- [Profile Types](#profile-types)
+- [Campus](#campus)
+- [Other Apps](#other-apps)
+- [Error Handling](#error-handling)
 - [Development](#development)
 - [Testing](#testing)
-- [Profile Types](#profile-types)
 
 ## Authentication
 
@@ -152,6 +143,54 @@ POST /auth/logout/
 
 **Response:** `204 No Content`
 
+### Forgot Password
+Request password reset email.
+
+```http
+POST /auth/forgot-password/
+```
+
+**Request Body:**
+```json
+{
+    "email": "user@example.com"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+    "message": "If your email is registered, you will receive a password reset link"
+}
+```
+
+### Reset Password
+Reset password with token.
+
+```http
+POST /auth/reset-password/?email=user@example.com
+```
+
+**Request Body:**
+```json
+{
+    "token": "reset_token_here",
+    "password": "new_password"
+}
+```
+
+**Query Parameters:**
+```
+email=user@example.com
+```
+
+**Response:** `200 OK`
+```json
+{
+    "message": "Password reset successful"
+}
+```
+
 ## Account Management
 
 ### Get Profile
@@ -245,54 +284,396 @@ Authorization: Bearer access_token_here
 
 **Response:** `204 No Content`
 
-## Password Reset
+## Profile Types
 
-### Forgot Password
-Request password reset email.
+### Update Profile
+Update profile data.
 
 ```http
-POST /auth/forgot-password/
+PATCH /account/profile/update/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
 ```
 
 **Request Body:**
 ```json
 {
-    "email": "user@example.com"
+  "profile_data": {
+    // Fields specific to the profile type
+  }
 }
 ```
 
-**Response:** `200 OK`
+**Profile-specific fields:**
+
+For Student profiles:
 ```json
 {
-    "message": "If your email is registered, you will receive a password reset link"
+  "profile_data": {
+    "school": "University Name",
+    "department": "Computer Science",
+    "graduation_year": 2025,
+    "student_id": "CS12345",
+    "bio": "Computer Science student interested in AI"
+  }
 }
 ```
 
-### Reset Password
-Reset password with token.
+For Kompany profiles:
+```json
+{
+  "profile_data": {
+    "company_name": "Tech Solutions Inc.",
+    "industry": "Technology",
+    "website": "https://techsolutions.example.com",
+    "description": "Providing innovative tech solutions",
+    "logo_url": "https://example.com/logo.png"
+  }
+}
+```
+
+Similar examples for other profile types...
+
+## Campus
+
+### List Campuses
+Get a list of campuses.
 
 ```http
-POST /auth/reset-password/
+GET /campus/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+### Retrieve Campus
+Get details of a specific campus.
+
+```http
+GET /campus/{id}/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+### Create Campus
+Create a new campus.
+
+```http
+POST /campus/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
 ```
 
 **Request Body:**
 ```json
 {
-    "token": "reset_token_here",
-    "password": "new_password"
+    "name": "Main Campus",
+    "location": "City, Country"
 }
 ```
 
-**Query Parameters:**
-```
-email=user@example.com
+### Update Campus
+Update details of a campus.
+
+```http
+PATCH /campus/{id}/
 ```
 
-**Response:** `200 OK`
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+**Request Body:**
 ```json
 {
-    "message": "Password reset successful"
+    "name": "Updated Campus Name"
 }
+```
+
+### Delete Campus
+Delete a campus.
+
+```http
+DELETE /campus/{id}/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+## Other Apps
+
+### Major
+
+#### List Majors
+Get a list of majors.
+
+```http
+GET /major/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+#### Create Major
+Create a new major.
+
+```http
+POST /major/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+**Request Body:**
+```json
+{
+    "name": "Computer Science"
+}
+```
+
+#### Update Major
+Update details of a major.
+
+```http
+PATCH /major/{id}/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+**Request Body:**
+```json
+{
+    "name": "Updated Major Name"
+}
+```
+
+#### Delete Major
+Delete a major.
+
+```http
+DELETE /major/{id}/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+### Kompany
+
+#### List Kompanies
+Get a list of companies.
+
+```http
+GET /kompany/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+#### Create Kompany
+Create a new company.
+
+```http
+POST /kompany/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+**Request Body:**
+```json
+{
+    "company_name": "Tech Solutions Inc.",
+    "industry": "Technology",
+    "website": "https://techsolutions.example.com"
+}
+```
+
+#### Update Kompany
+Update details of a company.
+
+```http
+PATCH /kompany/{id}/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+**Request Body:**
+```json
+{
+    "company_name": "Updated Name"
+}
+```
+
+#### Delete Kompany
+Delete a company.
+
+```http
+DELETE /kompany/{id}/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+### Kreator
+
+#### List Kreators
+Get a list of content creators.
+
+```http
+GET /kreator/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+#### Create Kreator
+Create a new content creator.
+
+```http
+POST /kreator/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+**Request Body:**
+```json
+{
+    "name": "Kreator Name",
+    "bio": "Short bio"
+}
+```
+
+#### Update Kreator
+Update details of a content creator.
+
+```http
+PATCH /kreator/{id}/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+**Request Body:**
+```json
+{
+    "bio": "Updated bio"
+}
+```
+
+#### Delete Kreator
+Delete a content creator.
+
+```http
+DELETE /kreator/{id}/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+### Admin Management
+
+#### List Admins
+Get a list of administrators.
+
+```http
+GET /admin_management/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+#### Create Admin
+Create a new administrator.
+
+```http
+POST /admin_management/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+**Request Body:**
+```json
+{
+    "email": "admin@example.com",
+    "role": "superuser"
+}
+```
+
+#### Update Admin
+Update details of an administrator.
+
+```http
+PATCH /admin_management/{id}/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+**Request Body:**
+```json
+{
+    "role": "staff"
+}
+```
+
+#### Delete Admin
+Delete an administrator.
+
+```http
+DELETE /admin_management/{id}/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
 ```
 
 ## Error Handling
@@ -350,71 +731,19 @@ python manage.py runserver
 
 Run test suite:
 ```bash
-# Run all tests
 python manage.py test
-
-# Run with coverage
-coverage run manage.py test
-coverage report
 ```
 
-## License
-BSD License
+## How to Consume the API
+
+- Use the provided endpoints with a tool like [Postman](https://www.postman.com/) or [httpie](https://httpie.io/).
+- Authenticate using the `/auth/login/` endpoint to get your access token.
+- Add the header: `Authorization: Bearer <access_token>` to all protected endpoints.
+- For POST/PATCH requests, send JSON bodies as shown in the examples above.
+
+## Swagger/OpenAPI
+
+- Visit `http://localhost:8000/swagger/?format=openapi` for interactive API docs and testing.
 
 ## Contact
 Developer: [Your Name](mailto:your.email@example.com)
-
-## Profile Types
-
-Kampos supports different types of user profiles:
-
-1. **Admin** - Kampos administrators
-2. **Kompany** - Affiliated companies and partners
-3. **Student** - Student users
-4. **School** - Educational institutions and student unions
-5. **Kreator** - Content creators and media
-
-### Profile Endpoints
-
-```http
-PATCH /api/account/profile/update/
-```
-
-**Request Body:**
-```json
-{
-  "profile_data": {
-    // Fields specific to the profile type
-  }
-}
-```
-
-**Profile-specific fields:**
-
-For Student profiles:
-```json
-{
-  "profile_data": {
-    "school": "University Name",
-    "department": "Computer Science",
-    "graduation_year": 2025,
-    "student_id": "CS12345",
-    "bio": "Computer Science student interested in AI"
-  }
-}
-```
-
-For Kompany profiles:
-```json
-{
-  "profile_data": {
-    "company_name": "Tech Solutions Inc.",
-    "industry": "Technology",
-    "website": "https://techsolutions.example.com",
-    "description": "Providing innovative tech solutions",
-    "logo_url": "https://example.com/logo.png"
-  }
-}
-```
-
-Similar examples for other profile types...

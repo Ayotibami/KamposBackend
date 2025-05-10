@@ -8,37 +8,63 @@ from django.urls import include, path, re_path
 from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
+import logging
+
+logger = logging.getLogger('drf_yasg')
 
 # Schema view for Swagger documentation
 schema_view = get_schema_view(
     openapi.Info(
         title="Kampos API",
         default_version='v1',
-        description="API documentation for Kampos college social platform",
+        description="API documentation for Kampos",
         terms_of_service="https://www.kampos.com/terms/",
-        contact=openapi.Contact(email="support@kampos.com"),
+        contact=openapi.Contact(email="contact@kampos.com"),
         license=openapi.License(name="BSD License"),
     ),
     public=True,
-    permission_classes=[permissions.AllowAny],
+    permission_classes=(permissions.AllowAny,),
+    patterns=[
+        path('api/', include('account.urls')),
+        path('api/', include('events.urls')),
+        path('api/kompany/', include('kompany.urls')),
+        path('api/kreator/', include('kreator.urls')),
+        path('api/admin/', include('admin_management.urls')),
+        path('api/campus/', include('campus.urls')),
+        path('api/major/', include('major.urls')),
+    ],
 )
+
+def swagger_ui_view(request, *args, **kwargs):
+    try:
+        return schema_view.with_ui('swagger', cache_timeout=0)(request, *args, **kwargs)
+    except Exception as e:
+        logger.error(f"Swagger UI Error: {str(e)}", exc_info=True)
+        raise
+
+def redoc_ui_view(request, *args, **kwargs):
+    try:
+        return schema_view.with_ui('redoc', cache_timeout=0)(request, *args, **kwargs)
+    except Exception as e:
+        logger.error(f"ReDoc UI Error: {str(e)}", exc_info=True)
+        raise
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     
     # API endpoints
     path('api/', include('account.urls')),
-    path('api/events/', include('events.urls')),
+    path('api/', include('events.urls')),
     path('api/kompany/', include('kompany.urls')),
     path('api/kreator/', include('kreator.urls')),
     path('api/admin/', include('admin_management.urls')),
     path('api/campus/', include('campus.urls')),
     path('api/major/', include('major.urls')),
     
-    # Swagger documentation
+    # Swagger documentation with error handling
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
-    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
-    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+    path('swagger/', swagger_ui_view, name='schema-swagger-ui'),
+    path('redoc/', redoc_ui_view, name='schema-redoc'),
 ]
 
 # Serve media files in development

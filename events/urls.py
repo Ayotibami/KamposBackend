@@ -3,8 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .views import EventViewSet, EventRegistrationViewSet
 
 router = DefaultRouter()
-router.register(r'events', EventViewSet)
-router.register(r'registrations', EventRegistrationViewSet)
+router.register(r'events', EventViewSet, basename='event')
+router.register(r'registrations', EventRegistrationViewSet, basename='registration')
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -76,8 +76,12 @@ class ResetPasswordSerializer(serializers.Serializer):
 
 class AdminProfileSerializer(serializers.ModelSerializer):
     class Meta:
-        model = AdminProfile
-        exclude = ('account',)
+        model = Profile
+        fields = ['avitag', 'account_id', 'profile_type', 'is_verified', 
+                 'status', 'created_at', 'updated_at']
+        read_only_fields = ['avitag', 'account_id', 'is_verified', 
+                          'status', 'created_at', 'updated_at']
+        ref_name = "AccountAdminProfile"
 
 
 class KompanyProfileSerializer(serializers.ModelSerializer):
