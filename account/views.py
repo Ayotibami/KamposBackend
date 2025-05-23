@@ -17,12 +17,13 @@ import logging
 import uuid
 import random
 from django.core.mail import send_mail
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from core.utils import send_email_template, handle_oauth_google, handle_oauth_facebook, handle_oauth_apple, encrypt_token
 from .models import Account, AccountStatus, AuthProvider, OAuthSession, AdminProfile, KompanyProfile, StudentProfile, SchoolProfile, KreatorProfile, Profile
 from .permissions import IsAccountOwner, IsProfileOwnerOrAdmin, IsAdminUser
 from .serializers import (
-    RegisterSerializer, LoginSerializer, OAuthLoginSerializer,
+    AdminProfileSerializer, KompanyProfileSerializer, KreatorProfileSerializer, RegisterSerializer, LoginSerializer, OAuthLoginSerializer,
     VerifyOTPSerializer, ForgotPasswordSerializer, ResetPasswordSerializer,
     AccountSerializer, UpdateAccountSerializer, ChangePasswordSerializer,
     FirebaseAuthSerializer, UpdateAdminProfileSerializer, UpdateKompanyProfileSerializer,
@@ -30,6 +31,7 @@ from .serializers import (
     StudentProfileSerializer, SchoolProfileSerializer, ProfilePictureSerializer
 )
 from .choices import ProfileType
+from .middleware import CustomJWTAuthentication
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
@@ -253,7 +255,12 @@ class VerifyOTPView(APIView):
                         "refresh": str(refresh),
                         "access": str(refresh.access_token)
                     },
-                    "account": AccountSerializer(account).data
+                    "account": {
+                        "account_id": str(account.account_id),
+                        "email": account.email,
+                        "profile_type": account.profile_type,
+                        "is_otp_verified": account.is_otp_verified
+                    }
                 })
             else:
                 logger.warning(f"Invalid OTP for {email}")
@@ -605,8 +612,13 @@ class FirebaseAuthView(APIView):
             account = Account.objects.create(
                 email=firebase_user.email,
                 firebase_uid=firebase_uid,
-                auth_provider=AuthProvider.GOOGLE if 'google.com' in decoded_token.get('firebase', {}).get('sign_in_provider', '') else AuthProvider.EMAIL
+                auth_provider=AuthProvider.GOOGLE if 'google.com' in decoded_token.get('firebase', {}).get('sign_in_provider', '') else AuthProvider.EMAIL,
+                is_otp_verified=True  # Firebase users are pre-verified
             )
+        
+        # Update last login
+        account.last_login = timezone.now()
+        account.save()
         
         # Generate JWT tokens
         refresh = RefreshToken.for_user(account)
@@ -625,37 +637,61 @@ class ProfileUpdateView(APIView):
     API view for updating profile information
     """
     permission_classes = [IsAuthenticated]
+    authentication_classes = [CustomJWTAuthentication]
     
     @swagger_auto_schema(
+        security=[{'Bearer': []}],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
-                'profile_data': openapi.Schema(type=openapi.TYPE_OBJECT, description='Profile data')
+                'profile_data': openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'first_name': openapi.Schema(type=openapi.TYPE_STRING),
+                        'last_name': openapi.Schema(type=openapi.TYPE_STRING),
+                        'campus_tag': openapi.Schema(type=openapi.TYPE_STRING),
+                        'major_tag': openapi.Schema(type=openapi.TYPE_STRING),
+                        'level': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'degree': openapi.Schema(type=openapi.TYPE_STRING),
+                        'bio': openapi.Schema(type=openapi.TYPE_STRING),
+                        'hobbies': openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(type=openapi.TYPE_STRING)
+                        )
+                    }
+                )
             }
         ),
         responses={200: 'OK', 400: 'Bad Request', 401: 'Unauthorized'}
     )
     def patch(self, request):
-        account = request.user
-        profile_data = request.data.get('profile_data', {})
-        
         try:
-            # Get the appropriate serializer based on profile type
-            if account.profile_type == ProfileType.ADMIN:
-                profile = AdminProfile.objects.get(account=account)
-                serializer = UpdateAdminProfileSerializer(profile, data=profile_data, partial=True)
-            elif account.profile_type == ProfileType.KOMPANY:
-                profile = KompanyProfile.objects.get(account=account)
-                serializer = UpdateKompanyProfileSerializer(profile, data=profile_data, partial=True)
-            elif account.profile_type == ProfileType.STUDENT:
+            # Get the account from the JWT token
+            account = request.user
+            if not account:
+                return Response(
+                    {"detail": "Authentication credentials were not provided."},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+
+            profile_data = request.data.get('profile_data', {})
+            
+            # Get the appropriate profile based on account type
+            if account.profile_type == ProfileType.STUDENT:
                 profile = StudentProfile.objects.get(account=account)
                 serializer = UpdateStudentProfileSerializer(profile, data=profile_data, partial=True)
             elif account.profile_type == ProfileType.SCHOOL:
                 profile = SchoolProfile.objects.get(account=account)
                 serializer = UpdateSchoolProfileSerializer(profile, data=profile_data, partial=True)
+            elif account.profile_type == ProfileType.KOMPANY:
+                profile = KompanyProfile.objects.get(account=account)
+                serializer = UpdateKompanyProfileSerializer(profile, data=profile_data, partial=True)
             elif account.profile_type == ProfileType.KREATOR:
                 profile = KreatorProfile.objects.get(account=account)
                 serializer = UpdateKreatorProfileSerializer(profile, data=profile_data, partial=True)
+            elif account.profile_type == ProfileType.ADMIN:
+                profile = AdminProfile.objects.get(account=account)
+                serializer = UpdateAdminProfileSerializer(profile, data=profile_data, partial=True)
             else:
                 return Response({"message": "Invalid profile type"}, status=status.HTTP_400_BAD_REQUEST)
             
@@ -672,22 +708,131 @@ class ProfileUpdateView(APIView):
 
 
 class ProfileViewSet(viewsets.ModelViewSet):
-    queryset = Profile.objects.all()
+    """
+    ViewSet for profile management
+    """
     permission_classes = [permissions.IsAuthenticated, IsProfileOwnerOrAdmin]
+    authentication_classes = [CustomJWTAuthentication]
     filter_backends = [filters.SearchFilter]
     search_fields = ['avitag', 'first_name', 'last_name', 'campus_tag', 'major_tag']
 
     def get_serializer_class(self):
-        if self.request.user.profile.profile_type == 'SCHOOL':
-            return SchoolProfileSerializer
-        return StudentProfileSerializer
+        # Add check for Swagger schema generation
+        if getattr(self, 'swagger_fake_view', False):
+            return self.serializer_class
+
+        # Only proceed with profile type check if not in Swagger schema generation
+        if self.request.user.is_authenticated:
+            profile_type = self.request.user.profile_type
+            if profile_type == ProfileType.SCHOOL:
+                return SchoolProfileSerializer
+            elif profile_type == ProfileType.STUDENT:
+                return StudentProfileSerializer
+            elif profile_type == ProfileType.KOMPANY:
+                return KompanyProfileSerializer
+            elif profile_type == ProfileType.KREATOR:
+                return KreatorProfileSerializer
+            elif profile_type == ProfileType.ADMIN:
+                return AdminProfileSerializer
+        
+        return self.serializer_class
 
     def get_queryset(self):
-        queryset = self.queryset
-        profile_type = self.request.query_params.get('profile_type', None)
-        if profile_type:
-            queryset = queryset.filter(profile_type=profile_type.upper())
-        return queryset
+        # Add check for Swagger schema generation
+        if getattr(self, 'swagger_fake_view', False):
+            return Profile.objects.none()
+
+        if self.request.user.is_authenticated:
+            account = self.request.user
+            if account.profile:
+                return Profile.objects.filter(account_id=account.account_id)
+        return Profile.objects.none()
+
+    @swagger_auto_schema(
+        operation_description="Get current user's profile",
+        security=[{'Bearer': []}],
+        responses={
+            200: openapi.Response(
+                description="Profile retrieved successfully",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'account': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'account_id': openapi.Schema(type=openapi.TYPE_STRING),
+                                'email': openapi.Schema(type=openapi.TYPE_STRING),
+                                'first_name': openapi.Schema(type=openapi.TYPE_STRING),
+                                'last_name': openapi.Schema(type=openapi.TYPE_STRING),
+                                'profile_type': openapi.Schema(type=openapi.TYPE_STRING),
+                                'auth_provider': openapi.Schema(type=openapi.TYPE_STRING),
+                                'is_otp_verified': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                                'account_status': openapi.Schema(type=openapi.TYPE_STRING),
+                                'created_at': openapi.Schema(type=openapi.TYPE_STRING, format='date-time'),
+                                'updated_at': openapi.Schema(type=openapi.TYPE_STRING, format='date-time'),
+                                'last_login': openapi.Schema(type=openapi.TYPE_STRING, format='date-time'),
+                                'profile': openapi.Schema(
+                                    type=openapi.TYPE_OBJECT,
+                                    properties={
+                                        'account': openapi.Schema(type=openapi.TYPE_STRING),
+                                        'school': openapi.Schema(type=openapi.TYPE_STRING),
+                                        'department': openapi.Schema(type=openapi.TYPE_STRING),
+                                        'graduation_year': openapi.Schema(type=openapi.TYPE_INTEGER),
+                                        'student_id': openapi.Schema(type=openapi.TYPE_STRING),
+                                        'bio': openapi.Schema(type=openapi.TYPE_STRING),
+                                        'created_at': openapi.Schema(type=openapi.TYPE_STRING, format='date-time'),
+                                        'updated_at': openapi.Schema(type=openapi.TYPE_STRING, format='date-time')
+                                    }
+                                )
+                            }
+                        )
+                    }
+                )
+            ),
+            401: "Unauthorized",
+            404: "Profile not found"
+        }
+    )
+    @action(detail=False, methods=['get'])
+    def me(self, request):
+        if not request.user.is_authenticated:
+            return Response(
+                {"detail": "Authentication credentials were not provided."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        try:
+            profile = request.user.profile
+            if not profile:
+                return Response(
+                    {"detail": "Profile not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Get the appropriate serializer based on profile type
+            if request.user.profile_type == ProfileType.STUDENT:
+                serializer = StudentProfileSerializer(profile)
+            elif request.user.profile_type == ProfileType.SCHOOL:
+                serializer = SchoolProfileSerializer(profile)
+            elif request.user.profile_type == ProfileType.KOMPANY:
+                serializer = KompanyProfileSerializer(profile)
+            elif request.user.profile_type == ProfileType.KREATOR:
+                serializer = KreatorProfileSerializer(profile)
+            elif request.user.profile_type == ProfileType.ADMIN:
+                serializer = AdminProfileSerializer(profile)
+            else:
+                return Response(
+                    {"detail": "Invalid profile type"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"Error retrieving profile: {str(e)}", exc_info=True)
+            return Response(
+                {"detail": "An error occurred while retrieving the profile"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=True, methods=['post'])
     def upload_picture(self, request, pk=None):

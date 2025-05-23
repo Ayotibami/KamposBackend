@@ -114,7 +114,7 @@ class Account(models.Model):
     # Add these properties to make the model compatible with Django's auth system
     @property
     def id(self):
-        return self.account_id
+        return str(self.account_id)
     
     @property
     def username(self):
@@ -125,6 +125,33 @@ class Account(models.Model):
     
     def is_anonymous(self):
         return False
+
+    @property
+    def profile(self):
+        """
+        Get the appropriate profile based on profile_type
+        """
+        try:
+            if self.profile_type == ProfileType.STUDENT:
+                return self.student_profile
+            elif self.profile_type == ProfileType.SCHOOL:
+                return self.school_profile
+            elif self.profile_type == ProfileType.KOMPANY:
+                return self.kompany_profile
+            elif self.profile_type == ProfileType.KREATOR:
+                return self.kreator_profile
+            elif self.profile_type == ProfileType.ADMIN:
+                return self.admin_profile
+            return None
+        except (StudentProfile.DoesNotExist, SchoolProfile.DoesNotExist,
+                KompanyProfile.DoesNotExist, KreatorProfile.DoesNotExist,
+                AdminProfile.DoesNotExist):
+            return None
+
+    @property
+    def is_admin(self):
+        """Check if the account is an admin"""
+        return self.profile_type == ProfileType.ADMIN
 
 
 class OAuthSession(models.Model):

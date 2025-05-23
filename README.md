@@ -4,10 +4,11 @@
 REST API for Kampos authentication, account management, campus, and more.
 
 Base URL: `http://localhost:8000/api`  
-Swagger UI: `http://localhost:8000/swagger/?format=openapi`
+Swagger UI: `http://localhost:8000/swagger/`
 
 ## Table of Contents
 - [Authentication](#authentication)
+- [Profile Setup](#profile-setup)
 - [Account Management](#account-management)
 - [Profile Types](#profile-types)
 - [Campus](#campus)
@@ -31,9 +32,17 @@ POST /auth/register/
     "email": "user@example.com",
     "password": "securepassword123",
     "first_name": "John",
-    "last_name": "Doe"
+    "last_name": "Doe",
+    "profile_type": "STUDENT"  // Optional, defaults to STUDENT
 }
 ```
+
+**Profile Types:**
+- STUDENT
+- SCHOOL
+- KOMPANY
+- KREATOR
+- ADMIN
 
 **Response:** `201 Created`
 ```json
@@ -68,7 +77,8 @@ POST /auth/login/
     },
     "account": {
         "account_id": "uuid",
-        "email": "user@example.com"
+        "email": "user@example.com",
+        "profile_type": "STUDENT"
     }
 }
 ```
@@ -123,6 +133,10 @@ POST /auth/verify-otp/
     "token": {
         "refresh": "refresh_token_here",
         "access": "access_token_here"
+    },
+    "account": {
+        "account_id": "uuid",
+        "email": "user@example.com"
     }
 }
 ```
@@ -188,6 +202,116 @@ email=user@example.com
 ```json
 {
     "message": "Password reset successful"
+}
+```
+
+## Profile Setup
+
+### Student Profile Setup
+After registration, complete your student profile.
+
+```http
+PATCH /profile/update/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+**Request Body:**
+```json
+{
+    "profile_data": {
+        "first_name": "John",
+        "last_name": "Doe",
+        "campus_tag": "UNILAG",  // University tag
+        "major_tag": "COMPUTER_SCIENCE",  // Major tag
+        "level": 200,  // Academic level (100-700)
+        "degree": "BACHELORS",  // BACHELORS, MASTERS, PHD
+        "bio": "Computer Science student interested in AI",
+        "hobbies": ["coding", "reading", "gaming"]
+    }
+}
+```
+
+**Available Campuses:**
+- Federal University Lokoja
+- Obafemi Awolowo University
+- University of Abuja
+- University of Lagos (UNILAG)
+- Federal University of Ibadan (UI)
+- Ahmadu Bello University (ABU)
+- University of Nigeria, Nsukka (UNN)
+- Federal University of Technology, Akure (FUTA)
+- University of Benin (UNIBEN)
+
+**Available Majors:**
+- Computer Science
+- Geology
+- Mathematics
+- Micro Biology
+- Physics
+- Statistics
+- Botany
+- Chemistry
+- Zoology
+- Computer Science Education
+
+### Upload Profile Picture
+Upload a profile picture.
+
+```http
+POST /profiles/{avitag}/upload_picture/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+**Request Body:**
+```
+Form Data:
+- profile_picture: [file]
+```
+
+**Response:** `200 OK`
+```json
+{
+    "avitag": "user123",
+    "profile_picture": "https://cloudinary.com/..."
+}
+```
+
+### Get Profile
+Get current user's profile.
+
+```http
+GET /profiles/me/
+```
+
+**Headers:**
+```
+Authorization: Bearer access_token_here
+```
+
+**Response:** `200 OK`
+```json
+{
+    "avitag": "user123",
+    "profile_type": "STUDENT",
+    "first_name": "John",
+    "last_name": "Doe",
+    "campus_tag": "UNILAG",
+    "major_tag": "COMPUTER_SCIENCE",
+    "level": 200,
+    "degree": "BACHELORS",
+    "bio": "Computer Science student interested in AI",
+    "hobbies": ["coding", "reading", "gaming"],
+    "profile_picture": "https://cloudinary.com/...",
+    "is_verified": false,
+    "status": "ACTIVE"
 }
 ```
 

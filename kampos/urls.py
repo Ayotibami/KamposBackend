@@ -12,7 +12,7 @@ import logging
 
 logger = logging.getLogger('drf_yasg')
 
-# Schema view for Swagger documentation
+# Schema view for Swagger documentation  
 schema_view = get_schema_view(
     openapi.Info(
         title="Kampos API",
@@ -24,6 +24,15 @@ schema_view = get_schema_view(
     ),
     public=True,
     permission_classes=(permissions.AllowAny,),
+    patterns=[
+        path('api/', include('account.urls')),
+        path('api/', include('events.urls')),
+        path('api/kompany/', include('kompany.urls')),
+        path('api/kreator/', include('kreator.urls')),
+        path('api/admin/', include('admin_management.urls')),
+        path('api/campus/', include('campus.urls')),
+        path('api/major/', include('major.urls')),
+    ],
 )
 
 urlpatterns = [
@@ -39,9 +48,15 @@ urlpatterns = [
     path('api/major/', include('major.urls')),
     
     # Swagger documentation
-    re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
-    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
-    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+    re_path(r'^swagger(?P<format>\.json|\.yaml)$', 
+            schema_view.without_ui(cache_timeout=0), 
+            name='schema-json'),
+    path('swagger/', 
+         schema_view.with_ui('swagger', cache_timeout=0), 
+         name='schema-swagger-ui'),
+    path('redoc/', 
+         schema_view.with_ui('redoc', cache_timeout=0), 
+         name='schema-redoc'),
 ]
 
 # Serve static files in development

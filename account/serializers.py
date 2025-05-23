@@ -74,6 +74,37 @@ class ResetPasswordSerializer(serializers.Serializer):
     new_password = serializers.CharField(required=True, min_length=8)
 
 
+class AccountSerializer(serializers.ModelSerializer):
+    """Serializer for account profile"""
+    profile_type = serializers.CharField(source='get_profile_type_display', read_only=True)
+    
+    class Meta:
+        model = Account
+        fields = ('account_id', 'email', 'first_name', 'last_name', 'profile_type', 
+                  'auth_provider', 'is_otp_verified', 'account_status', 'created_at', 
+                  'updated_at', 'last_login')
+        read_only_fields = ['account_id', 'auth_provider', 'is_otp_verified', 
+                            'account_status', 'created_at', 'last_login']
+
+
+class StudentProfileSerializer(serializers.ModelSerializer):
+    account = AccountSerializer(read_only=True)
+
+    class Meta:
+        model = StudentProfile
+        fields = [
+            'account',  # This will now include the full account data
+            'school',
+            'department',
+            'graduation_year',
+            'student_id',
+            'bio',
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = ['account', 'created_at', 'updated_at']
+
+
 class AdminProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
@@ -99,19 +130,6 @@ class BaseProfileSerializer(serializers.ModelSerializer):
                           'status', 'created_at', 'updated_at']
 
 
-class StudentProfileSerializer(BaseProfileSerializer):
-    class Meta(BaseProfileSerializer.Meta):
-        fields = BaseProfileSerializer.Meta.fields + [
-            'first_name', 'last_name', 'campus_tag', 'hobbies',
-            'degree', 'major_tag', 'bio', 'level', 'profile_picture'
-        ]
-
-    def validate_level(self, value):
-        if value not in dict(Profile.LEVEL_CHOICES).keys():
-            raise serializers.ValidationError("Invalid level")
-        return value
-
-
 class SchoolProfileSerializer(BaseProfileSerializer):
     class Meta(BaseProfileSerializer.Meta):
         fields = BaseProfileSerializer.Meta.fields + [
@@ -124,24 +142,6 @@ class KreatorProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = KreatorProfile
         exclude = ('account',)
-
-
-class AccountSerializer(serializers.ModelSerializer):
-    """Serializer for account profile"""
-    admin_profile = AdminProfileSerializer(read_only=True)
-    kompany_profile = KompanyProfileSerializer(read_only=True)
-    student_profile = StudentProfileSerializer(read_only=True)
-    school_profile = SchoolProfileSerializer(read_only=True)
-    kreator_profile = KreatorProfileSerializer(read_only=True)
-    
-    class Meta:
-        model = Account
-        fields = ('account_id', 'email', 'first_name', 'last_name', 'profile_type', 
-                  'auth_provider', 'is_otp_verified', 'account_status', 'created_at', 
-                  'updated_at', 'last_login', 'admin_profile', 'kompany_profile', 
-                  'student_profile', 'school_profile', 'kreator_profile')
-        read_only_fields = ['account_id', 'auth_provider', 'is_otp_verified', 
-                            'account_status', 'created_at', 'last_login']
 
 
 class UpdateAccountSerializer(serializers.ModelSerializer):
@@ -198,9 +198,52 @@ class UpdateKompanyProfileSerializer(serializers.ModelSerializer):
 
 
 class UpdateStudentProfileSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(source='account.first_name', required=False)
+    last_name = serializers.CharField(source='account.last_name', required=False)
+    campus_tag = serializers.CharField(required=False)
+    major_tag = serializers.CharField(required=False)
+    level = serializers.IntegerField(required=False)
+    degree = serializers.ChoiceField(choices=Profile.DEGREE_CHOICES, required=False)
+    bio = serializers.CharField(required=False)
+    hobbies = serializers.ListField(child=serializers.CharField(), required=False)
+
     class Meta:
         model = StudentProfile
-        exclude = ('account', 'created_at', 'updated_at')
+        fields = [
+            'first_name',
+            'last_name',
+            'campus_tag',
+            'major_tag',
+            'level',
+            'degree',
+            'school',
+            'department',
+            'graduation_year',
+            'student_id',
+            'bio',
+            'hobbies'
+        ]
+
+    def validate_level(self, value):
+        if value not in dict(Profile.LEVEL_CHOICES).keys():
+            raise serializers.ValidationError("Invalid level")
+        return value
+
+    def update(self, instance, validated_data):
+        # Update account fields
+        account_data = validated_data.pop('account', {})
+        if account_data:
+            account = instance.account
+            for attr, value in account_data.items():
+                setattr(account, attr, value)
+            account.save()
+
+        # Update profile fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        return instance
 
 
 class UpdateSchoolProfileSerializer(serializers.ModelSerializer):
