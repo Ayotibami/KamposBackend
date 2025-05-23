@@ -90,28 +90,91 @@ class AccountSerializer(serializers.ModelSerializer):
 class StudentProfileSerializer(serializers.ModelSerializer):
     account = AccountSerializer(read_only=True)
     avitag = serializers.SerializerMethodField()
+    profile_picture = serializers.SerializerMethodField()
+    hobbies = serializers.SerializerMethodField()
+    campus_tag = serializers.SerializerMethodField()
+    major_tag = serializers.SerializerMethodField()
+    level = serializers.SerializerMethodField()
+    degree = serializers.SerializerMethodField()
+    is_verified = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
 
     class Meta:
         model = StudentProfile
         fields = [
             'account',
             'avitag',
+            'profile_picture',
             'school',
             'department',
             'graduation_year',
             'student_id',
             'bio',
+            'hobbies',
+            'campus_tag',
+            'major_tag',
+            'level',
+            'degree',
+            'is_verified',
+            'status',
             'created_at',
             'updated_at'
         ]
         read_only_fields = ['account', 'avitag', 'created_at', 'updated_at']
 
-    def get_avitag(self, obj):
-        """Get the avitag from the Profile model"""
+    def get_profile(self, obj):
+        """Get the base Profile model instance"""
         try:
-            return Profile.objects.get(account_id=obj.account.account_id).avitag
+            return Profile.objects.get(account_id=obj.account.account_id)
         except Profile.DoesNotExist:
             return None
+
+    def get_avitag(self, obj):
+        """Get the avitag from the Profile model"""
+        profile = self.get_profile(obj)
+        return profile.avitag if profile else None
+
+    def get_profile_picture(self, obj):
+        """Get the profile picture URL from the Profile model"""
+        profile = self.get_profile(obj)
+        if profile and profile.profile_picture:
+            return profile.profile_picture.url
+        return None
+
+    def get_hobbies(self, obj):
+        """Get hobbies from the Profile model"""
+        profile = self.get_profile(obj)
+        return profile.hobbies_list if profile and hasattr(profile, 'hobbies_list') else []
+
+    def get_campus_tag(self, obj):
+        """Get campus_tag from the Profile model"""
+        profile = self.get_profile(obj)
+        return profile.campus_tag if profile else None
+
+    def get_major_tag(self, obj):
+        """Get major_tag from the Profile model"""
+        profile = self.get_profile(obj)
+        return profile.major_tag if profile else None
+
+    def get_level(self, obj):
+        """Get level from the Profile model"""
+        profile = self.get_profile(obj)
+        return profile.level if profile else None
+
+    def get_degree(self, obj):
+        """Get degree from the Profile model"""
+        profile = self.get_profile(obj)
+        return profile.degree if profile else None
+
+    def get_is_verified(self, obj):
+        """Get is_verified from the Profile model"""
+        profile = self.get_profile(obj)
+        return profile.is_verified if profile else False
+
+    def get_status(self, obj):
+        """Get status from the Profile model"""
+        profile = self.get_profile(obj)
+        return profile.status if profile else None
 
 
 class AdminProfileSerializer(serializers.ModelSerializer):

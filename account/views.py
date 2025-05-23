@@ -724,7 +724,7 @@ class ProfileViewSet(viewsets.ModelViewSet):
         if getattr(self, 'swagger_fake_view', False):
             return self.serializer_class
 
-        # Only proceed with profile type check if not in Swagger schema generation
+        # Only proceed with profile type check if not in Swagger schema generation 
         if self.request.user.is_authenticated:
             profile_type = self.request.user.profile_type
             if profile_type == ProfileType.SCHOOL:
