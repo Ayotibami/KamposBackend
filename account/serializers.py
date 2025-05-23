@@ -89,11 +89,13 @@ class AccountSerializer(serializers.ModelSerializer):
 
 class StudentProfileSerializer(serializers.ModelSerializer):
     account = AccountSerializer(read_only=True)
+    avitag = serializers.SerializerMethodField()
 
     class Meta:
         model = StudentProfile
         fields = [
-            'account',  # This will now include the full account data
+            'account',
+            'avitag',
             'school',
             'department',
             'graduation_year',
@@ -102,7 +104,14 @@ class StudentProfileSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at'
         ]
-        read_only_fields = ['account', 'created_at', 'updated_at']
+        read_only_fields = ['account', 'avitag', 'created_at', 'updated_at']
+
+    def get_avitag(self, obj):
+        """Get the avitag from the Profile model"""
+        try:
+            return Profile.objects.get(account_id=obj.account.account_id).avitag
+        except Profile.DoesNotExist:
+            return None
 
 
 class AdminProfileSerializer(serializers.ModelSerializer):
@@ -259,9 +268,18 @@ class UpdateKreatorProfileSerializer(serializers.ModelSerializer):
 
 
 class ProfilePictureSerializer(serializers.ModelSerializer):
+    profile_picture = serializers.SerializerMethodField()
+
     class Meta:
         model = Profile
         fields = ['profile_picture']
+
+    def get_profile_picture(self, obj):
+        """Get the full Cloudinary URL for the profile picture"""
+        if obj.profile_picture:
+            # Get the full URL from Cloudinary
+            return obj.profile_picture.url
+        return None
 
 
 class ProfileSerializer(serializers.ModelSerializer):

@@ -356,3 +356,32 @@ class Profile(models.Model):
     def verify(self):
         self.is_verified = True
         self.save()
+
+    @staticmethod
+    def generate_avitag(first_name, last_name):
+        """Generate a unique avitag based on name"""
+        base = f"{first_name.lower()}{last_name.lower()}"
+        # Remove any non-alphanumeric characters
+        base = ''.join(c for c in base if c.isalnum())
+        # Take first 8 characters
+        base = base[:8]
+        # Add random 4 digits
+        import random
+        random_suffix = ''.join(str(random.randint(0, 9)) for _ in range(4))
+        return f"{base}{random_suffix}"
+
+    @classmethod
+    def create_profile(cls, account):
+        """Create a new profile with a unique avitag"""
+        # Generate initial avitag
+        avitag = cls.generate_avitag(account.first_name, account.last_name)
+        
+        # Keep trying until we get a unique avitag
+        while cls.objects.filter(avitag=avitag).exists():
+            avitag = cls.generate_avitag(account.first_name, account.last_name)
+        
+        return cls.objects.create(
+            avitag=avitag,
+            account_id=account.account_id,
+            profile_type=account.profile_type
+        )

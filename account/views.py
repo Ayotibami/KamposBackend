@@ -88,6 +88,9 @@ class RegisterView(APIView):
                 profile_type=profile_type
             )
             
+            # Create Profile with avitag
+            profile = Profile.create_profile(account)
+            
             # Create corresponding profile based on profile_type
             if profile_type == ProfileType.ADMIN:
                 AdminProfile.objects.create(account=account)
@@ -770,22 +773,17 @@ class ProfileViewSet(viewsets.ModelViewSet):
                                 'account_status': openapi.Schema(type=openapi.TYPE_STRING),
                                 'created_at': openapi.Schema(type=openapi.TYPE_STRING, format='date-time'),
                                 'updated_at': openapi.Schema(type=openapi.TYPE_STRING, format='date-time'),
-                                'last_login': openapi.Schema(type=openapi.TYPE_STRING, format='date-time'),
-                                'profile': openapi.Schema(
-                                    type=openapi.TYPE_OBJECT,
-                                    properties={
-                                        'account': openapi.Schema(type=openapi.TYPE_STRING),
-                                        'school': openapi.Schema(type=openapi.TYPE_STRING),
-                                        'department': openapi.Schema(type=openapi.TYPE_STRING),
-                                        'graduation_year': openapi.Schema(type=openapi.TYPE_INTEGER),
-                                        'student_id': openapi.Schema(type=openapi.TYPE_STRING),
-                                        'bio': openapi.Schema(type=openapi.TYPE_STRING),
-                                        'created_at': openapi.Schema(type=openapi.TYPE_STRING, format='date-time'),
-                                        'updated_at': openapi.Schema(type=openapi.TYPE_STRING, format='date-time')
-                                    }
-                                )
+                                'last_login': openapi.Schema(type=openapi.TYPE_STRING, format='date-time')
                             }
-                        )
+                        ),
+                        'avitag': openapi.Schema(type=openapi.TYPE_STRING),
+                        'school': openapi.Schema(type=openapi.TYPE_STRING),
+                        'department': openapi.Schema(type=openapi.TYPE_STRING),
+                        'graduation_year': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'student_id': openapi.Schema(type=openapi.TYPE_STRING),
+                        'bio': openapi.Schema(type=openapi.TYPE_STRING),
+                        'created_at': openapi.Schema(type=openapi.TYPE_STRING, format='date-time'),
+                        'updated_at': openapi.Schema(type=openapi.TYPE_STRING, format='date-time')
                     }
                 )
             ),
@@ -834,19 +832,73 @@ class ProfileViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @swagger_auto_schema(
+        operation_description="Upload a profile picture",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'profile_picture': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    format=openapi.FORMAT_BINARY,
+                    description='Profile picture file'
+                )
+            }
+        ),
+        responses={
+            200: openapi.Response(
+                description="Profile picture uploaded successfully",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'profile_picture': openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description='URL of the uploaded profile picture'
+                        )
+                    }
+                )
+            ),
+            400: "Bad Request",
+            401: "Unauthorized",
+            404: "Profile not found"
+        }
+    )
     @action(detail=True, methods=['post'])
     def upload_picture(self, request, pk=None):
-        profile = self.get_object()
-        serializer = ProfilePictureSerializer(
-            profile,
-            data=request.data,
-            partial=True
-        )
-        
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        """Upload a profile picture"""
+        try:
+            # Get the Profile model instance
+            profile = self.get_object()
+            
+            # Check if a file was uploaded
+            if 'profile_picture' not in request.FILES:
+                return Response(
+                    {"detail": "No profile picture file provided"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Get the uploaded file
+            profile_picture = request.FILES['profile_picture']
+            
+            # Update the profile picture
+            profile.profile_picture = profile_picture
+            profile.save()
+
+            # Return the full Cloudinary URL
+            return Response({
+                'profile_picture': profile.profile_picture.url
+            })
+            
+        except Profile.DoesNotExist:
+            return Response(
+                {"detail": "Profile not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error uploading profile picture: {str(e)}", exc_info=True)
+            return Response(
+                {"detail": "An error occurred while uploading the profile picture"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=True, methods=['post'])
     def verify(self, request, pk=None):
@@ -884,6 +936,135 @@ class ProfileViewSet(viewsets.ModelViewSet):
         
         profile.deactivate()
         return Response({'status': 'profile deactivated'})
+
+    @swagger_auto_schema(
+        operation_description="Check if an avitag is available",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'avitag': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='The avitag to check'
+                )
+            }
+        ),
+        responses={
+            200: openapi.Response(
+                description="Avitag availability check result",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'available': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'message': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            400: "Bad Request"
+        }
+    )
+    @action(detail=False, methods=['post'], url_path='check-avitag')
+    def check_avitag(self, request):
+        """Check if an avitag is available"""
+        avitag = request.data.get('avitag')
+        
+        if not avitag:
+            return Response(
+                {"detail": "Avitag is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate avitag format (alphanumeric, 3-20 characters)
+        if not avitag.isalnum() or len(avitag) < 3 or len(avitag) > 20:
+            return Response(
+                {
+                    "available": False,
+                    "message": "Avitag must be 3-20 characters long and contain only letters and numbers"
+                }
+            )
+        
+        # Check if avitag exists
+        exists = Profile.objects.filter(avitag=avitag).exists()
+        
+        return Response({
+            "available": not exists,
+            "message": "Avitag is available" if not exists else "Avitag is already taken"
+        })
+
+    @swagger_auto_schema(
+        operation_description="Set or update user's avitag",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'avitag': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='The new avitag to set'
+                )
+            }
+        ),
+        responses={
+            200: openapi.Response(
+                description="Avitag updated successfully",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'avitag': openapi.Schema(type=openapi.TYPE_STRING),
+                        'message': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            400: "Bad Request",
+            401: "Unauthorized"
+        }
+    )
+    @action(detail=False, methods=['post'], url_path='set-avitag')
+    def set_avitag(self, request):
+        """Set or update user's avitag"""
+        try:
+            profile = request.user.profile
+            if not profile:
+                return Response(
+                    {"detail": "Profile not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            avitag = request.data.get('avitag')
+            if not avitag:
+                return Response(
+                    {"detail": "Avitag is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Validate avitag format
+            if not avitag.isalnum() or len(avitag) < 3 or len(avitag) > 20:
+                return Response(
+                    {
+                        "detail": "Avitag must be 3-20 characters long and contain only letters and numbers"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Check if avitag is already taken
+            if Profile.objects.filter(avitag=avitag).exclude(account_id=request.user.account_id).exists():
+                return Response(
+                    {"detail": "This avitag is already taken"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Update the avitag
+            profile.avitag = avitag
+            profile.save()
+            
+            return Response({
+                "avitag": profile.avitag,
+                "message": "Avitag updated successfully"
+            })
+            
+        except Exception as e:
+            logger.error(f"Error setting avitag: {str(e)}", exc_info=True)
+            return Response(
+                {"detail": "An error occurred while setting the avitag"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def perform_create(self, serializer):
         profile = serializer.save()
