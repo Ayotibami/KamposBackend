@@ -33,7 +33,7 @@ from .serializers import (
 from .choices import ProfileType
 from .middleware import CustomJWTAuthentication
 
-# Get a logger for this module
+# Get a logger for this module  
 logger = logging.getLogger(__name__)
 
 

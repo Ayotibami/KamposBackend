@@ -408,7 +408,7 @@ Authorization: Bearer access_token_here
 
 **Response:** `204 No Content`
 
-## Profile Types
+## Profile Types Updated:
 
 ### Update Profile
 Update profile data.
