@@ -385,3 +385,27 @@ class Profile(models.Model):
             account_id=account.account_id,
             profile_type=account.profile_type
         )
+
+class Waitlist(models.Model):
+    """Model for storing waitlist entries"""
+    waitlist_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    first_name = models.CharField(max_length=255)
+    last_name = models.CharField(max_length=255)
+    email = models.EmailField(unique=True)
+    university = models.CharField(max_length=255)
+    created_at = models.DateTimeField(default=timezone.now)
+    is_approved = models.BooleanField(default=False)
+    approved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        db_table = 'waitlist'
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} - {self.university}"
+
+    def approve(self):
+        """Approve a waitlist entry"""
+        self.is_approved = True
+        self.approved_at = timezone.now()
+        self.save()

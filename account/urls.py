@@ -4,7 +4,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     RegisterView, LoginView, LogoutView, 
     VerifyOTPView, ForgotPasswordView, ResetPasswordView,
-    AccountViewSet, FirebaseAuthView, ProfileUpdateView, ProfileViewSet
+    AccountViewSet, FirebaseAuthView, ProfileUpdateView, ProfileViewSet,
+    WaitlistView
 )
 
 router = DefaultRouter()
@@ -24,6 +25,8 @@ urlpatterns = [
     # Account management endpoints are handled by the router
     path('', include(router.urls)),
     path('profile/update/', ProfileUpdateView.as_view(), name='profile_update'),
+    path('waitlist/', WaitlistView.as_view(), name='waitlist'),
+    path('waitlist/<uuid:waitlist_id>/', WaitlistView.as_view(), name='waitlist-detail'),
     path('profiles/students/', 
          ProfileViewSet.as_view({'get': 'list', 'post': 'create'}),
          {'profile_type': 'STUDENT'}, name='student-profiles'),

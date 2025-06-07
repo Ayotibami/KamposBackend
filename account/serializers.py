@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
-from .models import Account, AuthProvider, AccountStatus, AdminProfile, KompanyProfile, StudentProfile, SchoolProfile, KreatorProfile, Profile
+from .models import Account, AuthProvider, AccountStatus, AdminProfile, KompanyProfile, StudentProfile, SchoolProfile, KreatorProfile, Profile, Waitlist
 from .choices import ProfileType
 
 
@@ -361,3 +361,20 @@ class ProfileSerializer(serializers.ModelSerializer):
         if 'hobbies' in data:
             data['hobbies'] = ','.join(data['hobbies'])
         return super().to_internal_value(data)
+
+
+class WaitlistSerializer(serializers.ModelSerializer):
+    """Serializer for waitlist entries"""
+    class Meta:
+        model = Waitlist
+        fields = ['waitlist_id', 'first_name', 'last_name', 'email', 
+                 'university', 'created_at', 'is_approved', 'approved_at']
+        read_only_fields = ['waitlist_id', 'created_at', 'is_approved', 'approved_at']
+
+    def validate_email(self, value):
+        """Validate that email is not already in waitlist or registered"""
+        if Waitlist.objects.filter(email=value).exists():
+            raise serializers.ValidationError("This email is already on the waitlist.")
+        if Account.objects.filter(email=value).exists():
+            raise serializers.ValidationError("This email is already registered.")
+        return value

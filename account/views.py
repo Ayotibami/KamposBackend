@@ -20,7 +20,7 @@ from django.core.mail import send_mail
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from core.utils import send_email_template, handle_oauth_google, handle_oauth_facebook, handle_oauth_apple, encrypt_token
-from .models import Account, AccountStatus, AuthProvider, OAuthSession, AdminProfile, KompanyProfile, StudentProfile, SchoolProfile, KreatorProfile, Profile
+from .models import Account, AccountStatus, AuthProvider, OAuthSession, AdminProfile, KompanyProfile, StudentProfile, SchoolProfile, KreatorProfile, Profile, Waitlist
 from .permissions import IsAccountOwner, IsProfileOwnerOrAdmin, IsAdminUser
 from .serializers import (
     AdminProfileSerializer, KompanyProfileSerializer, KreatorProfileSerializer, RegisterSerializer, LoginSerializer, OAuthLoginSerializer,
@@ -28,7 +28,7 @@ from .serializers import (
     AccountSerializer, UpdateAccountSerializer, ChangePasswordSerializer,
     FirebaseAuthSerializer, UpdateAdminProfileSerializer, UpdateKompanyProfileSerializer,
     UpdateStudentProfileSerializer, UpdateSchoolProfileSerializer, UpdateKreatorProfileSerializer,
-    StudentProfileSerializer, SchoolProfileSerializer, ProfilePictureSerializer
+    StudentProfileSerializer, SchoolProfileSerializer, ProfilePictureSerializer, WaitlistSerializer
 )
 from .choices import ProfileType
 from .middleware import CustomJWTAuthentication
@@ -1076,3 +1076,61 @@ class ProfileViewSet(viewsets.ModelViewSet):
             [profile.account_id],  # Assuming account_id is email
             fail_silently=False,
         )
+
+
+class WaitlistView(APIView):
+    """
+    API view for waitlist management
+    """
+    permission_classes = [AllowAny]
+    
+    @swagger_auto_schema(
+        request_body=WaitlistSerializer,
+        responses={201: 'Created', 400: 'Bad Request'}
+    )
+    def post(self, request):
+        """Add a new entry to the waitlist"""
+        serializer = WaitlistSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @swagger_auto_schema(
+        responses={200: WaitlistSerializer(many=True)}
+    )
+    def get(self, request):
+        """Get all waitlist entries (admin only)"""
+        if not request.user.is_authenticated or not request.user.is_admin:
+            return Response(
+                {"detail": "Not authorized"}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        waitlist = Waitlist.objects.all()
+        serializer = WaitlistSerializer(waitlist, many=True)
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        responses={200: 'OK', 404: 'Not Found'}
+    )
+    def patch(self, request, waitlist_id=None):
+        """Approve a waitlist entry (admin only)"""
+        if not request.user.is_authenticated or not request.user.is_admin:
+            return Response(
+                {"detail": "Not authorized"}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            waitlist_entry = Waitlist.objects.get(waitlist_id=waitlist_id)
+            waitlist_entry.approve()
+            return Response(
+                {"detail": "Waitlist entry approved"}, 
+                status=status.HTTP_200_OK
+            )
+        except Waitlist.DoesNotExist:
+            return Response(
+                {"detail": "Waitlist entry not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
