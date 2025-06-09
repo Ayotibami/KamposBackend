@@ -365,10 +365,13 @@ class ProfileSerializer(serializers.ModelSerializer):
 
 class WaitlistSerializer(serializers.ModelSerializer):
     """Serializer for waitlist entries"""
+    full_name = serializers.CharField(write_only=True, required=True)
+    university_name = serializers.CharField(write_only=True, required=True)
+    
     class Meta:
         model = Waitlist
-        fields = ['waitlist_id', 'first_name', 'last_name', 'email', 
-                 'university', 'created_at', 'is_approved', 'approved_at']
+        fields = ['waitlist_id', 'full_name', 'university_name', 'email', 
+                 'created_at', 'is_approved', 'approved_at']
         read_only_fields = ['waitlist_id', 'created_at', 'is_approved', 'approved_at']
 
     def validate_email(self, value):
@@ -378,3 +381,25 @@ class WaitlistSerializer(serializers.ModelSerializer):
         if Account.objects.filter(email=value).exists():
             raise serializers.ValidationError("This email is already registered.")
         return value
+
+    def validate_full_name(self, value):
+        """Validate full name format"""
+        if len(value.split()) < 2:
+            raise serializers.ValidationError("Please provide both first and last name.")
+        return value
+
+    def create(self, validated_data):
+        """Create a new waitlist entry"""
+        # Split full name into first and last name
+        full_name = validated_data.pop('full_name')
+        name_parts = full_name.split()
+        first_name = name_parts[0]
+        last_name = ' '.join(name_parts[1:]) if len(name_parts) > 1 else ''
+        
+        # Create waitlist entry
+        return Waitlist.objects.create(
+            first_name=first_name,
+            last_name=last_name,
+            email=validated_data['email'],
+            university=validated_data['university_name']
+        )

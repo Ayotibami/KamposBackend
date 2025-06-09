@@ -1085,15 +1085,29 @@ class WaitlistView(APIView):
     permission_classes = [AllowAny]
     
     @swagger_auto_schema(
-        request_body=WaitlistSerializer,
-        responses={201: 'Created', 400: 'Bad Request'}
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['email', 'full_name', 'university_name'],
+            properties={
+                'email': openapi.Schema(type=openapi.TYPE_STRING, format='email'),
+                'full_name': openapi.Schema(type=openapi.TYPE_STRING, description='Full name (first and last name)'),
+                'university_name': openapi.Schema(type=openapi.TYPE_STRING, description='Name of the university')
+            }
+        ),
+        responses={
+            201: 'Created',
+            400: 'Bad Request'
+        }
     )
     def post(self, request):
         """Add a new entry to the waitlist"""
         serializer = WaitlistSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response({
+                "message": "Successfully added to waitlist",
+                "data": serializer.data
+            }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @swagger_auto_schema(
