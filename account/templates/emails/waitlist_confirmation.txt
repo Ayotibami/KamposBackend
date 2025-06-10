@@ -1,0 +1,27 @@
+Welcome to Kampos Waitlist! 🎓
+
+Hi {{ first_name }},
+
+Thank you for joining the Kampos waitlist! We're excited to have you on board as we prepare to launch our platform for students at {{ university }}.
+
+Your Details:
+Name: {{ full_name }}
+University: {{ university }}
+Major: {{ major }}
+
+We're working hard to bring you an amazing platform that will revolutionize how students connect and collaborate. You'll be among the first to know when we launch!
+
+We're 75% ready for launch! 🚀
+
+Stay connected with us on social media for updates and sneak peeks of what's coming!
+Twitter: https://twitter.com/kampos
+Instagram: https://instagram.com/kampos
+LinkedIn: https://linkedin.com/company/kampos
+
+Visit our website: https://kampos.com
+
+Best regards,
+The Kampos Team
+
+This is an automated message. Please do not reply to this email.
+© {{ current_year }} Kampos. All rights reserved. 

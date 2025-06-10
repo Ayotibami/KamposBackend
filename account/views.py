@@ -1087,11 +1087,12 @@ class WaitlistView(APIView):
     @swagger_auto_schema(
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
-            required=['email', 'full_name', 'university_name'],
+            required=['email', 'full_name', 'university_name', 'major'],
             properties={
                 'email': openapi.Schema(type=openapi.TYPE_STRING, format='email'),
                 'full_name': openapi.Schema(type=openapi.TYPE_STRING, description='Full name (first and last name)'),
-                'university_name': openapi.Schema(type=openapi.TYPE_STRING, description='Name of the university')
+                'university_name': openapi.Schema(type=openapi.TYPE_STRING, description='Name of the university'),
+                'major': openapi.Schema(type=openapi.TYPE_STRING, description='Student\'s major')
             }
         ),
         responses={
@@ -1103,7 +1104,31 @@ class WaitlistView(APIView):
         """Add a new entry to the waitlist"""
         serializer = WaitlistSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            waitlist_entry = serializer.save()
+            
+            # Send confirmation email
+            try:
+                # Get first name for email template
+                first_name = waitlist_entry.first_name
+                
+                # Send email using template
+                send_email_template(
+                    to_email=waitlist_entry.email,
+                    subject="Welcome to Kampos Waitlist! 🎓",
+                    template_name="waitlist_confirmation",
+                    context={
+                        "first_name": first_name,
+                        "full_name": f"{waitlist_entry.first_name} {waitlist_entry.last_name}",
+                        "university": waitlist_entry.university,
+                        "major": waitlist_entry.major,
+                        "current_year": timezone.now().year
+                    }
+                )
+                logger.info(f"Waitlist confirmation email sent to {waitlist_entry.email}")
+            except Exception as e:
+                logger.error(f"Failed to send waitlist confirmation email: {str(e)}")
+                # Continue even if email fails - we'll log the error
+            
             return Response({
                 "message": "Successfully added to waitlist",
                 "data": serializer.data

@@ -367,10 +367,11 @@ class WaitlistSerializer(serializers.ModelSerializer):
     """Serializer for waitlist entries"""
     full_name = serializers.CharField(write_only=True, required=True)
     university_name = serializers.CharField(write_only=True, required=True)
+    major = serializers.CharField(required=True)
     
     class Meta:
         model = Waitlist
-        fields = ['waitlist_id', 'full_name', 'university_name', 'email', 
+        fields = ['waitlist_id', 'full_name', 'university_name', 'email', 'major',
                  'created_at', 'is_approved', 'approved_at']
         read_only_fields = ['waitlist_id', 'created_at', 'is_approved', 'approved_at']
 
@@ -401,5 +402,6 @@ class WaitlistSerializer(serializers.ModelSerializer):
             first_name=first_name,
             last_name=last_name,
             email=validated_data['email'],
-            university=validated_data['university_name']
+            university=validated_data['university_name'],
+            major=validated_data['major']
         )

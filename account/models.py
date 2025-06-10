@@ -393,6 +393,7 @@ class Waitlist(models.Model):
     last_name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
     university = models.CharField(max_length=255)
+    major = models.CharField(max_length=255, default="Not Specified")
     created_at = models.DateTimeField(default=timezone.now)
     is_approved = models.BooleanField(default=False)
     approved_at = models.DateTimeField(null=True, blank=True)
