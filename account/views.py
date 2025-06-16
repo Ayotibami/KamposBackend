@@ -1139,13 +1139,7 @@ class WaitlistView(APIView):
         responses={200: WaitlistSerializer(many=True)}
     )
     def get(self, request):
-        """Get all waitlist entries (admin only)"""
-        if not request.user.is_authenticated or not request.user.is_admin:
-            return Response(
-                {"detail": "Not authorized"}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
+        """Get all waitlist entries"""
         waitlist = Waitlist.objects.all()
         serializer = WaitlistSerializer(waitlist, many=True)
         return Response(serializer.data)
@@ -1154,13 +1148,7 @@ class WaitlistView(APIView):
         responses={200: 'OK', 404: 'Not Found'}
     )
     def patch(self, request, waitlist_id=None):
-        """Approve a waitlist entry (admin only)"""
-        if not request.user.is_authenticated or not request.user.is_admin:
-            return Response(
-                {"detail": "Not authorized"}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
+        """Approve a waitlist entry"""
         try:
             waitlist_entry = Waitlist.objects.get(waitlist_id=waitlist_id)
             waitlist_entry.approve()
