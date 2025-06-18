@@ -20,6 +20,7 @@ from django.core.mail import send_mail
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from core.utils import send_email_template, handle_oauth_google, handle_oauth_facebook, handle_oauth_apple, encrypt_token
+from core.email_utils import send_email_template as send_email_template_with_sender
 from .models import Account, AccountStatus, AuthProvider, OAuthSession, AdminProfile, KompanyProfile, StudentProfile, SchoolProfile, KreatorProfile, Profile, Waitlist
 from .permissions import IsAccountOwner, IsProfileOwnerOrAdmin, IsAdminUser
 from .serializers import (
@@ -41,7 +42,7 @@ def send_otp_email(email, otp):
     """
     Send OTP verification code to user's email
     """
-    send_email_template(
+    send_email_template_with_sender(
         to_email=email,
         subject="Verify Your Kampos Account",
         template_name="verify_otp",
@@ -49,7 +50,8 @@ def send_otp_email(email, otp):
             "otp": otp,
             "expiry_minutes": settings.OTP_EXPIRY_MINUTES,
             "current_year": timezone.now().year
-        }
+        },
+        sender="no-reply"
     )
 
 
@@ -305,7 +307,7 @@ class ForgotPasswordView(APIView):
             account.save()
             
             # Send password reset email with code
-            send_email_template(
+            send_email_template_with_sender(
                 to_email=email,
                 subject="Reset Your Kampos Password",
                 template_name="reset_password_code",
@@ -313,7 +315,8 @@ class ForgotPasswordView(APIView):
                     "reset_code": reset_code,
                     "expiry_hours": 24,  # Code valid for 24 hours
                     "current_year": timezone.now().year
-                }
+                },
+                sender="wassup"
             )
             
             logger.info(f"Password reset code sent to {email}: {reset_code}")
@@ -1112,7 +1115,7 @@ class WaitlistView(APIView):
                 first_name = waitlist_entry.first_name
                 
                 # Send email using template
-                send_email_template(
+                send_email_template_with_sender(
                     to_email=waitlist_entry.email,
                     subject="Welcome to Kampos Waitlist! 🎓",
                     template_name="waitlist_confirmation",
@@ -1122,7 +1125,8 @@ class WaitlistView(APIView):
                         "university": waitlist_entry.university,
                         "major": waitlist_entry.major,
                         "current_year": timezone.now().year
-                    }
+                    },
+                    sender="wassup"
                 )
                 logger.info(f"Waitlist confirmation email sent to {waitlist_entry.email}")
             except Exception as e:
