@@ -16,7 +16,7 @@ load_dotenv()
 
 # Quick-start development settings - unsuitable for production
 SECRET_KEY = os.getenv('SECRET_KEY')
-DEBUG = False
+DEBUG = True
 ALLOWED_HOSTS = ['*']
 
 # Application definition
@@ -82,15 +82,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'kampos.wsgi.application'
 
 # Database
-if DEBUG:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-        }
-    }
-else:
-    DATABASES = {
+DATABASES = {
         'default': dj_database_url.config(
             default=os.getenv('DATABASE_URL')
         )
