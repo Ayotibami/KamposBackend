@@ -31,7 +31,7 @@ def test_email_sending():
     try:
         # Test with no-reply account
         result = send_email_template(
-            to_email="test@example.com",
+            to_email="alfrederic371@gmail.com",
             subject="Test Email from Kampos",
             template_name="waitlist_confirmation",
             context={

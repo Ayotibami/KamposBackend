@@ -6,6 +6,7 @@ import os
 from datetime import timedelta
 from pathlib import Path
 from dotenv import load_dotenv
+import dj_database_url
 
 # Build paths inside the project
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -15,7 +16,7 @@ load_dotenv()
 
 # Quick-start development settings - unsuitable for production
 SECRET_KEY = os.getenv('SECRET_KEY')
-DEBUG = True
+DEBUG = False
 ALLOWED_HOSTS = ['*']
 
 # Application definition
@@ -81,16 +82,19 @@ TEMPLATES = [
 WSGI_APPLICATION = 'kampos.wsgi.application'
 
 # Database
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3' if DEBUG else 'django.db.backends.postgresql',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3') if DEBUG else os.getenv('DB_NAME'),
-        'USER': '' if DEBUG else os.getenv('DB_USER'),
-        'PASSWORD': '' if DEBUG else os.getenv('DB_PASSWORD'), 
-        'HOST': '' if DEBUG else os.getenv('DB_HOST'),
-        'PORT': '' if DEBUG else os.getenv('DB_PORT'),
+if DEBUG:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=os.getenv('DATABASE_URL')
+        )
+    }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
