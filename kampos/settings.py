@@ -96,6 +96,9 @@ else:
         )
     }
 
+print(DATABASES)
+print(os.getenv('DATABASE_URL'))
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
