@@ -1,27 +1,28 @@
-Welcome to Kampos Waitlist! 🎓
+Wow, you’re finally here! I’ve been waiting for you, {firstname}!
 
-Heeeeeeeeyyyyyyyyyyyyyyyyy {{ first_name }},
+E sweet me say you show because I no wan make you miss wetin other students go soon dey enjoy. No time to waste, make I go straight to the point.
+During my sophomore year at Federal University Lokoja, I realized something was missing—there was no proper platform for students to socialize, stay updated on school-related trends, and connect with peers across different institutions in Nigeria. I envisioned a centralized platform for tertiary institutions—a space where students can vibe, learn, share experiences, and truly immerse themselves in campus life. That dream led me and my brilliant, determined team to start building KAMPOS—a product We believe will make Nigerian school life way more engaging and fun.
+The stage is set, the ball don roll—KAMPOS is the beginning of a new era and I look forward to how it will allow for seamless interaction among students—a space designed just for you. Here, you can express yourself, stay informed, and connect with bestie, your crush, me, and students from schools everywhere, anytime. But KAMPOS isn’t just about satisfying amebo cravings and vibes nonstop, we also care about your academics.We are designing This platform  to help you study smarter, learn faster, and prepare better for exams. We offer personalized learning experiences tailored to your major, providing the right study materials and discussions to help you excel. Our goal is to support you in becoming first class material — No be every time you go dey copy Precious answer for test.
 
-Thank you for joining the Kampos waitlist! We're excited to have you on board as we prepare to launch our platform for students at {{ university }}.
+{Firstname}, I believe I gave you a pretty solid reason why you just couldn’t pass us up!
+Kampos is coming — just chill a little. I’ll personally reach out to you once we launch.
 
-Your Details:
-Name: {{ full_name }}
-University: {{ university }}
-Major: {{ major }}
+In the meantime, some cool stuff might be coming your way! You might be selected to test Kampos before the official launch, or even get some free merch. Yep, you’re now an exclusive member of our community — our very own personal person!. Cuzzz, you sef no small na!! 😎
 
-We're working hard to bring you an amazing platform that will revolutionize how students connect and collaborate. You'll be among the first to know when we launch!
+P.S. When Kampos finally get into your hands Behave yourself o! If you talk anyhow or do gra gra too much for KAMPOS, I might just personally delete your account. (Okay, I’m joking—but seriously, respect the space).
 
-We're 75% ready for launch! 🚀
+
+Your Boy,
+Ayobami Masterpiece
+CEO, Ayoti
+
 
 Stay connected with us on social media for updates and sneak peeks of what's coming!
-Twitter: https://twitter.com/kampos
-Instagram: https://instagram.com/kampos
-LinkedIn: https://linkedin.com/company/kampos
+X: https://x.com/Kamposhq
+Instagram: https://Instagram.com/kamposhq/
 
-Visit our website: https://kampos.com
+Feel free to also reach out to us directly for questions, suggestions or to even dash us money
+Whatsaap : https://wa.me/+2349110210657
+Email: wassup@kamposhq.com
 
-Best regards,
-The Kampos Team
-
-This is an automated message. Please do not reply to this email.
 © {{ current_year }} Ayoti technologies. All rights reserved. 
