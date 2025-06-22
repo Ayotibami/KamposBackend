@@ -1,166 +1,158 @@
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>Welcome to Kampos</title>
-      <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-      <!-- Tailwind CSS CDN -->
-      <script src="https://cdn.tailwindcss.com"></script>
-      
-      <style>
-        body {
-          font-family: 'Poppins', sans-serif;
-          background-color: #f0f2f5; /* Lighter background for better contrast */
-          color: #333333;
-          margin: 0;
-          padding: 0;
-        }
-        .container {
-          max-width: 680px; /* Slightly wider container */
-          margin: 40px auto; /* More margin top/bottom */
-          padding: 45px; /* More padding inside */
-          background-color: #ffffff;
-          border-radius: 16px; /* More rounded corners */
-          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1); /* Stronger, softer shadow */
-          border: 1px solid #e0e0e0; /* Subtle border */
-        }
-        .logo-container {
-            text-align: center;
-            margin-bottom: 30px; /* Space below the logo */
-        }
-        .logo {
-            max-width: 180px; /* Adjust logo size */
-            height: auto;
-            border-radius: 10px; /* Rounded corners for the logo itself */
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08); /* Shadow for logo */
-        }
-        .header {
-          color: #165ABF;
-          font-size: 24px; /* Larger header font */
-          font-weight: 700;
-          margin-bottom: 25px; /* More space below header */
-          text-align: center; /* Center align header */
-        }
-        .sub-header {
-          font-size: 20px; /* Slightly larger sub-header */
-          font-weight: 600;
-          margin-top: 35px; /* More space above sub-header */
-          margin-bottom: 20px; /* Space below sub-header */
-          color: #165ABF;
-        }
-        .highlight {
-          color: #165ABF;
-          font-weight: 700; /* Bolder highlight */
-        }
-        .footer {
-          margin-top: 50px; /* More space above footer */
-          font-size: 15px; /* Slightly larger footer font */
-          color: #777; /* Softer gray for footer */
-          text-align: center;
-        }
-        /* Default link styling (for regular text links like "Read More" etc.) */
-        a {
-          color: #165ABF;
-          text-decoration: none;
-          font-weight: 600;
-          transition: color 0.3s ease;
-        }
-        a:hover {
-            color: #0f4898;
-        }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Welcome to Kampos</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #f0f2f5;
+      color: #333333;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 680px;
+      margin: 40px auto;
+      padding: 45px;
+      background-color: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+      border: 1px solid #e0e0e0;
+    }
+    .logo-container {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .logo {
+      max-width: 180px;
+      height: auto;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .header {
+      color: #165ABF;
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 25px;
+      text-align: center;
+    }
+    .sub-header {
+      font-size: 20px;
+      font-weight: 600;
+      margin-top: 35px;
+      margin-bottom: 20px;
+      color: #165ABF;
+    }
+    .highlight {
+      color: #165ABF;
+      font-weight: 700;
+    }
+    .footer {
+      margin-top: 50px;
+      font-size: 15px;
+      color: #777;
+      text-align: center;
+    }
+    a {
+      color: #165ABF;
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.3s ease;
+    }
+    a:hover {
+      color: #0f4898;
+    }
+    .social-link {
+      display: inline-block;
+      background: linear-gradient(135deg, #165ABF 0%, #0f4898 100%);
+      color: #ffffff;
+      padding: 12px 25px;
+      margin: 0 10px 15px 0;
+      border-radius: 25px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      min-width: 100px;
+      text-align: center;
+    }
+    .social-link:hover {
+      background: linear-gradient(135deg, #0f4898 0%, #165ABF 100%);
+      box-shadow: 0 6px 15px rgba(0,0,0,0.25);
+      transform: translateY(-2px);
+    }
+    .ps {
+      background-color: #eef4ff;
+      padding: 20px 25px;
+      border-left: 5px solid #165ABF;
+      margin-top: 40px;
+      border-radius: 10px;
+      font-size: 15px;
+    }
+    p {
+      line-height: 1.8;
+      margin-bottom: 32px;
+      margin-top: 0;
+      font-size: 16px;
+    }
+    p:first-of-type {
+      margin-top: 0;
+    }
+    h1 + p, h2 + p, h3 + p {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo-container">
+      <img src="https://placehold.co/180x60/165ABF/ffffff?text=KAMPOS+Logo" alt="Kampos Logo" class="logo">
+    </div>
 
-        /* Specific styling for social media/contact links to make them look like buttons */
-        .social-link {
-          display: inline-block;
-          background: linear-gradient(135deg, #165ABF 0%, #0f4898 100%); /* Gradient background */
-          color: #ffffff;
-          padding: 12px 25px; /* More generous padding */
-          margin: 0 10px 15px 0; /* More spacing between buttons, added bottom margin */
-          border-radius: 25px; /* Pill shape for buttons */
-          box-shadow: 0 4px 10px rgba(0,0,0,0.15); /* Stronger initial shadow */
-          text-decoration: none;
-          font-weight: 600; /* Bold text for buttons */
-          transition: all 0.3s ease; /* Smooth transition for all properties */
-          min-width: 100px; /* Ensure minimum width for consistency */
-          text-align: center;
-        }
-        .social-link:hover {
-            background: linear-gradient(135deg, #0f4898 0%, #165ABF 100%); /* Inverted/shifted gradient on hover */
-            box-shadow: 0 6px 15px rgba(0,0,0,0.25); /* Larger shadow on hover */
-            transform: translateY(-2px); /* Slight lift effect */
-        }
+    <p class="header">Wow, You’re finally here! I’ve been waiting for you, {{ first_name }}!</p>
 
-        .ps {
-          background-color: #eef4ff;
-          padding: 20px 25px; /* More padding */
-          border-left: 5px solid #165ABF; /* Thicker border */
-          margin-top: 40px; /* More space above */
-          border-radius: 10px; /* More rounded */
-          font-size: 15px; /* Slightly larger text in PS */
-        }
-        p {
-          line-height: 1.8; /* Increased line height for readability */
-          margin-bottom: 22px; /* Increased bottom margin for more spacing between paragraphs */
-          margin-top: 0;
-          font-size: 16px; /* Standard paragraph font size */
-        }
-        p:first-of-type {
-            margin-top: 0;
-        }
-        h1 + p, h2 + p, h3 + p {
-            margin-top: 20px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <!-- Kampos Logo -->
-        <div class="logo-container">
-            <img src="https://placehold.co/180x60/165ABF/ffffff?text=KAMPOS+Logo" alt="Kampos Logo" class="logo">
-        </div>
+    <p>E sweet me say you show because I no wan make you miss wetin other students go soon dey enjoy. No time to waste, make I go straight to the point.</p>
 
-        <p class="header">Wow, You’re finally here! I’ve been waiting for you, {{ first_name }}!</p>
+    <p>During my sophomore year at Federal University Lokoja, I realized something was missing—there was no proper platform for students to socialize, stay updated on school-related trends, and connect with peers across different institutions in Nigeria. I envisioned a centralized platform for tertiary institutions—a space where students can vibe, learn, share experiences, and truly immerse themselves in campus life.</p>
 
-        <p>E sweet me say you show because I no wan make you miss wetin other students go soon dey enjoy. No time to waste, make I go straight to the point.</p>
+    <p>That dream led me and my brilliant, determined team to start building <span class="highlight">KAMPOS</span>—a product we believe will make Nigerian school life way more engaging and fun.</p>
 
-        <p>During my sophomore year at Federal University Lokoja, I realized something was missing—there was no proper platform for students to socialize, stay updated on school-related trends, and connect with peers across different institutions in Nigeria. I envisioned a centralized platform for tertiary institutions—a space where students can vibe, learn, share experiences, and truly immerse themselves in campus life.</p>
+    <p>The stage is set, the ball don roll—Kampos is the beginning of a new era and I look forward to how it will allow for seamless interaction among students—a space designed just for you. Here, you can express yourself, stay informed, and connect with your bestie, your crush, me, and students from schools everywhere, anytime.</p>
 
-        <p>That dream led me and my brilliant, determined team to start building <span class="highlight">KAMPOS</span>—a product we believe will make Nigerian school life way more engaging and fun.</p>
+    <p>But Kampos isn’t just about satisfying amebo cravings and nonstop vibes, we also care about your academics. We are designing this platform to help you study smarter, learn faster, and prepare better for exams. We offer personalized learning experiences tailored to your major, providing the right study materials and discussions to help you excel. Our goal is to support you in becoming first class material — No be every time you go dey copy Precious answer for test.</p>
 
-        <p>The stage is set, the ball don roll—Kampos is the beginning of a new era and I look forward to how it will allow for seamless interaction among students—a space designed just for you. Here, you can express yourself, stay informed, and connect with your bestie, your crush, me, and students from schools everywhere, anytime.</p>
+    <p>{{ first_name }}, I believe I gave you a pretty solid reason why you just couldn’t pass us up!</p>
 
-        <p>But Kampos isn’t just about satisfying amebo cravings and nonstop vibes, we also care about your academics. We are designing this platform to help you study smarter, learn faster, and prepare better for exams. We offer personalized learning experiences tailored to your major, providing the right study materials and discussions to help you excel. Our goal is to support you in becoming first class material — No be every time you go dey copy Precious answer for test.</p>
+    <p>Kampos is coming — just chill a little. I’ll personally reach out to you once we launch.</p>
 
-        <p>{{ first_name }}, I believe I gave you a pretty solid reason why you just couldn’t pass us up!</p>
+    <p>In the meantime, some cool stuff might be coming your way! You might be selected to test Kampos before the official launch, or even get some free merch. Yep, you’re now an exclusive member of our community — our very own personal person!</p>
 
-        <p>Kampos is coming — just chill a little. I’ll personally reach out to you once we launch.</p>
+    <p><strong>Cuzzz, you sef no small na!! 😎</strong></p>
 
-        <p>In the meantime, some cool stuff might be coming your way! You might be selected to test Kampos before the official launch, or even get some free merch. Yep, you’re now an exclusive member of our community — our very own personal person!</p>
+    <div class="ps">
+      <p><strong>P.S.</strong> When Kampos finally get into your hands — behave yourself o! If you talk anyhow or do gra gra too much for KAMPOS, I might just personally delete your account. (Okay okay, I’m joking — but seriously, respect the space �).</p>
+    </div>
 
-        <p><strong>Cuzzz, you sef no small na!! 😎</strong></p>
+    <p>Your Boy,<br>Ayobami Masterpiece<br>CEO, Ayoti</p>
 
-        <div class="ps">
-          <p><strong>P.S.</strong> When Kampos finally get into your hands — behave yourself o! If you talk anyhow or do gra gra too much for KAMPOS, I might just personally delete your account. (Okay okay, I’m joking — but seriously, respect the space �).</p>
-        </div>
+    <p class="sub-header">Let’s stay connected:</p>
 
-        <p>Your Boy,<br>Ayobami Masterpiece<br>CEO, Ayoti</p>
+    <p>Stay connected with us on social media for updates and sneak peeks of what's coming!</p>
+    <p>Feel free to reach out to us directly — whether it's questions, suggestions, or even to dash us money.</p>
+    <div style="text-align: center; margin-top: 25px;">
+      <a class="social-link" href="https://wa.me/2349110210657" target="_blank">WhatsApp</a>
+      <a class="social-link" href="mailto:wassup@kamposhq.com">Email</a>
+      <a class="social-link" href="https://x.com/Kamposhq" target="_blank">X (Twitter)</a>
+      <a class="social-link" href="https://instagram.com/kamposhq" target="_blank">Instagram</a>
+    </div>
 
-        <p class="sub-header">Let’s stay connected:</p>
-
-        <p>Stay connected with us on social media for updates and sneak peeks of what's coming!</p>
-        <p>Feel free to reach out to us directly — whether it's questions, suggestions, or even to dash us money.</p>
-        <div style="text-align: center; margin-top: 25px;">
-            <a class="social-link" href="https://wa.me/2349110210657" target="_blank">WhatsApp</a>
-            <a class="social-link" href="mailto:wassup@kamposhq.com">Email</a>
-            <a class="social-link" href="https://x.com/Kamposhq" target="_blank">X (Twitter)</a>
-            <a class="social-link" href="https://instagram.com/kamposhq" target="_blank">Instagram</a>
-        </div>
-
-        <p class="footer">
-          &copy; {{ current_year }} Ayoti Technologies. All rights reserved.
-        </p>
-      </div>
-    </body>
-    </html>
-    �
+    <p class="footer">
+      &copy; {{ current_year }} Ayoti Technologies. All rights reserved.
+    </p>
+  </div>
+</body>
+</html>
