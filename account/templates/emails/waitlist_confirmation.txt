@@ -24,4 +24,4 @@ Best regards,
 The Kampos Team
 
 This is an automated message. Please do not reply to this email.
-© {{ current_year }} Kampos. All rights reserved. 
+© {{ current_year }} Ayoti technologies. All rights reserved. 
