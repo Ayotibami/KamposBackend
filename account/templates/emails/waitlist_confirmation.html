@@ -1,94 +1,135 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wowwwwwww, You sef don show </title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Welcome to Kampos</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #f9f9f9;
+      color: #333333;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 620px;
+      margin: 30px auto;
+      padding: 40px;
+      background-color: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    .header {
+      color: #165ABF;
+      font-size: 26px;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+    .sub-header {
+      font-size: 18px;
+      font-weight: 600;
+      margin-top: 30px;
+      color: #165ABF;
+    }
+    .highlight {
+      color: #165ABF;
+      font-weight: 600;
+    }
+    .footer {
+      margin-top: 40px;
+      font-size: 14px;
+      color: #888;
+      text-align: center;
+    }
+    a {
+      color: #165ABF;
+      text-decoration: none;
+    }
+    .ps {
+      background-color: #eef4ff;
+      padding: 16px 20px;
+      border-left: 4px solid #165ABF;
+      margin-top: 30px;
+      border-radius: 8px;
+    }
+    p {
+      line-height: 1.7;
+      margin: 18px 0;
+    }
+    .cta {
+      margin-top: 25px;
+      background-color: #165ABF;
+      color: #ffffff;
+      display: inline-block;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.3s;
+    }
+    .cta:hover {
+      background-color: #0f4898;
+    }
+    .icon-only {
+      font-size: 26px;
+      margin: 0 10px;
+      color: #165ABF;
+    }
+  </style>
 </head>
-<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
-    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-        <!-- Header with Logo -->
-        <div style="text-align: center; padding: 20px 0;">
-            <img src="https://kampos.com/logo.png" alt="Kampos Logo" style="max-width: 150px; height: auto;">
-        </div>
+<body>
+  <div class="container">
+    <p class="header">Wow, you’re finally here! I’ve been waiting for you, {Firstname}!</p>
 
-        <!-- Main Content -->
-        <div style="background-color: #ffffff; border-radius: 10px; padding: 30px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-            <h1 style="color: #333333; text-align: center; margin-bottom: 30px; font-size: 24px;">
-                Welcome to the Kampos Waitlist! 🎓
-            </h1>
+    <p>E sweet me say you show because I no wan make you miss wetin other students go soon dey enjoy. No time to waste, make I go straight to the point.</p>
 
-            <p style="color: #666666; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                Hi {{ first_name }},
-            </p>
+    <p>During my sophomore year at Federal University Lokoja, I realized something was missing—there was no proper platform for students to socialize, stay updated on school-related trends, and connect with peers across different institutions in Nigeria. I envisioned a centralized platform for tertiary institutions—a space where students can vibe, learn, share experiences, and truly immerse themselves in campus life.</p>
 
-            <p style="color: #666666; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                Thank you for joining the Kampos waitlist! We're excited to have you on board as we prepare to launch our platform for students at {{ university }}.
-            </p>
+    <p>That dream led me and my brilliant, determined team to start building <span class="highlight">KAMPOS</span>—a product we believe will make Nigerian school life way more engaging and fun.</p>
 
-            <div style="background-color: #f8f9fa; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0;">
-                <p style="color: #666666; font-size: 16px; line-height: 1.6; margin: 0;">
-                    <strong>Your Details:</strong><br>
-                    Name: {{ full_name }}<br>
-                    University: {{ university }}<br>
-                    Major: {{ major }}
-                </p>
-            </div>
+    <p>The stage is set, the ball don roll—KAMPOS is the beginning of a new era and I look forward to how it will allow for seamless interaction among students—a space designed just for you. Here, you can express yourself, stay informed, and connect with your bestie, your crush, me, and students from schools everywhere, anytime.</p>
 
-            <p style="color: #666666; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                We're working hard to bring you an amazing platform that will revolutionize how students connect and collaborate. You'll be among the first to know when we launch!
-            </p>
+    <p>But KAMPOS isn’t just about satisfying amebo cravings and nonstop vibes, we also care about your academics. We are designing this platform to help you study smarter, learn faster, and prepare better for exams. We offer personalized learning experiences tailored to your major, providing the right study materials and discussions to help you excel. Our goal is to support you in becoming first class material — No be every time you go dey copy Precious answer for test.</p>
 
-            <!-- Animated Progress Bar -->
-            <div style="background-color: #e9ecef; border-radius: 20px; height: 10px; margin: 30px 0;">
-                <div style="background-color: #007bff; border-radius: 20px; height: 100%; width: 75%; animation: progress 2s ease-in-out infinite;">
-                </div>
-            </div>
+    <p>{Firstname}, I believe I gave you a pretty solid reason why you just couldn’t pass us up!</p>
 
-            <p style="color: #666666; font-size: 16px; line-height: 1.6; margin-bottom: 20px; text-align: center;">
-                We're 75% ready for launch! 🚀
-            </p>
+    <p>KAMPOS is coming — just chill a little. I’ll personally reach out to you once we launch.</p>
 
-            <!-- Social Media Links -->
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="https://twitter.com/kampos" style="display: inline-block; margin: 0 10px;">
-                    <img src="https://kampos.com/twitter.png" alt="Twitter" style="width: 30px; height: 30px;">
-                </a>
-                <a href="https://instagram.com/kampos" style="display: inline-block; margin: 0 10px;">
-                    <img src="https://kampos.com/instagram.png" alt="Instagram" style="width: 30px; height: 30px;">
-                </a>
-                <a href="https://linkedin.com/company/kampos" style="display: inline-block; margin: 0 10px;">
-                    <img src="https://kampos.com/linkedin.png" alt="LinkedIn" style="width: 30px; height: 30px;">
-                </a>
-            </div>
+    <p>In the meantime, some cool stuff might be coming your way! You might be selected to test Kampos before the official launch, or even get some free merch. Yep, you’re now an exclusive member of our community — our very own personal person!</p>
 
-            <p style="color: #666666; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                Stay connected with us on social media for updates and sneak peeks of what's coming!
-            </p>
+    <p><strong>Cuzzz, you sef no small na!! 😎</strong></p>
 
-            <div style="text-align: center; margin-top: 30px;">
-                <a href="https://kampos.com" style="background-color: #007bff; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
-                    Visit Our Website
-                </a>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <div style="text-align: center; padding: 20px 0; color: #666666; font-size: 14px;">
-            <p style="margin: 5px 0;">© 2025 Kampos. All rights reserved.</p>
-            <p style="margin: 5px 0;">
-                <a href="https://kampos.com/privacy" style="color: #666666; text-decoration: none;">Privacy Policy</a> |
-                <a href="https://kampos.com/terms" style="color: #666666; text-decoration: none;">Terms of Service</a>
-            </p>
-        </div>
+    <div class="ps">
+      <p><strong>P.S.</strong> When Kampos finally get into your hands — behave yourself o! If you talk anyhow or do gra gra too much for KAMPOS, I might just personally delete your account. (Okay okay, I’m joking — but seriously, respect the space 😅).</p>
     </div>
 
-    <style>
-        @keyframes progress {
-            0% { width: 70%; }
-            50% { width: 80%; }
-            100% { width: 70%; }
-        }
-    </style>
+    <p>Your Boy,<br>Ayobami Masterpiece<br>CEO, Ayoti</p>
+
+    <p class="sub-header">Let’s stay connected:</p>
+
+    <p> Stay connected with us on social media for updates and sneak peeks of what's coming! </p>
+     <p>Feel free to reach out to us directly — whether it's questions, suggestions, or even to dash us money.</p>
+    <p>
+      <a class="icon-only" href="https://wa.me/2349110210657" target="_blank">
+        <i class="fab fa-whatsapp"></i>
+      </a>
+      <a class="icon-only" href="mailto:wassup@kamposhq.com">
+        <i class="fas fa-envelope"></i>
+      </a>
+      <a class="icon-only" href="https://x.com/Kamposhq" target="_blank">
+        <i class="fab fa-x-twitter"></i>
+      </a>
+      <a class="icon-only" href="https://instagram.com/kamposhq" target="_blank">
+        <i class="fab fa-instagram"></i>
+      </a>
+    </p>
+
+    <p class="footer">
+      &copy; {{ current_year }} Ayoti Technologies. All rights reserved.
+    </p>
+  </div>
 </body>
-</html> 
+</html>
