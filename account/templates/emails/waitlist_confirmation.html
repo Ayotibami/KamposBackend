@@ -26,12 +26,17 @@
     .logo-container {
       text-align: center;
       margin-bottom: 30px;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
     .logo {
       max-width: 180px;
-      height: auto;
-      border-radius: 10px;
+      height: 180px;
+      border-radius: 50%;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      object-fit: cover;
     }
     .header {
       color: #165ABF;
@@ -83,6 +88,7 @@
     .social-link:hover {
       background: linear-gradient(135deg, #0f4898 0%, #165ABF 100%);
       box-shadow: 0 6px 15px rgba(0,0,0,0.25);
+      color: white;
       transform: translateY(-2px);
     }
     .ps {
@@ -110,7 +116,7 @@
 <body>
   <div class="container">
     <div class="logo-container">
-      <img src="https://placehold.co/180x60/165ABF/ffffff?text=KAMPOS+Logo" alt="Kampos Logo" class="logo">
+      <img src="https://i.ibb.co/JjQ5XGqB/c082dbee-3c27-442c-afee-212f1947ba51.jpg" alt="Kampos Logo" class="logo">
     </div>
 
     <p class="header">Wow, You’re finally here! I’ve been waiting for you, {{ first_name }}!</p>
