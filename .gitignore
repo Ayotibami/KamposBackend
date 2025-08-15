@@ -23,6 +23,7 @@ var/
 # Virtual Environment
 venv/
 ENV/
+kampos_venv
 .env
 
 # IDE
