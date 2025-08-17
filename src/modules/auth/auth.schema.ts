@@ -6,7 +6,7 @@ export class AuthSchemas {
       email: z.string({ required_error: "Email is required" }).email("Invalid email"),
       password: z.string({ required_error: "Password is required" }).min(6, "Password too short"),
       displayName: z.string().optional(),
-      profileType: z.string().optional(), // validate in controller/service if needed
+      profileType: z.string().optional(),
     })
     .strict();
 

@@ -1,43 +1,56 @@
 import express from "express";
-import methodNotAllowed from "../../middleware/methodNotAllowed.js";
-import { AuthController } from "./auth.controller.js";
-import { isAuth } from "../../middleware/auth.js";
-import { userSchema } from "../user/user.schema.js";
-import { AuthSchemas } from "./auth.schema.js";
-import { validateBody } from "../../middleware/validateSchema.js";
+import rateLimit from "express-rate-limit";
+import { isAuth } from "../../middleware/auth";
+import { AuthController } from "./auth.controller";
+import { AuthSchemas } from "./auth.schema";
+import { validateBody } from "../../middleware/validateSchema";
 
 const router = express.Router();
 
-router.route("/").get(isAuth, AuthController.getUser).all(methodNotAllowed);
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { message: "Too many requests, please try again later." },
+});
 
-router
-  .route("/signup")
-  .post(validateBody(userSchema), AuthController.register)
-  .all(methodNotAllowed);
+router.use(limiter);
 
-router
-  .route("/signin")
-  .post(validateBody(AuthSchemas.login), AuthController.login)
-  .all(methodNotAllowed);
+router.post(
+  "/signup",
+  validateBody(AuthSchemas.register),
+  AuthController.register
+);
+router.post("/signin", validateBody(AuthSchemas.login), AuthController.login);
 
-router
-  .route("/send-otp")
-  .post(validateBody(AuthSchemas.sendOTP), AuthController.sendOTP)
-  .all(methodNotAllowed);
+// refresh
+router.post("/refresh", AuthController.refreshToken); // Controller method to implement below
 
-router
-  .route("/verify-otp")
-  .post(validateBody(AuthSchemas.verifyOTP), AuthController.verifyOTP)
-  .all(methodNotAllowed);
+// logout
+router.post("/logout", isAuth, AuthController.logout);
 
-router
-  .route("/forgot-password")
-  .post(validateBody(AuthSchemas.forgotPassword), AuthController.forgotPassword)
-  .all(methodNotAllowed);
+// oauth callback endpoints (server-side handlers for Google/Fb/Apple)
+router.post("/oauth/:provider", AuthController.oauthHandler); // provider: google|facebook|apple
 
-router
-  .route("/reset-password")
-  .post(validateBody(AuthSchemas.resetPassword), AuthController.resetPassword)
-  .all(methodNotAllowed);
+// otp flows
+router.post(
+  "/send-otp",
+  validateBody(AuthSchemas.sendOTP),
+  AuthController.sendOTP
+);
+router.post(
+  "/verify-otp",
+  validateBody(AuthSchemas.verifyOTP),
+  AuthController.verifyOTP
+);
+router.post(
+  "/forgot-password",
+  validateBody(AuthSchemas.forgotPassword),
+  AuthController.forgotPassword
+);
+router.post(
+  "/reset-password",
+  validateBody(AuthSchemas.resetPassword),
+  AuthController.resetPassword
+);
 
 export default router;
