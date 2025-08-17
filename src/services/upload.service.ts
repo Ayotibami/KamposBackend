@@ -5,7 +5,7 @@ export class UploadService {
     try {
       const { secure_url } = await cloudinary.uploader.upload(tempFilePath, {
         use_filename: true,
-        folder: "fleet-management",
+        folder: "kampos",
       });
       return secure_url;
     } catch (error) {
