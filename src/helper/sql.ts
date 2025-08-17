@@ -2,28 +2,30 @@ import pool, { connectDB } from "../config/connectDB";
 import logger from "../utils/logger";
 
 /**
- * Edit SQL below as needed, then run once:
+ * Final SQL schema for Kampos — run once (idempotent).
  * npx ts-node --transpile-only src\helper\sql.ts
  */
 const sql = `
--- enable uuid generator (pgcrypto)
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- Accounts table
+-- Accounts
 CREATE TABLE IF NOT EXISTS accounts (
   account_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT,
   auth_provider TEXT NOT NULL DEFAULT 'Email', -- Email, Google, Facebook, Apple
+  oauth_id TEXT UNIQUE,
   is_otp_verified BOOLEAN DEFAULT FALSE,
   account_status TEXT NOT NULL DEFAULT 'Active', -- Active, Deleted, Suspended
-  oauth_id TEXT UNIQUE,
   last_login TIMESTAMPTZ,
+  roles TEXT[] DEFAULT ARRAY['user'],
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- OAuth sessions
+CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email);
+
+-- OAuth sessions (refresh tokens stored hashed)
 CREATE TABLE IF NOT EXISTS oauth_sessions (
   session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id UUID REFERENCES accounts(account_id) ON DELETE CASCADE,
@@ -34,7 +36,9 @@ CREATE TABLE IF NOT EXISTS oauth_sessions (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Profiles (generic for Student, Kompany, Creator, School, Admin)
+CREATE INDEX IF NOT EXISTS idx_oauth_sessions_account ON oauth_sessions(account_id);
+
+-- Profiles (students, kompany, creator, school, admin)
 CREATE TABLE IF NOT EXISTS profiles (
   avitag UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id UUID REFERENCES accounts(account_id) ON DELETE CASCADE,
@@ -58,6 +62,9 @@ CREATE TABLE IF NOT EXISTS profiles (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE INDEX IF NOT EXISTS idx_profiles_account ON profiles(account_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_type ON profiles(profile_type);
+
 -- Gists
 CREATE TABLE IF NOT EXISTS gists (
   gist_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -68,6 +75,8 @@ CREATE TABLE IF NOT EXISTS gists (
   edited_at TIMESTAMPTZ
 );
 
+CREATE INDEX IF NOT EXISTS idx_gists_avitag ON gists(avitag);
+
 -- Comments
 CREATE TABLE IF NOT EXISTS comments (
   comment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -76,6 +85,8 @@ CREATE TABLE IF NOT EXISTS comments (
   text TEXT NOT NULL,
   commented_at TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS idx_comments_gist ON comments(gist_id);
 
 -- Media
 CREATE TABLE IF NOT EXISTS media (
@@ -99,6 +110,8 @@ CREATE TABLE IF NOT EXISTS reactions (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE INDEX IF NOT EXISTS idx_reactions_entity ON reactions(entity_type, entity_id);
+
 -- Events
 CREATE TABLE IF NOT EXISTS events (
   event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -119,16 +132,20 @@ CREATE TABLE IF NOT EXISTS event_registrations (
   registered_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE INDEX IF NOT EXISTS idx_event_regs_event ON event_registrations(event_id);
+
 -- Notifications
 CREATE TABLE IF NOT EXISTS notifications (
   notification_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   avitag UUID REFERENCES profiles(avitag) ON DELETE CASCADE,
-  type TEXT NOT NULL, -- NEW_GIST, GIST_LIKE, ...
+  type TEXT NOT NULL,
   message TEXT NOT NULL,
   reference_id UUID,
   is_read BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS idx_notifications_avitag ON notifications(avitag);
 
 -- Reports
 CREATE TABLE IF NOT EXISTS reports (
@@ -151,7 +168,9 @@ CREATE TABLE IF NOT EXISTS views (
   viewed_at TIMESTAMPTZ DEFAULT now()
 );
 
--- OTPS (keep for verification)
+CREATE INDEX IF NOT EXISTS idx_views_gist ON views(gist_id);
+
+-- OTPS (email verification / password reset)
 CREATE TABLE IF NOT EXISTS otps (
   id SERIAL PRIMARY KEY,
   email TEXT NOT NULL,
@@ -175,7 +194,9 @@ export async function runSqlScript(sqlToRun: string): Promise<void> {
     try {
       await pool.end();
       logger.info("Postgres pool closed.");
-    } catch (err) {}
+    } catch (err) {
+      // ignore
+    }
   }
 }
 

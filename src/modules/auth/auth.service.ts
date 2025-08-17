@@ -93,28 +93,84 @@ export class AuthService {
   }
 
   // OAuth sign-in/up (providerId: provider, oauthId: provider unique id, profileData optional)
-  static async oauthLogin(provider: string | undefined, oauthId: string, profileData: { email?: string; displayName?: string } = {}) {
-    // find account by oauth_id
+  static async oauthLogin(
+    provider: string,
+    oauthId: string,
+    profileData: { email?: string; displayName?: string; picture?: string } = {}
+  ) {
+    // try find account by provider id
     let account = await accountRepo.findAccountByOauthId(oauthId);
+
     if (!account) {
       // create account if not exists (oauth user)
       account = await accountRepo.createAccount({
         email: profileData.email ?? `${oauthId}@${provider}.local`,
         passwordHash: null,
         authProvider: provider as any,
-        isOtpVerified: true, // consider provider verified
+        isOtpVerified: true,
         oauthId,
       });
+
+      // create profile from provider data
+      const name = profileData.displayName ?? "";
+      const [firstName, ...rest] = name.split(" ");
+      const lastName = rest.join(" ") || null;
+
       await profileRepo.createProfile({
         accountId: account.accountId!,
         displayName: profileData.displayName ?? "",
+        firstName: firstName ?? undefined,
+        lastName: lastName ?? undefined,
         profileType: "STUDENT",
+        profilePictureUrl: profileData.picture ?? undefined,
       });
+    } else {
+      // ensure account has oauthId set (in case it was created by email)
+      if (!account.oauthId) {
+        await accountRepo.updateAccountById(account.accountId!, { oauthId });
+      }
+
+      // ensure profile exists and is enriched with provider fields
+      const profile = await profileRepo.findProfileByAccountId(account.accountId!);
+      const updates: Record<string, any> = {};
+      if (!profile) {
+        // create missing profile
+        const name = profileData.displayName ?? "";
+        const [firstName, ...rest] = name.split(" ");
+        const lastName = rest.join(" ") || null;
+        await profileRepo.createProfile({
+          accountId: account.accountId!,
+          displayName: profileData.displayName ?? "",
+          firstName: firstName ?? undefined,
+          lastName: lastName ?? undefined,
+          profileType: "STUDENT",
+          profilePictureUrl: profileData.picture ?? undefined,
+        });
+      } else {
+        // update only missing pieces
+        if (profileData.displayName && profile.displayName !== profileData.displayName) updates.displayName = profileData.displayName;
+        if (profileData.picture && !profile.profilePictureUrl) updates.profilePictureUrl = profileData.picture;
+        if (!profile.firstName && profileData.displayName) {
+          const [firstName, ...rest] = (profileData.displayName || "").split(" ");
+          if (firstName) updates.firstName = firstName;
+          const lastName = rest.join(" ");
+          if (lastName) updates.lastName = lastName;
+        }
+        if (Object.keys(updates).length) {
+          await profileRepo.updateProfileByAvitag(profile.avitag!, updates);
+        }
+      }
     }
 
+    // create session + tokens
     const { accessToken, refreshToken, session } = await AuthService.createSessionAndTokens(account.accountId!, provider);
 
-    return ApiSuccess.ok("OAuth login successful", { accessToken, refreshToken, sessionId: session.session_id });
+    return ApiSuccess.ok("OAuth login successful", {
+      accessToken,
+      refreshToken,
+      sessionId: session.session_id,
+      account: { email: account.email, accountId: account.accountId },
+    });
   }
 
   // Exchange refresh token for new access token
