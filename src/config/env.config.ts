@@ -1,7 +1,7 @@
 import { cleanEnv, port, str } from "envalid";
 
 export const env = cleanEnv(Bun.env, {
-  MONGODB_URI: str(),
+  POSTGRES_URI: str(),
   BREVO_EMAIL: str(),
   BREVO_PASSWORD: str(),
   NODE_ENV: str({

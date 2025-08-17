@@ -1,27 +1,28 @@
-import mongoose, { Document, Schema } from "mongoose";
+import pool from "../../config/connectDB";
 
-interface IOTP extends Document {
+export interface IOTP {
+  id?: number;
   email: string;
   otp: string;
-  createdAt: Date;
+  createdAt?: string;
 }
 
-const otpSchema: Schema<IOTP> = new Schema({
-  email: {
-    type: String,
-    required: true,
-  },
-  otp: {
-    type: String,
-    required: true,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-    expires: 300, // The document will be automatically deleted after 5 minutes (300 seconds)
-  },
-});
+export const createOTP = async (email: string, otp: string) => {
+  const { rows } = await pool.query(
+    `INSERT INTO otps (email, otp) VALUES ($1, $2) RETURNING id, email, otp, created_at AS "createdAt"`,
+    [email, otp]
+  );
+  return rows[0] as IOTP;
+};
 
-const OTP = mongoose.model<IOTP>("OTP", otpSchema);
+export const findOTPByEmail = async (email: string) => {
+  const { rows } = await pool.query(
+    `SELECT id, email, otp, created_at AS "createdAt" FROM otps WHERE email = $1 ORDER BY created_at DESC LIMIT 1`,
+    [email]
+  );
+  return rows[0] as IOTP | undefined;
+};
 
-export default OTP;
+export const deleteOTPById = async (id: number) => {
+  await pool.query(`DELETE FROM otps WHERE id = $1`, [id]);
+};
