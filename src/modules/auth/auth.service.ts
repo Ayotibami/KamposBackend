@@ -1,111 +1,128 @@
-import type {
-  LoginDTO,
-  OTPData,
-  RegisterDTO,
-  ResetPasswordDTO,
-} from "./auth.interface";
-import UserService from "../user/user.service";
-import { comparePassword, hashPassword } from "../../utils/validationUtils";
+import type { LoginDTO, OTPData, RegisterDTO, ResetPasswordDTO } from "./auth.interface";
 import { ApiError, ApiSuccess } from "../../utils/responseHandler";
+import { hashPassword, comparePassword } from "../../utils/validationUtils";
 import { generateToken } from "../../config/token";
-import logger from "../../utils/logger";
-import { mailService } from "../../services/mail.service";
+import * as accountRepo from "../account/account.model";
+import * as profileRepo from "../profile/profile.model";
 import * as otpRepo from "../otp/otp.model";
-import * as userRepo from "../user/user.model";
+import { mailService } from "../../services/mail.service";
+import logger from "../../utils/logger";
 
 export class AuthService {
+  static OTP_TTL_MINUTES = 10; // adjust as needed
+
   static async register(userData: RegisterDTO & Partial<any>) {
-    const { password, email } = userData;
+    const { email, password, displayName, profileType } = userData;
+    const existing = await accountRepo.findAccountByEmail(email);
+    if (existing) throw ApiError.badRequest("Account with this email already exists");
 
-    await UserService.checkIfUserExists(email);
+    const hashed = await hashPassword(password);
 
-    const hashedPassword = await hashPassword(password);
+    // create account
+    const account = await accountRepo.createAccount({
+      email,
+      passwordHash: hashed,
+      authProvider: "Email",
+      isOtpVerified: false,
+    });
 
-    const user = await UserService.createUser({ ...userData, password: hashedPassword });
+    // create a bare profile
+    const profile = await profileRepo.createProfile({
+      accountId: account.accountId,
+      displayName: displayName ?? "",
+      profileType: (profileType as any) ?? "STUDENT",
+    });
 
-    // send OTP after creating user
-    const emailInfo = await mailService.sendOTPViaEmail(user.email, user.userName ?? "-");
+    // send OTP to email
+    const emailInfo = await mailService.sendOTPViaEmail(email, displayName ?? "");
 
-    // do not return password
-    (user as any).password = undefined;
+    // hide sensitive
+    (account as any).passwordHash = undefined;
 
-    return ApiSuccess.created(
-      `Registration Successful, OTP has been sent to ${emailInfo.envelope.to}`,
-      { user }
-    );
+    return ApiSuccess.created(`Registration successful, OTP sent to ${emailInfo.envelope.to}`, {
+      account,
+      profile,
+    });
   }
 
   static async login(userData: LoginDTO) {
     const { email, password } = userData;
-    const user = await UserService.findUserByEmail(email);
-    await comparePassword(password, user.password as string);
+    const account = await accountRepo.findAccountByEmail(email);
+    if (!account) throw ApiError.notFound("Invalid credentials");
+    if (!account.passwordHash) throw ApiError.forbidden("No password set for this account");
 
-    if (!user.isVerified) {
-      throw ApiError.forbidden("Email Not Verified");
-    }
-    const token = generateToken({ userId: user.id });
+    await comparePassword(password, account.passwordHash);
 
-    return ApiSuccess.ok("Login Successful", {
-      user: { email: user.email, id: user.id },
-      token,
-    });
+    if (!account.isOtpVerified) throw ApiError.forbidden("Email not verified");
+
+    // generate token (payload contains accountId)
+    const token = generateToken({ userId: account.accountId });
+
+    return ApiSuccess.ok("Login successful", { token, account: { email: account.email, accountId: account.accountId } });
   }
 
-  static async getUser(userId: number | string) {
-    const user = await UserService.findUserById(userId);
-    // hide password
-    (user as any).password = undefined;
-    return ApiSuccess.ok("User Retrieved Successfully", {
-      user,
-    });
+  static async getUser(userId: string | number) {
+    const id = String(userId);
+    const account = await accountRepo.findAccountById(id);
+    if (!account) throw ApiError.notFound("User not found");
+    (account as any).passwordHash = undefined;
+    const profile = await profileRepo.findProfileByAccountId(account.accountId!);
+    return ApiSuccess.ok("User fetched", { account, profile });
   }
 
   static async sendOTP({ email }: { email: string }) {
-    const user = await UserService.findUserByEmail(email);
-    if (user.isVerified) {
-      return ApiSuccess.ok("User Already Verified");
-    }
-
-    const emailInfo = await mailService.sendOTPViaEmail(user.email, user.userName ?? "");
-    return ApiSuccess.ok(`OTP has been sent to ${emailInfo.envelope.to}`);
+    const account = await accountRepo.findAccountByEmail(email);
+    if (!account) throw ApiError.notFound("Account not found");
+    if (account.isOtpVerified) return ApiSuccess.ok("User already verified");
+    const info = await mailService.sendOTPViaEmail(email, "");
+    return ApiSuccess.ok(`OTP sent to ${info.envelope.to}`);
   }
 
   static async verifyOTP({ email, otp }: OTPData) {
-    const user = await UserService.findUserByEmail(email);
-    if (user.isVerified) {
-      return ApiSuccess.ok("User Already Verified");
-    }
+    const account = await accountRepo.findAccountByEmail(email);
+    if (!account) throw ApiError.notFound("Account not found");
+    if (account.isOtpVerified) return ApiSuccess.ok("Already verified");
 
     const latest = await otpRepo.findOTPByEmail(email);
-    if (!latest || latest.otp !== otp) {
-      throw ApiError.badRequest("Invalid or Expired OTP");
+    if (!latest || latest.otp !== otp) throw ApiError.badRequest("Invalid or expired OTP");
+
+    // check TTL
+    const created = new Date(latest.createdAt!);
+    const minutes = (Date.now() - created.getTime()) / 1000 / 60;
+    if (minutes > AuthService.OTP_TTL_MINUTES) {
+      throw ApiError.badRequest("OTP expired");
     }
 
-    // mark user verified and delete used otp
-    await userRepo.updateUserById(user.id as number, { isVerified: true });
+    await accountRepo.updateAccountById(account.accountId!, { isOtpVerified: true });
     if (latest.id) await otpRepo.deleteOTPById(latest.id);
 
-    return ApiSuccess.ok("Email Verified");
+    return ApiSuccess.ok("Email verified");
   }
 
   static async forgotPassword({ email }: { email: string }) {
-    const userProfile = await UserService.findUserByEmail(email);
-    const emailInfo = await mailService.sendOTPViaEmail(userProfile.email, userProfile.userName ?? "");
-    return ApiSuccess.ok(`OTP has been sent to ${emailInfo.envelope.to}`);
+    const account = await accountRepo.findAccountByEmail(email);
+    if (!account) throw ApiError.notFound("Account not found");
+    const info = await mailService.sendOTPViaEmail(email, "");
+    return ApiSuccess.ok(`OTP sent to ${info.envelope.to}`);
   }
 
   static async resetPassword({ email, otp, password }: ResetPasswordDTO) {
-    const user = await UserService.findUserByEmail(email);
+    const account = await accountRepo.findAccountByEmail(email);
+    if (!account) throw ApiError.notFound("Account not found");
+
     const latest = await otpRepo.findOTPByEmail(email);
-    if (!latest || latest.otp !== otp) {
-      throw ApiError.badRequest("Invalid or Expired OTP");
-    }
+    if (!latest || latest.otp !== otp) throw ApiError.badRequest("Invalid or expired OTP");
+
+    // TTL check
+    const created = new Date(latest.createdAt!);
+    const minutes = (Date.now() - created.getTime()) / 1000 / 60;
+    if (minutes > AuthService.OTP_TTL_MINUTES) throw ApiError.badRequest("OTP expired");
 
     const hashed = await hashPassword(password);
-    await userRepo.updateUserById(user.id as number, { password: hashed });
+    await accountRepo.updateAccountById(account.accountId!, { passwordHash: hashed });
     if (latest.id) await otpRepo.deleteOTPById(latest.id);
 
-    return ApiSuccess.ok("Password Updated");
+    return ApiSuccess.ok("Password updated");
   }
 }
 

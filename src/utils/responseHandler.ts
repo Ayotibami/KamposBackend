@@ -58,6 +58,7 @@ export class ApiError extends Error {
 }
 
 export class ApiSuccess {
+  [x: string]: number;
   success: boolean;
   status_code: number;
   message: string;
