@@ -1,120 +1,35 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-*.egg-info/
-.installed.cfg
-*.egg
+# dependencies (bun install)
+node_modules
 
-# Virtual Environment
-venv/
-ENV/
-kampos_venv
+# output
+out
+dist
+/dist
+*.tgz
+
+# code coverage
+coverage
+*.lcov
+
+# logs
+logs
+_.log
+report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
 .env
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Django
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-media/
-staticfiles/
-
-# Logs
-logs/
-*.log
-
-# Environment
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-.python-version
-
-# Environment variables
-.env.*
-
-# Coverage
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Local development
-.env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.local
 
-# Database
-*.sqlite3
-*.db
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
 
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# IntelliJ based IDEs
+.idea
 
-# Celery
-celerybeat-schedule
-celerybeat.pid
-
-# Documentation
-docs/_build/
-
-# Distribution / packaging
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Firebase credentials
-kampos-65ce9-firebase-adminsdk-fbsvc-d50fc9f4b5.json
-firebase_credentials.txt
-
-# Environment variables
-.env.* 
+# Finder (MacOS) folder config
+.DS_Store
