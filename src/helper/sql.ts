@@ -8,24 +8,38 @@ import logger from "../utils/logger";
 const sql = `
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Campuses (canonical)
+CREATE TABLE IF NOT EXISTS campuses (
+  campus_tag TEXT PRIMARY KEY,            -- unique tag e.g., OAU, FUL
+  campus_name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Majors (canonical)
+CREATE TABLE IF NOT EXISTS majors (
+  major_tag TEXT PRIMARY KEY,             -- unique tag e.g., CSC
+  major_name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Accounts
 CREATE TABLE IF NOT EXISTS accounts (
   account_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT,
-  auth_provider TEXT NOT NULL DEFAULT 'Email', -- Email, Google, Facebook, Apple
+  auth_provider TEXT NOT NULL DEFAULT 'Email',
   oauth_id TEXT UNIQUE,
   is_otp_verified BOOLEAN DEFAULT FALSE,
-  account_status TEXT NOT NULL DEFAULT 'Active', -- Active, Deleted, Suspended
+  account_status TEXT NOT NULL DEFAULT 'Active',
   last_login TIMESTAMPTZ,
   roles TEXT[] DEFAULT ARRAY['user'],
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email);
-
--- OAuth sessions (refresh tokens stored hashed)
+-- OAuth sessions
 CREATE TABLE IF NOT EXISTS oauth_sessions (
   session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id UUID REFERENCES accounts(account_id) ON DELETE CASCADE,
@@ -36,9 +50,7 @@ CREATE TABLE IF NOT EXISTS oauth_sessions (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_oauth_sessions_account ON oauth_sessions(account_id);
-
--- Profiles (students, kompany, creator, school, admin)
+-- Profiles (reference campuses and majors by tag)
 CREATE TABLE IF NOT EXISTS profiles (
   avitag UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id UUID REFERENCES accounts(account_id) ON DELETE CASCADE,
@@ -46,8 +58,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   first_name TEXT,
   last_name TEXT,
   profile_type TEXT NOT NULL, -- STUDENT, KAMPOSER, CREATOR, ADMIN, SCHOOL
-  campus_tag TEXT,
-  major_tag TEXT,
+  campus_tag TEXT REFERENCES campuses(campus_tag),
+  major_tag TEXT REFERENCES majors(major_tag),
   degree TEXT,
   level TEXT,
   bio TEXT,

@@ -13,8 +13,7 @@ const pool = new Pool({
 export const connectDB = async (): Promise<void> => {
   try {
     logger.info("Connecting to Postgres...");
-    // simple connectivity test
-    await pool.query("SELECT 1");
+    await pool.query("SELECT NOW()"); // simple query to check connection
     logger.info("Postgres connected!");
   } catch (error: any) {
     logger.error("Postgres connection error:", error);
