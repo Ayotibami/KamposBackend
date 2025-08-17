@@ -1,6 +1,8 @@
 import type { Request, Response } from "express";
 import { AuthService } from "./auth.service";
-import { verifyGoogleIdToken } from "./google.provider.ts"; // new
+import { verifyGoogleIdToken } from "./google.provider";
+import { verifyFacebookAccessToken } from "./facebook.provider";
+import { exchangeAppleAuthCode, decodeAppleIdToken } from "./apple.provider";
 
 export class AuthController {
   // Register user
@@ -38,10 +40,9 @@ export class AuthController {
     const provider = (req.params.provider || "").toLowerCase();
     try {
       if (provider === "google") {
-        const { idToken } = req.body; // client sends Google id_token
+        const { idToken } = req.body;
         if (!idToken) return res.status(400).json({ message: "idToken required" });
         const payload = await verifyGoogleIdToken(idToken);
-        // payload.sub is the provider unique id
         const result = await AuthService.oauthLogin("Google", payload.sub, {
           email: payload.email,
           displayName: payload.name,
@@ -49,8 +50,48 @@ export class AuthController {
         return res.status(result.status || 200).json(result);
       }
 
-      // fallback: accept direct oauthId/email/displayName in body for other providers
+      if (provider === "facebook") {
+        const { accessToken } = req.body;
+        if (!accessToken) return res.status(400).json({ message: "accessToken required" });
+        const payload = await verifyFacebookAccessToken(accessToken);
+        const result = await AuthService.oauthLogin("Facebook", payload.id, {
+          email: payload.email,
+          displayName: payload.name,
+        });
+        return res.status(result.status || 200).json(result);
+      }
+
+      if (provider === "apple") {
+        // client may send either idToken (from client) or authorization code
+        const { idToken, code } = req.body;
+        let sub: string | undefined;
+        let email: string | undefined;
+        let name: string | undefined;
+
+        if (idToken) {
+          const decoded = decodeAppleIdToken(idToken);
+          sub = String(decoded.sub);
+          email = decoded.email;
+          // apple may not supply name in id_token
+        } else if (code) {
+          const tokenResponse = await exchangeAppleAuthCode(code);
+          if (!tokenResponse.id_token) {
+            return res.status(400).json({ message: "Apple did not return id_token" });
+          }
+          const decoded = decodeAppleIdToken(tokenResponse.id_token);
+          sub = String(decoded.sub);
+          email = decoded.email;
+        } else {
+          return res.status(400).json({ message: "idToken or authorization code required for Apple" });
+        }
+
+        const result = await AuthService.oauthLogin("Apple", sub!, { email, displayName: name });
+        return res.status(result.status || 200).json(result);
+      }
+
+      // fallback for unknown providers: expect provider, oauthId, email in body
       const { oauthId, email, displayName } = req.body;
+      if (!oauthId) return res.status(400).json({ message: "oauthId required" });
       const result = await AuthService.oauthLogin(provider, oauthId, { email, displayName });
       return res.status(result.status || 200).json(result);
     } catch (err: any) {
