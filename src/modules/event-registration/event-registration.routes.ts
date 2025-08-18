@@ -1,8 +1,9 @@
 import express from "express";
-import { isAuth, restrictTo } from "../../middleware/rbac";
+import { restrictTo } from "../../middleware/rbac";
 import { EventRegistrationController } from "./event-registration.controller";
 import { EventRegistrationSchemas } from "./event-registration.schema";
 import { validateBody } from "../../middleware/validateSchema";
+import { isAuth } from "../../middleware/auth";
 
 const router = express.Router();
 
