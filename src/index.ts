@@ -18,6 +18,12 @@ import { errorMiddleware } from "./middleware/error";
 import fileUpload from "express-fileupload";
 import mediaRoutes from "./modules/media/media.routes";
 import notificationRoutes from "./modules/notification/notification.routes";
+import commentRoutes from "./modules/comment/comment.routes";
+import reactionRoutes from "./modules/reaction/reaction.routes";
+import eventRoutes from "./modules/event/event.routes";
+import eventRegistrationRoutes from "./modules/event-registration/event-registration.routes";
+import reportRoutes from "./modules/report/report.routes";
+import viewRoutes from "./modules/view/view.routes";
 import { WebSocketService } from "./services/websocket.service";
 
 const app: Express = express();
@@ -36,6 +42,15 @@ app.get("/", (req: Request, res: Response) => {
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/gists", gistRoutes);
 app.use("/api/v1/media", mediaRoutes);
+app.use("/api/v1/gists", gistRoutes);
+app.use("/api/v1/media", mediaRoutes);
+app.use("/api/v1/notifications", notificationRoutes);
+app.use("/api/v1/comments", commentRoutes);
+app.use("/api/v1/reactions", reactionRoutes);
+app.use("/api/v1/events", eventRoutes);
+app.use("/api/v1/event-registrations", eventRegistrationRoutes);
+app.use("/api/v1/reports", reportRoutes);
+app.use("/api/v1/views", viewRoutes);
 
 app.use(notFound);
 app.use(errorMiddleware);
