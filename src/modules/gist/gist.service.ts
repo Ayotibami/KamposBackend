@@ -1,25 +1,22 @@
 import { ApiError, ApiSuccess } from "../../utils/responseHandler";
 import * as gistRepo from "./gist.model";
 import * as profileRepo from "../profile/profile.model";
+import {
+  cacheTrendingGists,
+  getCachedTrendingGists,
+} from "../../services/redis.service";
 import type { IGist } from "./gist.interface";
-import { NotificationService } from "../notification/notification.service";
+
+interface TrendingGists {
+  gists: IGist[];
+  total: number;
+}
 
 export class GistService {
   static async createGist(avitag: string, gistData: Partial<IGist>) {
     const profile = await profileRepo.findProfileByAvitag(avitag);
     if (!profile) throw ApiError.notFound("Profile not found");
     const gist = await gistRepo.createGist({ ...gistData, avitag });
-    const usersToNotify = await profileRepo.findProfilesByCampusOrMajor(profile.campusTag, profile.majorTag);
-  for (const user of usersToNotify) {
-    if (user.avitag !== avitag) {
-      await NotificationService.createNotification({
-        avitag: user.avitag!,
-        type: profile.campusTag ? "INSTITUTION_GIST" : "MAJOR_GIST",
-        message: `${profile.displayName} posted a new gist!`,
-        referenceId: gist.gistId,
-      });
-    }
-  }
     return ApiSuccess.created("Gist created", gist);
   }
 
@@ -67,11 +64,18 @@ export class GistService {
     limit: number,
     timeRange: string
   ) {
+    const cacheKey = `trending_gists:${page}:${limit}:${timeRange}`;
+    const cached = await getCachedTrendingGists();
+    if (cached && cached.gists && cached.total) {
+      return ApiSuccess.ok("Trending gists fetched from cache", cached);
+    }
+
     const { gists, total } = await gistRepo.findTrendingGists(
       page,
       limit,
       timeRange
     );
+    await cacheTrendingGists({ gists, total });
     return ApiSuccess.ok("Trending gists fetched", { gists, total });
   }
 

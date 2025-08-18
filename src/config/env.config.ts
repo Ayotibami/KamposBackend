@@ -41,4 +41,12 @@ export const env = {
   // Rate limiting / security tuning
   RATE_LIMIT_WINDOW_MS: Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
   RATE_LIMIT_MAX: Number(process.env.RATE_LIMIT_MAX || 100),
+
+  // Sentry (optional)
+  SENTRY_DSN: process.env.SENTRY_DSN || "",
+
+  // Redis (optional, for caching)
+  REDIS_URL: process.env.REDIS_URL || "",
+  REDIS_HOST: process.env.REDIS_HOST || "localhost",
+  
 } as const;

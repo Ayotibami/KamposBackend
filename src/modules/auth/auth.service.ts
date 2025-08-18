@@ -16,6 +16,7 @@ import type {
   ResetPasswordDTO,
 } from "./auth.interface";
 import pool from "../../config/connectDB";
+import { cacheUserSession, getCachedUserSession } from "../../services/redis.service";
 
 const REFRESH_BYTES = 64;
 
@@ -27,6 +28,9 @@ export class AuthService {
     accountId: string,
     authProvider = "Email"
   ) {
+    const cachedSession = await getCachedUserSession(accountId);
+    if (cachedSession) return cachedSession;
+
     const profile = await profileRepo.findProfileByAccountId(accountId);
     if (!profile) throw ApiError.notFound("Profile not found");
     const refreshTokenPlain = crypto.randomBytes(REFRESH_BYTES).toString("hex");
@@ -48,7 +52,13 @@ export class AuthService {
       avitag: profile.avitag,
     });
 
-    return { accessToken, refreshToken: refreshTokenPlain, session };
+    const sessionData = {
+      accessToken,
+      refreshToken: refreshTokenPlain,
+      session,
+    };
+    await cacheUserSession(accountId, sessionData);
+    return sessionData;
   }
 
   // Register (email/password)
