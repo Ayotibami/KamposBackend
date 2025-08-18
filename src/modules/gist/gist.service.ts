@@ -2,12 +2,24 @@ import { ApiError, ApiSuccess } from "../../utils/responseHandler";
 import * as gistRepo from "./gist.model";
 import * as profileRepo from "../profile/profile.model";
 import type { IGist } from "./gist.interface";
+import { NotificationService } from "../notification/notification.service";
 
 export class GistService {
   static async createGist(avitag: string, gistData: Partial<IGist>) {
     const profile = await profileRepo.findProfileByAvitag(avitag);
     if (!profile) throw ApiError.notFound("Profile not found");
     const gist = await gistRepo.createGist({ ...gistData, avitag });
+    const usersToNotify = await profileRepo.findProfilesByCampusOrMajor(profile.campusTag, profile.majorTag);
+  for (const user of usersToNotify) {
+    if (user.avitag !== avitag) {
+      await NotificationService.createNotification({
+        avitag: user.avitag!,
+        type: profile.campusTag ? "INSTITUTION_GIST" : "MAJOR_GIST",
+        message: `${profile.displayName} posted a new gist!`,
+        referenceId: gist.gistId,
+      });
+    }
+  }
     return ApiSuccess.created("Gist created", gist);
   }
 

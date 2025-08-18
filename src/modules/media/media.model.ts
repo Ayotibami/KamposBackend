@@ -1,5 +1,5 @@
 import pool from "../../config/connectDB";
-import type { IMedia } from "./media.interface";
+import type { IMedia, MediaEntityType } from "./media.interface";
 
 const mapRow = (r: any): IMedia => ({
   mediaId: r.media_id,

@@ -24,7 +24,9 @@ const mapRow = (r: any): IProfile => ({
   updatedAt: r.updated_at,
 });
 
-export const createProfile = async (p: Partial<IProfile>): Promise<IProfile> => {
+export const createProfile = async (
+  p: Partial<IProfile>
+): Promise<IProfile> => {
   const { rows } = await pool.query(
     `INSERT INTO profiles
      (account_id, display_name, first_name, last_name, profile_type, campus_tag, major_tag, degree, level, bio, profile_picture_url, is_verified, social_links, engagement_score, earnings_balance, monetization_enabled, top_gist_id)
@@ -53,13 +55,20 @@ export const createProfile = async (p: Partial<IProfile>): Promise<IProfile> => 
   return mapRow(rows[0]);
 };
 
-export const findProfileByAvitag = async (avitag: string): Promise<IProfile | null> => {
-  const { rows } = await pool.query(`SELECT * FROM profiles WHERE avitag = $1`, [avitag]);
+export const findProfileByAvitag = async (
+  avitag: string
+): Promise<IProfile | null> => {
+  const { rows } = await pool.query(
+    `SELECT * FROM profiles WHERE avitag = $1`,
+    [avitag]
+  );
   if (!rows[0]) return null;
   return mapRow(rows[0]);
 };
 
-export const findProfileByAccountId = async (accountId: string): Promise<IProfile | null> => {
+export const findProfileByAccountId = async (
+  accountId: string
+): Promise<IProfile | null> => {
   const { rows } = await pool.query(
     `SELECT * FROM profiles WHERE account_id = $1 LIMIT 1`,
     [accountId]
@@ -68,26 +77,43 @@ export const findProfileByAccountId = async (accountId: string): Promise<IProfil
   return mapRow(rows[0]);
 };
 
-export const updateProfileByAvitag = async (avitag: string, updates: Partial<IProfile>): Promise<IProfile | null> => {
+export const updateProfileByAvitag = async (
+  avitag: string,
+  updates: Partial<IProfile>
+): Promise<IProfile | null> => {
   const set: string[] = [];
   const vals: any[] = [];
   let idx = 1;
   const mapKey = (k: string) => {
     switch (k) {
-      case "displayName": return "display_name";
-      case "firstName": return "first_name";
-      case "lastName": return "last_name";
-      case "profileType": return "profile_type";
-      case "campusTag": return "campus_tag";
-      case "majorTag": return "major_tag";
-      case "profilePictureUrl": return "profile_picture_url";
-      case "isVerified": return "is_verified";
-      case "socialLinks": return "social_links";
-      case "engagementScore": return "engagement_score";
-      case "earningsBalance": return "earnings_balance";
-      case "monetizationEnabled": return "monetization_enabled";
-      case "topGistId": return "top_gist_id";
-      default: return k;
+      case "displayName":
+        return "display_name";
+      case "firstName":
+        return "first_name";
+      case "lastName":
+        return "last_name";
+      case "profileType":
+        return "profile_type";
+      case "campusTag":
+        return "campus_tag";
+      case "majorTag":
+        return "major_tag";
+      case "profilePictureUrl":
+        return "profile_picture_url";
+      case "isVerified":
+        return "is_verified";
+      case "socialLinks":
+        return "social_links";
+      case "engagementScore":
+        return "engagement_score";
+      case "earningsBalance":
+        return "earnings_balance";
+      case "monetizationEnabled":
+        return "monetization_enabled";
+      case "topGistId":
+        return "top_gist_id";
+      default:
+        return k;
     }
   };
   for (const [k, v] of Object.entries(updates)) {
@@ -98,9 +124,36 @@ export const updateProfileByAvitag = async (avitag: string, updates: Partial<IPr
   if (set.length === 0) return findProfileByAvitag(avitag);
   vals.push(avitag);
   const { rows } = await pool.query(
-    `UPDATE profiles SET ${set.join(", ")}, updated_at = now() WHERE avitag = $${idx} RETURNING *`,
+    `UPDATE profiles SET ${set.join(
+      ", "
+    )}, updated_at = now() WHERE avitag = $${idx} RETURNING *`,
     vals
   );
   if (!rows[0]) return null;
   return mapRow(rows[0]);
+};
+
+export const findProfilesByCampusOrMajor = async (
+  campusTag?: string,
+  majorTag?: string
+): Promise<IProfile[]> => {
+  const conditions: string[] = [];
+  const vals: any[] = [];
+  let idx = 1;
+
+  if (campusTag) {
+    conditions.push(`campus_tag = $${idx++}`);
+    vals.push(campusTag);
+  }
+  if (majorTag) {
+    conditions.push(`major_tag = $${idx++}`);
+    vals.push(majorTag);
+  }
+  if (conditions.length === 0) return [];
+
+  const { rows } = await pool.query(
+    `SELECT * FROM profiles WHERE ${conditions.join(" OR ")}`,
+    vals
+  );
+  return rows.map(mapRow);
 };

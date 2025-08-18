@@ -3,15 +3,16 @@ import * as mediaRepo from "./media.model";
 import * as gistRepo from "../gist/gist.model";
 import * as eventRepo from "../event/event.model";
 import { UploadService } from "../../services/upload.service";
-import type { IMedia } from "./media.interface";
+import type { IMedia, MediaEntityType, MediaType } from "./media.interface";
+import type { UploadedFile } from "express-fileupload"; // Import FileUpload type
 
 export class MediaService {
   static async uploadMedia(
     avitag: string,
-    entityType: string,
+    entityType: MediaEntityType, // Use MediaEntityType
     entityId: string,
-    mediaType: string,
-    file: Express.Multer.File
+    mediaType: MediaType, // Use MediaType
+    file: UploadedFile // Use FileUpload instead of Express.Multer.File
   ) {
     // Validate entity exists
     if (entityType === "gist") {
@@ -30,7 +31,7 @@ export class MediaService {
         );
     }
 
-    const mediaUrl = await UploadService.uploadToCloudinary(file.path);
+    const mediaUrl = await UploadService.uploadToCloudinary(file.tempFilePath); // Use tempFilePath for express-fileupload
     const media = await mediaRepo.createMedia({
       entityType,
       entityId,
@@ -46,11 +47,8 @@ export class MediaService {
     return ApiSuccess.ok("Media fetched", media);
   }
 
-  static async getMediaByEntity(entityType: string, entityId: string) {
-    const media = await mediaRepo.findMediaByEntity(
-      entityType as any,
-      entityId
-    );
+  static async getMediaByEntity(entityType: MediaEntityType, entityId: string) {
+    const media = await mediaRepo.findMediaByEntity(entityType, entityId);
     return ApiSuccess.ok("Media fetched", media);
   }
 

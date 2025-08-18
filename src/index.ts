@@ -17,6 +17,8 @@ import gistRoutes from "./modules/gist/gist.routes";
 import { errorMiddleware } from "./middleware/error";
 import fileUpload from "express-fileupload";
 import mediaRoutes from "./modules/media/media.routes";
+import notificationRoutes from "./modules/notification/notification.routes";
+import { WebSocketService } from "./services/websocket.service";
 
 const app: Express = express();
 
@@ -39,6 +41,9 @@ app.use(notFound);
 app.use(errorMiddleware);
 
 let server: http.Server | undefined;
+
+WebSocketService.initialize(server);
+app.use("/api/v1/notifications", notificationRoutes);
 
 const startServer = async (): Promise<void> => {
   try {
