@@ -13,6 +13,7 @@ import { env } from "./config/env.config";
 import pool, { connectDB } from "./config/connectDB";
 import notFound from "./middleware/notFound";
 import authRoutes from "./modules/auth/auth.routes";
+import gistRoutes from "./modules/gist/gist.routes";
 import { errorMiddleware } from "./middleware/error";
 
 const app: Express = express();
@@ -28,6 +29,7 @@ app.get("/", (req: Request, res: Response) => {
 });
 
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/gists", gistRoutes);
 
 app.use(notFound);
 app.use(errorMiddleware);
