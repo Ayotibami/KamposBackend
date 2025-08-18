@@ -9,7 +9,12 @@ import * as otpRepo from "../otp/otp.model";
 import * as oauthModel from "../account/oauth.model";
 import { mailService } from "../../services/mail.service";
 import logger from "../../utils/logger";
-import type { LoginDTO, RegisterDTO, OTPData, ResetPasswordDTO } from "./auth.interface";
+import type {
+  LoginDTO,
+  RegisterDTO,
+  OTPData,
+  ResetPasswordDTO,
+} from "./auth.interface";
 import pool from "../../config/connectDB";
 
 const REFRESH_BYTES = 64;
@@ -18,13 +23,18 @@ export class AuthService {
   static OTP_TTL_MINUTES = 10;
 
   // Helper: create and return { accessToken, refreshToken, session }
-  private static async createSessionAndTokens(accountId: string, authProvider = "Email") {
-    // generate a secure random refresh token (plain)
+  private static async createSessionAndTokens(
+    accountId: string,
+    authProvider = "Email"
+  ) {
+    const profile = await profileRepo.findProfileByAccountId(accountId);
+    if (!profile) throw ApiError.notFound("Profile not found");
     const refreshTokenPlain = crypto.randomBytes(REFRESH_BYTES).toString("hex");
     const tokenExpiresAt = new Date();
-    tokenExpiresAt.setDate(tokenExpiresAt.getDate() + env.REFRESH_TOKEN_EXPIRES_DAYS);
+    tokenExpiresAt.setDate(
+      tokenExpiresAt.getDate() + env.REFRESH_TOKEN_EXPIRES_DAYS
+    );
 
-    // store hashed refresh token in DB
     const session = await oauthModel.createSession({
       accountId,
       authProvider,
@@ -32,10 +42,12 @@ export class AuthService {
       tokenExpiresAt,
     });
 
-    // access token (JWT) payload includes accountId and sessionId
-    const accessToken = generateToken({ userId: accountId, sessionId: session.session_id });
+    const accessToken = generateToken({
+      userId: accountId,
+      sessionId: session.session_id,
+      avitag: profile.avitag,
+    });
 
-    // return tokens; send refresh token plain to client once
     return { accessToken, refreshToken: refreshTokenPlain, session };
   }
 
@@ -43,7 +55,8 @@ export class AuthService {
   static async register(userData: RegisterDTO & Partial<any>) {
     const { email, password, displayName, profileType } = userData;
     const existing = await accountRepo.findAccountByEmail(email);
-    if (existing) throw ApiError.badRequest("Account with this email already exists");
+    if (existing)
+      throw ApiError.badRequest("Account with this email already exists");
 
     const hashed = await hashPassword(password);
 
@@ -63,11 +76,17 @@ export class AuthService {
     });
 
     // send OTP
-    const emailInfo = await mailService.sendOTPViaEmail(email, displayName ?? "");
+    const emailInfo = await mailService.sendOTPViaEmail(
+      email,
+      displayName ?? ""
+    );
 
     // respond
     (account as any).passwordHash = undefined;
-    return ApiSuccess.created(`Registration successful, OTP sent to ${emailInfo.envelope.to}`, { account, profile });
+    return ApiSuccess.created(
+      `Registration successful, OTP sent to ${emailInfo.envelope.to}`,
+      { account, profile }
+    );
   }
 
   // Login (email/password) -> issues access + refresh tokens and a session
@@ -75,13 +94,15 @@ export class AuthService {
     const { email, password } = userData;
     const account = await accountRepo.findAccountByEmail(email);
     if (!account) throw ApiError.notFound("Invalid credentials");
-    if (!account.passwordHash) throw ApiError.forbidden("No password set for this account");
+    if (!account.passwordHash)
+      throw ApiError.forbidden("No password set for this account");
 
     await comparePassword(password, account.passwordHash);
 
     if (!account.isOtpVerified) throw ApiError.forbidden("Email not verified");
 
-    const { accessToken, refreshToken, session } = await AuthService.createSessionAndTokens(account.accountId!);
+    const { accessToken, refreshToken, session } =
+      await AuthService.createSessionAndTokens(account.accountId!);
 
     return ApiSuccess.ok("Login successful", {
       accessToken,
@@ -131,7 +152,9 @@ export class AuthService {
       }
 
       // ensure profile exists and is enriched with provider fields
-      const profile = await profileRepo.findProfileByAccountId(account.accountId!);
+      const profile = await profileRepo.findProfileByAccountId(
+        account.accountId!
+      );
       const updates: Record<string, any> = {};
       if (!profile) {
         // create missing profile
@@ -148,10 +171,17 @@ export class AuthService {
         });
       } else {
         // update only missing pieces
-        if (profileData.displayName && profile.displayName !== profileData.displayName) updates.displayName = profileData.displayName;
-        if (profileData.picture && !profile.profilePictureUrl) updates.profilePictureUrl = profileData.picture;
+        if (
+          profileData.displayName &&
+          profile.displayName !== profileData.displayName
+        )
+          updates.displayName = profileData.displayName;
+        if (profileData.picture && !profile.profilePictureUrl)
+          updates.profilePictureUrl = profileData.picture;
         if (!profile.firstName && profileData.displayName) {
-          const [firstName, ...rest] = (profileData.displayName || "").split(" ");
+          const [firstName, ...rest] = (profileData.displayName || "").split(
+            " "
+          );
           if (firstName) updates.firstName = firstName;
           const lastName = rest.join(" ");
           if (lastName) updates.lastName = lastName;
@@ -163,7 +193,8 @@ export class AuthService {
     }
 
     // create session + tokens
-    const { accessToken, refreshToken, session } = await AuthService.createSessionAndTokens(account.accountId!, provider);
+    const { accessToken, refreshToken, session } =
+      await AuthService.createSessionAndTokens(account.accountId!, provider);
 
     return ApiSuccess.ok("OAuth login successful", {
       accessToken,
@@ -180,35 +211,55 @@ export class AuthService {
     if (!session) throw ApiError.unauthorized("Invalid refresh token");
 
     // check expiry
-    if (session.token_expires_at && new Date(session.token_expires_at) < new Date()) {
+    if (
+      session.token_expires_at &&
+      new Date(session.token_expires_at) < new Date()
+    ) {
       // session expired -> delete
       await oauthModel.deleteSessionById(session.session_id);
       throw ApiError.unauthorized("Refresh token expired");
     }
 
     // create new access token (and optional rotate refresh token)
-    const accessToken = generateToken({ userId: session.account_id, sessionId: session.session_id });
+    const accessToken = generateToken({
+      userId: session.account_id,
+      sessionId: session.session_id,
+    });
 
     // optionally rotate refresh token: generate new, update session encrypted_refresh_token
     const newRefreshPlain = crypto.randomBytes(REFRESH_BYTES).toString("hex");
-    const hashed = crypto.createHash("sha256").update(newRefreshPlain).digest("hex");
+    const hashed = crypto
+      .createHash("sha256")
+      .update(newRefreshPlain)
+      .digest("hex");
     await pool.query(
       `UPDATE oauth_sessions SET encrypted_refresh_token = $1, updated_at = now() WHERE session_id = $2`,
       [hashed, session.session_id]
     );
 
-    return ApiSuccess.ok("Tokens refreshed", { accessToken, refreshToken: newRefreshPlain, expiresIn: Number(env.JWT_EXPIRES) || 86400 });
+    return ApiSuccess.ok("Tokens refreshed", {
+      accessToken,
+      refreshToken: newRefreshPlain,
+      expiresIn: Number(env.JWT_EXPIRES) || 86400,
+    });
   }
 
   // Logout: revoke session by id or refresh token
-  static async logout({ sessionId, refreshToken }: { sessionId?: string; refreshToken?: string }) {
+  static async logout({
+    sessionId,
+    refreshToken,
+  }: {
+    sessionId?: string;
+    refreshToken?: string;
+  }) {
     if (sessionId) {
       await oauthModel.deleteSessionById(sessionId);
       return ApiSuccess.ok("Logged out");
     }
     if (refreshToken) {
       const session = await oauthModel.findSessionByRefreshToken(refreshToken);
-      if (session && session.session_id) await oauthModel.deleteSessionById(session.session_id);
+      if (session && session.session_id)
+        await oauthModel.deleteSessionById(session.session_id);
       return ApiSuccess.ok("Logged out");
     }
     throw ApiError.badRequest("sessionId or refreshToken required");
@@ -220,7 +271,9 @@ export class AuthService {
     const account = await accountRepo.findAccountById(id);
     if (!account) throw ApiError.notFound("User not found");
     (account as any).passwordHash = undefined;
-    const profile = await profileRepo.findProfileByAccountId(account.accountId!);
+    const profile = await profileRepo.findProfileByAccountId(
+      account.accountId!
+    );
     return ApiSuccess.ok("User fetched", { account, profile });
   }
 
@@ -238,11 +291,15 @@ export class AuthService {
     if (!account) throw ApiError.notFound("Account not found");
     if (account.isOtpVerified) return ApiSuccess.ok("Already verified");
     const latest = await otpRepo.findOTPByEmail(email);
-    if (!latest || latest.otp !== otp) throw ApiError.badRequest("Invalid or expired OTP");
+    if (!latest || latest.otp !== otp)
+      throw ApiError.badRequest("Invalid or expired OTP");
     const created = new Date(latest.createdAt!);
     const minutes = (Date.now() - created.getTime()) / 1000 / 60;
-    if (minutes > AuthService.OTP_TTL_MINUTES) throw ApiError.badRequest("OTP expired");
-    await accountRepo.updateAccountById(account.accountId!, { isOtpVerified: true });
+    if (minutes > AuthService.OTP_TTL_MINUTES)
+      throw ApiError.badRequest("OTP expired");
+    await accountRepo.updateAccountById(account.accountId!, {
+      isOtpVerified: true,
+    });
     if (latest.id) await otpRepo.deleteOTPById(latest.id);
     return ApiSuccess.ok("Email verified");
   }
@@ -258,21 +315,30 @@ export class AuthService {
     const account = await accountRepo.findAccountByEmail(email);
     if (!account) throw ApiError.notFound("Account not found");
     const latest = await otpRepo.findOTPByEmail(email);
-    if (!latest || latest.otp !== otp) throw ApiError.badRequest("Invalid or expired OTP");
+    if (!latest || latest.otp !== otp)
+      throw ApiError.badRequest("Invalid or expired OTP");
     const created = new Date(latest.createdAt!);
     const minutes = (Date.now() - created.getTime()) / 1000 / 60;
-    if (minutes > AuthService.OTP_TTL_MINUTES) throw ApiError.badRequest("OTP expired");
+    if (minutes > AuthService.OTP_TTL_MINUTES)
+      throw ApiError.badRequest("OTP expired");
     const hashed = await hashPassword(password);
-    await accountRepo.updateAccountById(account.accountId!, { passwordHash: hashed });
+    await accountRepo.updateAccountById(account.accountId!, {
+      passwordHash: hashed,
+    });
     if (latest.id) await otpRepo.deleteOTPById(latest.id);
     return ApiSuccess.ok("Password updated");
   }
 
   // Account operations
-  static async changePassword(accountId: string, oldPassword: string, newPassword: string) {
+  static async changePassword(
+    accountId: string,
+    oldPassword: string,
+    newPassword: string
+  ) {
     const account = await accountRepo.findAccountById(accountId);
     if (!account) throw ApiError.notFound("Account not found");
-    if (!account.passwordHash) throw ApiError.badRequest("No password set for this account");
+    if (!account.passwordHash)
+      throw ApiError.badRequest("No password set for this account");
     await comparePassword(oldPassword, account.passwordHash);
     const hashed = await hashPassword(newPassword);
     await accountRepo.updateAccountById(accountId, { passwordHash: hashed });
@@ -288,7 +354,9 @@ export class AuthService {
   }
 
   static async softDeleteAccount(accountId: string) {
-    await accountRepo.updateAccountById(accountId, { accountStatus: "Deleted" });
+    await accountRepo.updateAccountById(accountId, {
+      accountStatus: "Deleted",
+    });
     // revoke sessions
     await oauthModel.deleteSessionsByAccountId(accountId);
     return ApiSuccess.ok("Account deactivated");

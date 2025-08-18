@@ -18,6 +18,7 @@ export interface IUser {
 
 export interface AuthenticatedUser {
   userId: number | string;
+  avitag: string;
   roles: ("user" | "admin")[];
   email?: string;
 }
