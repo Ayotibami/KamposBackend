@@ -199,3 +199,15 @@ if (require.main === module) {
     }
   })();
 }
+
+
+// CREATE INDEX idx_gists_avitag ON gists(avitag);
+// CREATE INDEX idx_comments_gist_id ON comments(gist_id);
+// CREATE INDEX idx_reactions_entity ON reactions(entity_type, entity_id);
+// CREATE INDEX idx_media_entity ON media(entity_type, entity_id);
+// CREATE INDEX idx_events_location ON events(location);
+// CREATE INDEX idx_event_registrations_event_id ON event_registrations(event_id);
+// CREATE INDEX idx_event_registrations_student_avi_tag ON event_registrations(student_avi_tag);
+// CREATE INDEX idx_reports_gist_id ON reports(gist_id);
+// CREATE INDEX idx_views_gist_id ON views(gist_id);
+// CREATE INDEX idx_notifications_avitag ON notifications(avitag);
