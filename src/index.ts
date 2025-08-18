@@ -15,10 +15,13 @@ import notFound from "./middleware/notFound";
 import authRoutes from "./modules/auth/auth.routes";
 import gistRoutes from "./modules/gist/gist.routes";
 import { errorMiddleware } from "./middleware/error";
+import fileUpload from "express-fileupload";
+import mediaRoutes from "./modules/media/media.routes";
 
 const app: Express = express();
 
 app.use(express.json());
+app.use(fileUpload());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev"));
 app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
@@ -30,6 +33,7 @@ app.get("/", (req: Request, res: Response) => {
 
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/gists", gistRoutes);
+app.use("/api/v1/media", mediaRoutes);
 
 app.use(notFound);
 app.use(errorMiddleware);
