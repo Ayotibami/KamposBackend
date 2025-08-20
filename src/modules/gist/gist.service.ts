@@ -25,9 +25,20 @@ export class GistService {
     return ApiSuccess.ok("Gists fetched", { gists, total });
   }
 
+  static async getAllApprovedGists(page: number, limit: number) {
+    const { gists, total } = await gistRepo.findAllApprovedGists(page, limit);
+    return ApiSuccess.ok("Gists fetched", { gists, total });
+  }
+
   static async getGistById(gistId: string) {
     const gist = await gistRepo.findGistById(gistId);
     if (!gist) throw ApiError.notFound("Gist not found");
+    return ApiSuccess.ok("Gist fetched", gist);
+  }
+
+  static async getApprovedGistById(gistId: string) {
+    const gist = await gistRepo.findApprovedGistById(gistId);
+    if (!gist) throw ApiError.notFound("Gist not found or not approved");
     return ApiSuccess.ok("Gist fetched", gist);
   }
 
@@ -59,6 +70,11 @@ export class GistService {
     return ApiSuccess.ok("Gists fetched", gists);
   }
 
+  static async getApprovedGistsByAvitag(avitag: string) {
+    const gists = await gistRepo.findApprovedGistsByAvitag(avitag);
+    return ApiSuccess.ok("Gists fetched", gists);
+  }
+
   static async getTrendingGists(
     page: number,
     limit: number,
@@ -79,9 +95,50 @@ export class GistService {
     return ApiSuccess.ok("Trending gists fetched", { gists, total });
   }
 
+  static async getTrendingApprovedGists(
+    page: number,
+    limit: number,
+    timeRange: string
+  ) {
+    const { gists, total } = await gistRepo.findTrendingApprovedGists(
+      page,
+      limit,
+      timeRange
+    );
+    return ApiSuccess.ok("Trending gists fetched", { gists, total });
+  }
+
   static async searchGists(query: string, page: number, limit: number) {
     const { gists, total } = await gistRepo.searchGists(query, page, limit);
     return ApiSuccess.ok("Search results fetched", { gists, total });
+  }
+
+  static async searchApprovedGists(query: string, page: number, limit: number) {
+    const { gists, total } = await gistRepo.searchApprovedGists(
+      query,
+      page,
+      limit
+    );
+    return ApiSuccess.ok("Search results fetched", { gists, total });
+  }
+
+  static async approveGist(gistId: string, avitag: string) {
+    const actor = await profileRepo.findProfileByAvitag(avitag);
+    if (!actor) throw ApiError.notFound("Profile not found");
+    if (actor.profileType !== "ADMIN")
+      throw ApiError.forbidden("Only admins can approve gists");
+    const updated = await gistRepo.approveGistById(gistId);
+    if (!updated) throw ApiError.notFound("Gist not found");
+    return ApiSuccess.ok("Gist approved", updated);
+  }
+
+  static async getPendingGists(page: number, limit: number, avitag: string) {
+    const actor = await profileRepo.findProfileByAvitag(avitag);
+    if (!actor) throw ApiError.notFound("Profile not found");
+    if (actor.profileType !== "ADMIN")
+      throw ApiError.forbidden("Only admins can view pending gists");
+    const { gists, total } = await gistRepo.findPendingGists(page, limit);
+    return ApiSuccess.ok("Pending gists fetched", { gists, total });
   }
 }
 

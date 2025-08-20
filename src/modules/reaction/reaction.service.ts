@@ -13,15 +13,35 @@ export class ReactionService {
   ) {
     const { entityType, entityId, type } = reactionData;
     let targetAvitag: string | null = null;
+    let relatedGistAvitag: string | null = null;
+    let relatedGistApproved: boolean | null = null;
 
     if (entityType === "GIST") {
       const gist = await gistRepo.findGistById(entityId!);
       if (!gist) throw ApiError.notFound("Gist not found");
       targetAvitag = gist.avitag;
+      relatedGistAvitag = gist.avitag;
+      relatedGistApproved = gist.gistApproval ?? null;
     } else if (entityType === "COMMENT") {
       const comment = await commentRepo.findCommentById(entityId!);
       if (!comment) throw ApiError.notFound("Comment not found");
       targetAvitag = comment.avitag;
+
+      const gist = await gistRepo.findGistById(comment.gistId);
+      if (gist) {
+        relatedGistAvitag = gist.avitag;
+        relatedGistApproved = gist.gistApproval ?? null;
+      }
+    }
+
+    if (relatedGistApproved === false) {
+      const actor = await profileRepo.findProfileByAvitag(avitag);
+      if (!actor) throw ApiError.notFound("Profile not found");
+      const isAdmin = actor.profileType === "ADMIN";
+      const isOwner = relatedGistAvitag === avitag;
+      if (!isAdmin && !isOwner) {
+        throw ApiError.forbidden("Cannot react on an unapproved gist");
+      }
     }
 
     const existingReaction = await reactionRepo.findReactionsByEntity(

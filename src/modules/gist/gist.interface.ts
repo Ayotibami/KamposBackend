@@ -6,4 +6,5 @@ export interface IGist {
   avitag: string;
   createdAt?: string;
   editedAt?: string | null;
+  gistApproval?: boolean;
 }

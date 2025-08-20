@@ -12,9 +12,16 @@ export class CommentService {
     const profile = await profileRepo.findProfileByAvitag(avitag);
     if (!profile) throw ApiError.notFound("Profile not found");
 
+    if (gist.gistApproval === false) {
+      const isAdmin = profile.profileType === "ADMIN";
+      const isOwner = gist.avitag === avitag;
+      if (!isAdmin && !isOwner) {
+        throw ApiError.forbidden("Cannot comment on an unapproved gist");
+      }
+    }
+
     const comment = await commentRepo.createComment({ ...commentData, avitag });
 
-    // Trigger notification for gist owner
     if (gist.avitag !== avitag) {
       await NotificationService.createNotification({
         avitag: gist.avitag,

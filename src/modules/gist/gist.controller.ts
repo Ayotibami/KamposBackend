@@ -14,9 +14,24 @@ export class GistController {
     return res.status(result.status || 200).json(result);
   }
 
+  static async getAllApproved(req: Request, res: Response) {
+    const { page = 1, limit = 10 } = req.query;
+    const result = await GistService.getAllApprovedGists(
+      Number(page),
+      Number(limit)
+    );
+    return res.status(result.status || 200).json(result);
+  }
+
   static async getById(req: Request, res: Response) {
     const { gistId } = req.params;
     const result = await GistService.getGistById(gistId || "");
+    return res.status(result.status || 200).json(result);
+  }
+
+  static async getApprovedById(req: Request, res: Response) {
+    const { gistId } = req.params;
+    const result = await GistService.getApprovedGistById(gistId || "");
     return res.status(result.status || 200).json(result);
   }
 
@@ -40,9 +55,25 @@ export class GistController {
     return res.status(result.status || 200).json(result);
   }
 
+  static async getApprovedByAvitag(req: Request, res: Response) {
+    const { avi_tag } = req.params;
+    const result = await GistService.getApprovedGistsByAvitag(avi_tag || "");
+    return res.status(result.status || 200).json(result);
+  }
+
   static async getTrending(req: Request, res: Response) {
     const { page = 1, limit = 10, timeRange = "7 days" } = req.query;
     const result = await GistService.getTrendingGists(
+      Number(page),
+      Number(limit),
+      String(timeRange)
+    );
+    return res.status(result.status || 200).json(result);
+  }
+
+  static async getTrendingApproved(req: Request, res: Response) {
+    const { page = 1, limit = 10, timeRange = "7 days" } = req.query;
+    const result = await GistService.getTrendingApprovedGists(
       Number(page),
       Number(limit),
       String(timeRange)
@@ -56,6 +87,34 @@ export class GistController {
       String(query),
       Number(page),
       Number(limit)
+    );
+    return res.status(result.status || 200).json(result);
+  }
+
+  static async searchApproved(req: Request, res: Response) {
+    const { query, page = 1, limit = 10 } = req.query;
+    const result = await GistService.searchApprovedGists(
+      String(query),
+      Number(page),
+      Number(limit)
+    );
+    return res.status(result.status || 200).json(result);
+  }
+
+  static async approve(req: Request, res: Response) {
+    const { gistId } = req.params;
+    const avitag = (req as any).user?.avitag;
+    const result = await GistService.approveGist(gistId || "", avitag);
+    return res.status(result.status || 200).json(result);
+  }
+
+  static async getPending(req: Request, res: Response) {
+    const { page = 1, limit = 10 } = req.query;
+    const avitag = (req as any).user?.avitag;
+    const result = await GistService.getPendingGists(
+      Number(page),
+      Number(limit),
+      avitag
     );
     return res.status(result.status || 200).json(result);
   }
