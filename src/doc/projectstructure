@@ -5,6 +5,7 @@ kampos-backend/
 │   │   ├── env.config.ts
 │   │   ├── token.ts
 │   │   ├── appleKey.ts
+│   │   ├── sentry.ts
 │   │   └── cloudinary.ts
 │   ├── middleware/
 │   │   ├── auth.ts
@@ -80,7 +81,6 @@ kampos-backend/
 │   │   │   ├── notification.model.ts
 │   │   │   ├── notification.controller.ts
 │   │   │   ├── notification.routes.ts
-│   │   │   ├── notification.schema.ts
 │   │   │   └── notification.service.ts
 │   │   ├── report/
 │   │   │   ├── report.interface.ts
@@ -101,8 +101,11 @@ kampos-backend/
 │   │       ├── otp.model.ts
 │   │       └── otp.service.ts
 │   ├── services/
+│   │   ├── job-queue.service.ts
 │   │   ├── mail.service.ts
-│   │   └── upload.service.ts
+│   │   ├── redis.service.ts
+│   │   ├── upload.service.ts
+│   │   └── websocket.service.ts
 │   ├── utils/
 │   │   ├── logger.ts
 │   │   ├── generateOTP.ts
@@ -113,6 +116,9 @@ kampos-backend/
 │   │   ├── OTPTemplate.html
 │   │   └── WelcomeTemplate.html
 │   └── app.ts
+├── tests/
+│   ├── app.test.ts
+│   └── schemas.test.ts
 ├── .env
 ├── package.json
 └── tsconfig.json
