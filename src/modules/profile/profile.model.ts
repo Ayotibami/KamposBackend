@@ -1,159 +1,152 @@
 import pool from "../../config/connectDB";
-import type { IProfile } from "./profile.interface";
+import type {
+  IProfile,
+  IStudentProfile,
+  IKompanyProfile,
+  ISchoolProfile,
+  ICreatorProfile,
+  IAdminProfile,
+} from "./profile.interface";
+import { ApiError } from "../../utils/responseHandler";
 
-const mapRow = (r: any): IProfile => ({
-  avitag: r.avitag,
-  accountId: r.account_id,
-  displayName: r.display_name,
-  firstName: r.first_name,
-  lastName: r.last_name,
-  profileType: r.profile_type,
-  campusTag: r.campus_tag,
-  majorTag: r.major_tag,
-  degree: r.degree,
-  level: r.level,
-  bio: r.bio,
-  profilePictureUrl: r.profile_picture_url,
-  isVerified: r.is_verified,
-  socialLinks: r.social_links,
-  engagementScore: r.engagement_score,
-  earningsBalance: r.earnings_balance,
-  monetizationEnabled: r.monetization_enabled,
-  topGistId: r.top_gist_id,
-  createdAt: r.created_at,
-  updatedAt: r.updated_at,
-});
+const profileTables: Record<string, string> = {
+  STUDENT: "student_profiles",
+  KOMPANY: "kompany_profiles",
+  SCHOOL: "school_profiles",
+  CREATOR: "creator_profiles",
+  ADMIN: "admin_profiles",
+};
 
-export const createProfile = async (
-  p: Partial<IProfile>
-): Promise<IProfile> => {
-  const { rows } = await pool.query(
-    `INSERT INTO profiles
-     (account_id, display_name, first_name, last_name, profile_type, campus_tag, major_tag, degree, level, bio, profile_picture_url, is_verified, social_links, engagement_score, earnings_balance, monetization_enabled, top_gist_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-     RETURNING *`,
-    [
-      p.accountId ?? null,
-      p.displayName ?? null,
-      p.firstName ?? null,
-      p.lastName ?? null,
-      p.profileType ?? "STUDENT",
-      p.campusTag ?? null,
-      p.majorTag ?? null,
-      p.degree ?? null,
-      p.level ?? null,
-      p.bio ?? null,
-      p.profilePictureUrl ?? null,
-      p.isVerified ?? false,
-      p.socialLinks ? JSON.stringify(p.socialLinks) : null,
-      p.engagementScore ?? 0,
-      p.earningsBalance ?? 0,
-      p.monetizationEnabled ?? false,
-      p.topGistId ?? null,
-    ]
-  );
-  return mapRow(rows[0]);
+export const createProfile = async (profileData: Partial<IProfile>) => {
+  const { avitag, account_id, profile_type, ...specificFields } = profileData;
+  const table = profileTables[profile_type!];
+  if (!table) throw ApiError.badRequest("Invalid profile type");
+
+  const fields = [
+    "avitag",
+    "account_id",
+    ...Object.keys(specificFields),
+    "profile_type",
+  ];
+  const placeholders = fields.map((_, index) => `$${index + 1}`).join(", ");
+  const query = `
+    INSERT INTO ${table} (${fields.join(", ")})
+    VALUES (${placeholders})
+    RETURNING *;
+  `;
+  const values = [
+    avitag,
+    account_id,
+    ...Object.values(specificFields),
+    profile_type,
+  ];
+  const { rows } = await pool.query(query, values);
+  return rows[0];
 };
 
 export const findProfileByAvitag = async (
   avitag: string
 ): Promise<IProfile | null> => {
-  const { rows } = await pool.query(
-    `SELECT * FROM profiles WHERE avitag = $1`,
-    [avitag]
-  );
-  if (!rows[0]) return null;
-  return mapRow(rows[0]);
+  const tables = Object.values(profileTables);
+  for (const table of tables) {
+    const query = `SELECT * FROM ${table} WHERE avitag = $1;`;
+    const { rows } = await pool.query(query, [avitag]);
+    if (rows[0]) return rows[0];
+  }
+  return null;
 };
 
 export const findProfileByAccountId = async (
-  accountId: string
+  account_id: string
 ): Promise<IProfile | null> => {
-  const { rows } = await pool.query(
-    `SELECT * FROM profiles WHERE account_id = $1 LIMIT 1`,
-    [accountId]
-  );
-  if (!rows[0]) return null;
-  return mapRow(rows[0]);
+  const tables = Object.values(profileTables);
+  for (const table of tables) {
+    const query = `SELECT * FROM ${table} WHERE account_id = $1;`;
+    const { rows } = await pool.query(query, [account_id]);
+    if (rows[0]) return rows[0];
+  }
+  return null;
 };
 
-export const updateProfileByAvitag = async (
+export const updateProfile = async (
   avitag: string,
   updates: Partial<IProfile>
-): Promise<IProfile | null> => {
-  const set: string[] = [];
-  const vals: any[] = [];
-  let idx = 1;
-  const mapKey = (k: string) => {
-    switch (k) {
-      case "displayName":
-        return "display_name";
-      case "firstName":
-        return "first_name";
-      case "lastName":
-        return "last_name";
-      case "profileType":
-        return "profile_type";
-      case "campusTag":
-        return "campus_tag";
-      case "majorTag":
-        return "major_tag";
-      case "profilePictureUrl":
-        return "profile_picture_url";
-      case "isVerified":
-        return "is_verified";
-      case "socialLinks":
-        return "social_links";
-      case "engagementScore":
-        return "engagement_score";
-      case "earningsBalance":
-        return "earnings_balance";
-      case "monetizationEnabled":
-        return "monetization_enabled";
-      case "topGistId":
-        return "top_gist_id";
-      default:
-        return k;
-    }
-  };
-  for (const [k, v] of Object.entries(updates)) {
-    if (v === undefined) continue;
-    set.push(`${mapKey(k)} = $${idx++}`);
-    vals.push(k === "socialLinks" ? JSON.stringify(v) : v);
-  }
-  if (set.length === 0) return findProfileByAvitag(avitag);
-  vals.push(avitag);
-  const { rows } = await pool.query(
-    `UPDATE profiles SET ${set.join(
-      ", "
-    )}, updated_at = now() WHERE avitag = $${idx} RETURNING *`,
-    vals
+) => {
+  const profile = await findProfileByAvitag(avitag);
+  if (!profile) throw ApiError.notFound("Profile not found");
+
+  const table = profileTables[profile.profile_type];
+  const fields = Object.keys(updates).filter(
+    (key) => key !== "avitag" && key !== "account_id" && key !== "profile_type"
   );
-  if (!rows[0]) return null;
-  return mapRow(rows[0]);
+  if (fields.length === 0)
+    throw ApiError.badRequest("No valid fields to update");
+
+  const setClause = fields
+    .map((field, index) => `${field} = $${index + 2}`)
+    .join(", ");
+  const query = `
+    UPDATE ${table}
+    SET ${setClause}, updated_at = CURRENT_TIMESTAMP
+    WHERE avitag = $1
+    RETURNING *;
+  `;
+  const values = [
+    avitag,
+    ...fields.map((field) => (updates as Record<string, any>)[field] ?? null),
+  ];
+  const { rows } = await pool.query(query, values);
+  return rows[0] || null;
 };
 
-export const findProfilesByCampusOrMajor = async (
-  campusTag?: string,
-  majorTag?: string
-): Promise<IProfile[]> => {
-  const conditions: string[] = [];
-  const vals: any[] = [];
-  let idx = 1;
+export const deleteProfile = async (avitag: string) => {
+  const profile = await findProfileByAvitag(avitag);
+  if (!profile) throw ApiError.notFound("Profile not found");
 
-  if (campusTag) {
-    conditions.push(`campus_tag = $${idx++}`);
-    vals.push(campusTag);
-  }
-  if (majorTag) {
-    conditions.push(`major_tag = $${idx++}`);
-    vals.push(majorTag);
-  }
-  if (conditions.length === 0) return [];
+  const table = profileTables[profile.profile_type];
+  const query = `DELETE FROM ${table} WHERE avitag = $1 RETURNING avitag;`;
+  const { rows } = await pool.query(query, [avitag]);
+  return rows[0] ? rows[0].avitag : null;
+};
 
-  const { rows } = await pool.query(
-    `SELECT * FROM profiles WHERE ${conditions.join(" OR ")}`,
-    vals
-  );
-  return rows.map(mapRow);
+export const verifyProfile = async (avitag: string) => {
+  const profile = await findProfileByAvitag(avitag);
+  if (!profile) throw ApiError.notFound("Profile not found");
+
+  const table = profileTables[profile.profile_type];
+  const query = `
+    UPDATE ${table}
+    SET is_verified = TRUE, updated_at = CURRENT_TIMESTAMP
+    WHERE avitag = $1
+    RETURNING *;
+  `;
+  const { rows } = await pool.query(query, [avitag]);
+  return rows[0] || null;
+};
+
+export const getProfilesByType = async (
+  profile_type: string,
+  page: number,
+  limit: number
+) => {
+  const table = profileTables[profile_type];
+  if (!table) throw ApiError.badRequest("Invalid profile type");
+
+  const offset = (page - 1) * limit;
+  const query = `
+    SELECT * FROM ${table}
+    ORDER BY created_at DESC
+    LIMIT $1 OFFSET $2;
+  `;
+  const countQuery = `SELECT COUNT(*) FROM ${table};`;
+
+  const [profilesResult, countResult] = await Promise.all([
+    pool.query(query, [limit, offset]),
+    pool.query(countQuery),
+  ]);
+
+  return {
+    profiles: profilesResult.rows,
+    total: parseInt(countResult.rows[0].count, 10),
+  };
 };
