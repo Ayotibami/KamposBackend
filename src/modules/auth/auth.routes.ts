@@ -22,6 +22,10 @@ router.post(
 );
 router.post("/signin", validateBody(AuthSchemas.login), AuthController.login);
 
+// Spec-compliant aliases
+router.post("/register", validateBody(AuthSchemas.register), AuthController.register);
+router.post("/login", validateBody(AuthSchemas.login), AuthController.login);
+
 // refresh
 router.post("/refresh", AuthController.refreshToken); // Controller method to implement below
 
@@ -52,5 +56,15 @@ router.post(
   validateBody(AuthSchemas.resetPassword),
   AuthController.resetPassword
 );
+
+// Account-related endpoints per spec
+router.get("/account/profile", isAuth, AuthController.getUser);
+router.patch("/account/update", isAuth, AuthController.updateAccount);
+router.patch(
+  "/account/change-password",
+  isAuth,
+  AuthController.changePassword
+);
+router.delete("/account/delete", isAuth, AuthController.softDeleteAccount);
 
 export default router;

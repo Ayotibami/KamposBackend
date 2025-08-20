@@ -36,4 +36,35 @@ const requireAdmin = asyncWrapper(
   }
 );
 
-export { isAuth, requireAdmin };
+const requireKompany = asyncWrapper(
+  async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    const user = (req as any).user;
+    if (!user) throw ApiError.unauthorized("Not authenticated");
+
+    if (user.profile_type === "ADMIN") return next();
+
+    const profile = await profileRepo.findProfileByAvitag(user.avitag);
+    if (!profile || profile.profile_type !== "ADMIN") {
+      throw ApiError.forbidden("Admin access required");
+    }
+    next();
+  }
+);
+
+const requireKreator = asyncWrapper(
+  async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    const user = (req as any).user;
+    if (!user) throw ApiError.unauthorized("Not authenticated");
+
+    if (user.profile_type === "ADMIN") return next();
+
+    if (!user.avitag) throw ApiError.forbidden("Admin access required");
+    const profile = await profileRepo.findProfileByAvitag(user.avitag);
+    if (!profile || profile.profile_type !== "ADMIN") {
+      throw ApiError.forbidden("Admin access required");
+    }
+    next();
+  }
+);
+
+export { isAuth, requireAdmin, requireKompany, requireKreator };

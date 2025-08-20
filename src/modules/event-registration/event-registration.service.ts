@@ -9,7 +9,7 @@ export class EventRegistrationService {
     const event = await eventRepo.findEventById(eventId);
     if (!event) throw ApiError.notFound("Event not found");
     const profile = await profileRepo.findProfileByAvitag(avitag);
-    if (!profile || profile.profileType !== "STUDENT")
+    if (!profile || profile.profile_type !== "STUDENT")
       throw ApiError.forbidden("Only students can register for events");
     const existing = await eventRegistrationRepo.findRegistrationsByEventId(
       eventId
@@ -41,11 +41,9 @@ export class EventRegistrationService {
   }
 
   static async deleteRegistration(id: number, avitag: string) {
-    const registration = await eventRegistrationRepo.findRegistrationsByEventId(
-      id.toString()
-    );
-    if (!registration.length) throw ApiError.notFound("Registration not found");
-    if (registration[0]?.studentAviTag !== avitag)
+    const registration = await eventRegistrationRepo.findRegistrationById(id);
+    if (!registration) throw ApiError.notFound("Registration not found");
+    if (registration.studentAviTag !== avitag)
       throw ApiError.forbidden("Not authorized to delete this registration");
     await eventRegistrationRepo.deleteRegistrationById(id);
     return ApiSuccess.ok("Registration deleted");

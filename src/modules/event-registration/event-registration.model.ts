@@ -38,6 +38,17 @@ export const findRegistrationsByStudent = async (
   return rows.map(mapRow);
 };
 
+export const findRegistrationById = async (
+  id: number
+): Promise<IEventRegistration | null> => {
+  const { rows } = await pool.query(
+    `SELECT * FROM event_registrations WHERE id = $1`,
+    [id]
+  );
+  if (!rows[0]) return null;
+  return mapRow(rows[0]);
+};
+
 export const deleteRegistrationById = async (id: number): Promise<void> => {
   await pool.query(`DELETE FROM event_registrations WHERE id = $1`, [id]);
 };

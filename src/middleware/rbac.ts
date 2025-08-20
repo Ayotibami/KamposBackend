@@ -10,7 +10,7 @@ export const restrictTo = (...allowedRoles: string[]) => {
     const profile = await profileRepo.findProfileByAvitag(avitag);
     if (!profile) throw ApiError.notFound("Profile not found");
 
-    if (!allowedRoles.includes(profile.profileType!)) {
+    if (!allowedRoles.includes((profile as any).profile_type!)) {
       throw ApiError.forbidden(
         `Only ${allowedRoles.join(", ")} roles are allowed`
       );
@@ -28,9 +28,15 @@ export const hasPermission = (permission: string) => {
     const profile = await profileRepo.findProfileByAvitag(avitag);
     if (!profile) throw ApiError.notFound("Profile not found");
 
-    if (profile.profileType === "ADMIN") {
-      const adminPermissions = profile.socialLinks?.permissions;
-      if (!adminPermissions?.includes(permission)) {
+    if ((profile as any).profile_type === "ADMIN") {
+      // permissions stored as JSONB on admin_profiles.permissions
+      const permsField = (profile as any).permissions;
+      const perms: string[] = Array.isArray(permsField)
+        ? permsField
+        : Array.isArray(permsField?.permissions)
+        ? permsField.permissions
+        : [];
+      if (!perms.includes(permission)) {
         throw ApiError.forbidden(`Permission ${permission} required`);
       }
     }

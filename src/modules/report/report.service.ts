@@ -38,7 +38,7 @@ export class ReportService {
     const report = await reportRepo.findReportById(reportId);
     if (!report) throw ApiError.notFound("Report not found");
     const profile = await profileRepo.findProfileByAvitag(avitag);
-    if (!profile || profile.profileType !== "ADMIN")
+    if (!profile || profile.profile_type !== "ADMIN")
       throw ApiError.forbidden("Only admins can update reports");
     const updated = await reportRepo.updateReportById(reportId, {
       ...updates,
