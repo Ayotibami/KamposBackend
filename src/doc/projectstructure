@@ -1,0 +1,118 @@
+kampos-backend/
+├── src/
+│   ├── config/
+│   │   ├── connectDB.ts
+│   │   ├── env.config.ts
+│   │   ├── token.ts
+│   │   ├── appleKey.ts
+│   │   └── cloudinary.ts
+│   ├── middleware/
+│   │   ├── auth.ts
+│   │   ├── error.ts
+│   │   ├── notFound.ts
+│   │   ├── validateSchema.ts
+│   │   └── asyncWrapper.ts
+│   ├── modules/
+│   │   ├── account/
+│   │   │   ├── account.interface.ts
+│   │   │   ├── account.model.ts
+│   │   │   └── oauth.model.ts
+│   │   ├── auth/
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── auth.interface.ts
+│   │   │   ├── auth.routes.ts
+│   │   │   ├── auth.schema.ts
+│   │   │   ├── auth.service.ts
+│   │   │   ├── google.provider.ts
+│   │   │   ├── facebook.provider.ts
+│   │   │   └── apple.provider.ts
+│   │   ├── profile/
+│   │   │   ├── profile.interface.ts
+│   │   │   ├── profile.model.ts
+│   │   │   ├── profile.controller.ts
+│   │   │   ├── profile.routes.ts
+│   │   │   ├── profile.schema.ts
+│   │   │   └── profile.service.ts
+│   │   ├── gist/
+│   │   │   ├── gist.interface.ts
+│   │   │   ├── gist.model.ts
+│   │   │   ├── gist.controller.ts
+│   │   │   ├── gist.routes.ts
+│   │   │   ├── gist.schema.ts
+│   │   │   └── gist.service.ts
+│   │   ├── comment/
+│   │   │   ├── comment.interface.ts
+│   │   │   ├── comment.model.ts
+│   │   │   ├── comment.controller.ts
+│   │   │   ├── comment.routes.ts
+│   │   │   ├── comment.schema.ts
+│   │   │   └── comment.service.ts
+│   │   ├── media/
+│   │   │   ├── media.interface.ts
+│   │   │   ├── media.model.ts
+│   │   │   ├── media.controller.ts
+│   │   │   ├── media.routes.ts
+│   │   │   ├── media.schema.ts
+│   │   │   └── media.service.ts
+│   │   ├── reaction/
+│   │   │   ├── reaction.interface.ts
+│   │   │   ├── reaction.model.ts
+│   │   │   ├── reaction.controller.ts
+│   │   │   ├── reaction.routes.ts
+│   │   │   ├── reaction.schema.ts
+│   │   │   └── reaction.service.ts
+│   │   ├── event/
+│   │   │   ├── event.interface.ts
+│   │   │   ├── event.model.ts
+│   │   │   ├── event.controller.ts
+│   │   │   ├── event.routes.ts
+│   │   │   ├── event.schema.ts
+│   │   │   └── event.service.ts
+│   │   ├── event-registration/
+│   │   │   ├── event-registration.interface.ts
+│   │   │   ├── event-registration.model.ts
+│   │   │   ├── event-registration.controller.ts
+│   │   │   ├── event-registration.routes.ts
+│   │   │   ├── event-registration.schema.ts
+│   │   │   └── event-registration.service.ts
+│   │   ├── notification/
+│   │   │   ├── notification.interface.ts
+│   │   │   ├── notification.model.ts
+│   │   │   ├── notification.controller.ts
+│   │   │   ├── notification.routes.ts
+│   │   │   ├── notification.schema.ts
+│   │   │   └── notification.service.ts
+│   │   ├── report/
+│   │   │   ├── report.interface.ts
+│   │   │   ├── report.model.ts
+│   │   │   ├── report.controller.ts
+│   │   │   ├── report.routes.ts
+│   │   │   ├── report.schema.ts
+│   │   │   └── report.service.ts
+│   │   ├── view/
+│   │   │   ├── view.interface.ts
+│   │   │   ├── view.model.ts
+│   │   │   ├── view.controller.ts
+│   │   │   ├── view.routes.ts
+│   │   │   ├── view.schema.ts
+│   │   │   └── view.service.ts
+│   │   └── otp/
+│   │       ├── otp.interface.ts
+│   │       ├── otp.model.ts
+│   │       └── otp.service.ts
+│   ├── services/
+│   │   ├── mail.service.ts
+│   │   └── upload.service.ts
+│   ├── utils/
+│   │   ├── logger.ts
+│   │   ├── generateOTP.ts
+│   │   ├── responseHandler.ts
+│   │   ├── validationUtils.ts
+│   │   └── paginate.ts
+│   ├── templates/
+│   │   ├── OTPTemplate.html
+│   │   └── WelcomeTemplate.html
+│   └── app.ts
+├── .env
+├── package.json
+└── tsconfig.json

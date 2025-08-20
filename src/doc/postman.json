@@ -1,0 +1,798 @@
+{
+  "info": {
+  "name": "Kampos Backend",
+  "_postman_id": "3f4a5b6c-7d8e-9f0a-1b2c-3d4e5f6a7b8c",
+  "description": "Postman collection for Kampos Backend API",
+  "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+  {
+  "name": "Auth",
+  "item": [
+  {
+  "name": "Register",
+  "request": {
+  "method": "POST",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"email\":\"test@example.com\",\"password\":\"password123\",\"displayName\":\"Test User\",\"avitag\":\"test-avitag\",\"profileType\":\"STUDENT\"}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/auth/register",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "auth", "register"]
+  }
+  }
+  },
+  {
+  "name": "Login",
+  "request": {
+  "method": "POST",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"email\":\"test@example.com\",\"password\":\"password123\"}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/auth/login",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "auth", "login"]
+  }
+  }
+  },
+  {
+  "name": "Refresh Token",
+  "request": {
+  "method": "POST",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"refreshToken\":\"your-refresh-token\"}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/auth/refresh",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "auth", "refresh"]
+  }
+  }
+  }
+  ]
+  },
+  {
+  "name": "Gist",
+  "item": [
+  {
+  "name": "Create Gist",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "POST",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"gistText\":\"Test gist\",\"mediaIds\":[],\"visibility\":\"PUBLIC\"}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/gists/create",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "gists", "create"]
+  }
+  }
+  },
+  {
+  "name": "Get All Gists",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/gists?page=1&limit=10",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "gists"],
+  "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }]
+  }
+  }
+  },
+  {
+  "name": "Get Gist by ID",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/gists/:gistId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "gists", ":gistId"],
+  "variable": [{ "key": "gistId", "value": "123" }]
+  }
+  }
+  },
+  {
+  "name": "Update Gist",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "PATCH",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"gistText\":\"Updated gist\"}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/gists/:gistId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "gists", ":gistId"],
+  "variable": [{ "key": "gistId", "value": "123" }]
+  }
+  }
+  },
+  {
+  "name": "Delete Gist",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "DELETE",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/gists/:gistId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "gists", ":gistId"],
+  "variable": [{ "key": "gistId", "value": "123" }]
+  }
+  }
+  },
+  {
+  "name": "Get Gists by Avi Tag",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/gists/user/:avi_tag",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "gists", "user", ":avi_tag"],
+  "variable": [{ "key": "avi_tag", "value": "test-avitag" }]
+  }
+  }
+  },
+  {
+  "name": "Get Trending Gists",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/gists/trending?page=1&limit=10&timeRange=24h",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "gists", "trending"],
+  "query": [
+  { "key": "page", "value": "1" },
+  { "key": "limit", "value": "10" },
+  { "key": "timeRange", "value": "24h" }
+  ]
+  }
+  }
+  },
+  {
+  "name": "Search Gists",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/gists/search?query=test&page=1&limit=10",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "gists", "search"],
+  "query": [
+  { "key": "query", "value": "test" },
+  { "key": "page", "value": "1" },
+  { "key": "limit", "value": "10" }
+  ]
+  }
+  }
+  },
+  {
+  "name": "Get Approved Gists",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/gists/approved",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "gists", "approved"]
+  }
+  }
+  },
+  {
+  "name": "Get Approved Gist by ID",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/gists/approved/:gistId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "gists", "approved", ":gistId"],
+  "variable": [{ "key": "gistId", "value": "123" }]
+  }
+  }
+  },
+  {
+  "name": "Get Approved Gists by Avi Tag",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/gists/user/:avi_tag/approved",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "gists", "user", ":avi_tag", "approved"],
+  "variable": [{ "key": "avi_tag", "value": "test-avitag" }]
+  }
+  }
+  },
+  {
+  "name": "Get Approved Trending Gists",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/gists/trending/approved?page=1&limit=10&timeRange=24h",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "gists", "trending", "approved"],
+  "query": [
+  { "key": "page", "value": "1" },
+  { "key": "limit", "value": "10" },
+  { "key": "timeRange", "value": "24h" }
+  ]
+  }
+  }
+  },
+  {
+  "name": "Search Approved Gists",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/gists/search/approved?query=test&page=1&limit=10",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "gists", "search", "approved"],
+  "query": [
+  { "key": "query", "value": "test" },
+  { "key": "page", "value": "1" },
+  { "key": "limit", "value": "10" }
+  ]
+  }
+  }
+  },
+  {
+  "name": "Get Pending Gists (Admin)",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/gists/pending",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "gists", "pending"]
+  }
+  }
+  },
+  {
+  "name": "Approve Gist",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "PATCH",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"approved\": true}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/gists/:gistId/approve",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "gists", ":gistId", "approve"],
+  "variable": [{ "key": "gistId", "value": "123" }]
+  }
+  }
+  }
+  ]
+  },
+  {
+  "name": "Media",
+  "item": [
+  {
+  "name": "Upload Media",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "POST",
+  "header": [],
+  "body": {
+  "mode": "formdata",
+  "formdata": [
+  { "key": "entityType", "value": "gist", "type": "text" },
+  { "key": "entityId", "value": "123", "type": "text" },
+  { "key": "mediaType", "value": "image", "type": "text" },
+  { "key": "image", "type": "file", "src": "/path/to/image.jpg" }
+  ]
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/media/create",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "media", "create"]
+  }
+  }
+  },
+  {
+  "name": "Get Media by ID",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/media/:mediaId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "media", ":mediaId"],
+  "variable": [{ "key": "mediaId", "value": "1" }]
+  }
+  }
+  },
+  {
+  "name": "Get Media by Entity",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/media/entity/:entityType/:entityId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "media", "entity", ":entityType", ":entityId"],
+  "variable": [
+  { "key": "entityType", "value": "gist" },
+  { "key": "entityId", "value": "123" }
+  ]
+  }
+  }
+  },
+  {
+  "name": "Update Media",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "PATCH",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"mediaUrl\":\"new-url\"}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/media/:mediaId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "media", ":mediaId"],
+  "variable": [{ "key": "mediaId", "value": "1" }]
+  }
+  }
+  },
+  {
+  "name": "Delete Media",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "DELETE",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/media/:mediaId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "media", ":mediaId"],
+  "variable": [{ "key": "mediaId", "value": "1" }]
+  }
+  }
+  }
+  ]
+  },
+  {
+  "name": "Notification",
+  "item": [
+  {
+  "name": "Get Notifications by Avitag",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/notifications/:avitag",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "notifications", ":avitag"],
+  "variable": [{ "key": "avitag", "value": "test-avitag" }]
+  }
+  }
+  },
+  {
+  "name": "Mark Notification as Read",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "PATCH",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"read\":true}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/notifications/:notificationId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "notifications", ":notificationId"],
+  "variable": [{ "key": "notificationId", "value": "1" }]
+  }
+  }
+  }
+  ]
+  },
+  {
+  "name": "Comment",
+  "item": [
+  {
+  "name": "Create Comment",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "POST",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"gistId\":\"123\",\"text\":\"Test comment\"}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/comments/create",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "comments", "create"]
+  }
+  }
+  },
+  {
+  "name": "Get Comments by Gist ID",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/comments/gist/:gistId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "comments", "gist", ":gistId"],
+  "variable": [{ "key": "gistId", "value": "123" }]
+  }
+  }
+  },
+  {
+  "name": "Delete Comment",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "DELETE",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/comments/:commentId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "comments", ":commentId"],
+  "variable": [{ "key": "commentId", "value": "1" }]
+  }
+  }
+  }
+  ]
+  },
+  {
+  "name": "Reaction",
+  "item": [
+  {
+  "name": "Create Reaction",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "POST",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"entityType\":\"GIST\",\"entityId\":\"123\",\"type\":\"LIKE\"}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/reactions/create",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "reactions", "create"]
+  }
+  }
+  },
+  {
+  "name": "Get Reactions by Entity",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/reactions/entity/:entityType/:entityId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "reactions", "entity", ":entityType", ":entityId"],
+  "variable": [
+  { "key": "entityType", "value": "GIST" },
+  { "key": "entityId", "value": "123" }
+  ]
+  }
+  }
+  },
+  {
+  "name": "Delete Reaction",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "DELETE",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/reactions/:reactionId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "reactions", ":reactionId"],
+  "variable": [{ "key": "reactionId", "value": "1" }]
+  }
+  }
+  }
+  ]
+  },
+  {
+  "name": "Event",
+  "item": [
+  {
+  "name": "Create Event",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "POST",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"title\":\"Test Event\",\"hostAviTags\":[\"test-avitag\"],\"location\":\"Campus A\",\"description\":\"Test\",\"eventDate\":\"2025-08-20T10:00:00Z\"}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/events/create",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "events", "create"]
+  }
+  }
+  },
+  {
+  "name": "Get Event by ID",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/events/:eventId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "events", ":eventId"],
+  "variable": [{ "key": "eventId", "value": "1" }]
+  }
+  }
+  },
+  {
+  "name": "Get Events by Campus",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/events/campus/:campusTag",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "events", "campus", ":campusTag"],
+  "variable": [{ "key": "campusTag", "value": "Campus A" }]
+  }
+  }
+  },
+  {
+  "name": "Update Event",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "PATCH",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"title\":\"Updated Event\"}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/events/:eventId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "events", ":eventId"],
+  "variable": [{ "key": "eventId", "value": "1" }]
+  }
+  }
+  },
+  {
+  "name": "Delete Event",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "DELETE",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/events/:eventId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "events", ":eventId"],
+  "variable": [{ "key": "eventId", "value": "1" }]
+  }
+  }
+  }
+  ]
+  },
+  {
+  "name": "Event Registration",
+  "item": [
+  {
+  "name": "Create Event Registration",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "POST",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"eventId\":\"1\"}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/event-registrations/create",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "event-registrations", "create"]
+  }
+  }
+  },
+  {
+  "name": "Get Registrations by Event",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/event-registrations/event/:eventId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "event-registrations", "event", ":eventId"],
+  "variable": [{ "key": "eventId", "value": "1" }]
+  }
+  }
+  },
+  {
+  "name": "Get Registrations by Student",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/event-registrations/student",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "event-registrations", "student"]
+  }
+  }
+  },
+  {
+  "name": "Delete Registration",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "DELETE",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/event-registrations/:id",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "event-registrations", ":id"],
+  "variable": [{ "key": "id", "value": "1" }]
+  }
+  }
+  }
+  ]
+  },
+  {
+  "name": "Report",
+  "item": [
+  {
+  "name": "Create Report",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "POST",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"gistId\":\"123\",\"reason\":\"Inappropriate\"}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/reports/create",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "reports", "create"]
+  }
+  }
+  },
+  {
+  "name": "Get Report by ID",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/reports/:reportId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "reports", ":reportId"],
+  "variable": [{ "key": "reportId", "value": "1" }]
+  }
+  }
+  },
+  {
+  "name": "Get Reports by Gist ID",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/reports/gist/:gistId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "reports", "gist", ":gistId"],
+  "variable": [{ "key": "gistId", "value": "123" }]
+  }
+  }
+  },
+  {
+  "name": "Update Report",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "PATCH",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"status\":\"ACTION_TAKEN\",\"actionTaken\":\"Gist removed\"}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/reports/:reportId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "reports", ":reportId"],
+  "variable": [{ "key": "reportId", "value": "1" }]
+  }
+  }
+  }
+  ]
+  },
+  {
+  "name": "View",
+  "item": [
+  {
+  "name": "Create View",
+  "request": {
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+  "method": "POST",
+  "header": [],
+  "body": {
+  "mode": "raw",
+  "raw": "{\"gistId\":\"123\"}",
+  "options": { "raw": { "language": "json" } }
+  },
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/views/create",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "views", "create"]
+  }
+  }
+  },
+  {
+  "name": "Get Views by Gist ID",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/views/gist/:gistId",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "views", "gist", ":gistId"],
+  "variable": [{ "key": "gistId", "value": "123" }]
+  }
+  }
+  },
+  {
+  "name": "Get View Count by Gist ID",
+  "request": {
+  "method": "GET",
+  "header": [],
+  "url": {
+  "raw": "{{baseUrl}}/api/v1/views/gist/:gistId/count",
+  "host": ["{{baseUrl}}"],
+  "path": ["api", "v1", "views", "gist", ":gistId", "count"],
+  "variable": [{ "key": "gistId", "value": "123" }]
+  }
+  }
+  }
+  ]
+  }
+  ],
+  "variable": [
+  { "key": "baseUrl", "value": "http://localhost:3000" },
+  { "key": "accessToken", "value": "your-access-token" }
+  ]
+  }
