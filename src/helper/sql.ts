@@ -1,173 +1,304 @@
 import pool, { connectDB } from "../config/connectDB";
 import logger from "../utils/logger";
 
-/**
- * Final SQL schema for Kampos — run once (idempotent).
- * npx ts-node --transpile-only src\helper\sql.ts
- */
-const sql = `
+export const sql = `
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- Accounts Table
-CREATE TABLE accounts (
-    account_id UUID PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255),
-    auth_provider VARCHAR(50) CHECK (auth_provider IN ('Email', 'Google', 'Facebook', 'Apple')) DEFAULT 'Email',
-    is_otp_verified BOOLEAN DEFAULT FALSE,
-    account_status VARCHAR(50) CHECK (account_status IN ('Active', 'Deleted', 'Suspended')) DEFAULT 'Active',
-    oauth_id VARCHAR(255) UNIQUE,
-    last_login TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+-- Lookup tables
+CREATE TABLE IF NOT EXISTS campuses (
+  campus_tag VARCHAR(50) PRIMARY KEY,
+  campus_name VARCHAR(255) NOT NULL
 );
 
--- OAuth Sessions Table
-CREATE TABLE oauth_sessions (
-    session_id UUID PRIMARY KEY,
-    account_id UUID REFERENCES accounts(account_id) ON DELETE CASCADE,
-    auth_provider VARCHAR(50) CHECK (auth_provider IN ('Google', 'Facebook', 'Apple')),
-    encrypted_refresh_token VARCHAR(255),
-    token_expires_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS majors (
+  major_tag VARCHAR(50) PRIMARY KEY,
+  major_name VARCHAR(255) NOT NULL
 );
 
--- Profiles Table
-CREATE TABLE profiles (
-    avitag UUID PRIMARY KEY,
-    account_id UUID REFERENCES accounts(account_id) ON DELETE CASCADE,
-    display_name VARCHAR(255),
-    first_name VARCHAR(255),
-    last_name VARCHAR(255),
-    profile_type VARCHAR(50) CHECK (profile_type IN ('STUDENT', 'KAMPOSER', 'CREATOR', 'ADMIN', 'SCHOOL')) DEFAULT 'STUDENT',
-    campus_tag VARCHAR(50),
-    major_tag VARCHAR(50),
-    degree VARCHAR(50) CHECK (degree IN ('Bachelors', 'Masters', 'Phd')),
-    level VARCHAR(50) CHECK (level IN ('100', '200', '300', '400', '500')),
-    bio TEXT,
-    profile_picture_url VARCHAR(255),
-    is_verified BOOLEAN DEFAULT FALSE,
-    social_links JSONB,
-    engagement_score FLOAT DEFAULT 0,
-    earnings_balance FLOAT DEFAULT 0,
-    monetization_enabled BOOLEAN DEFAULT FALSE,
-    top_gist_id UUID,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+-- Accounts
+CREATE TABLE IF NOT EXISTS accounts (
+  account_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255),
+  auth_provider VARCHAR(20) NOT NULL CHECK (auth_provider IN ('Email','Google','Facebook','Apple')) DEFAULT 'Email',
+  is_otp_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  account_status VARCHAR(20) NOT NULL CHECK (account_status IN ('Active','Deleted','Suspended')) DEFAULT 'Active',
+  oauth_id VARCHAR(255) UNIQUE,
+  last_login TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Campus Table
-CREATE TABLE campus (
-    campus_tag VARCHAR(50) PRIMARY KEY,
-    campus_name VARCHAR(255) NOT NULL
+-- OAuth Sessions
+CREATE TABLE IF NOT EXISTS oauth_sessions (
+  session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id UUID NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+  auth_provider VARCHAR(20) NOT NULL CHECK (auth_provider IN ('Google','Facebook','Apple')),
+  encrypted_refresh_token TEXT,
+  token_expires_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Major Table
-CREATE TABLE majors (
-    major_tag VARCHAR(50) PRIMARY KEY,
-    major_name VARCHAR(255) NOT NULL
+-- Profiles: Student
+CREATE TABLE IF NOT EXISTS student_profiles (
+  avitag VARCHAR(50) PRIMARY KEY,
+  account_id UUID NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+  first_name VARCHAR(50) NOT NULL,
+  last_name VARCHAR(50) NOT NULL,
+  campus_tag VARCHAR(50) REFERENCES campuses(campus_tag),
+  hobbies TEXT[],
+  degree VARCHAR(20) CHECK (degree IN ('Bachelors','Masters','Phd')),
+  major_tag VARCHAR(50) REFERENCES majors(major_tag),
+  bio TEXT,
+  level VARCHAR(10) CHECK (level IN ('100','200','300','400','500')),
+  is_verified BOOLEAN DEFAULT FALSE,
+  profile_type VARCHAR(20) NOT NULL DEFAULT 'STUDENT' CHECK (profile_type = 'STUDENT'),
+  profile_picture_url TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Gists Table
-CREATE TABLE gists (
-    gist_id UUID PRIMARY KEY,
-    gist_text TEXT NOT NULL,
-    avitag UUID REFERENCES profiles(avitag) ON DELETE CASCADE,
-    created_at TIMESTAMP DEFAULT NOW(),
-    edited_at TIMESTAMP
+-- Profiles: Kompany
+CREATE TABLE IF NOT EXISTS kompany_profiles (
+  avitag VARCHAR(50) PRIMARY KEY,
+  account_id UUID NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+  display_name VARCHAR(100) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  phone_number VARCHAR(50) NOT NULL,
+  description TEXT,
+  logo_url TEXT NOT NULL,
+  website TEXT NOT NULL,
+  social_links JSONB,
+  is_verified BOOLEAN DEFAULT FALSE,
+  profile_type VARCHAR(20) NOT NULL DEFAULT 'KOMPANY' CHECK (profile_type = 'KOMPANY'),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Comments Table
-CREATE TABLE comments (
-    comment_id UUID PRIMARY KEY,
-    gist_id UUID REFERENCES gists(gist_id) ON DELETE CASCADE,
-    avitag UUID REFERENCES profiles(avitag) ON DELETE CASCADE,
-    text TEXT NOT NULL,
-    commented_at TIMESTAMP DEFAULT NOW()
+-- Profiles: School
+CREATE TABLE IF NOT EXISTS school_profiles (
+  avitag VARCHAR(50) PRIMARY KEY,
+  account_id UUID NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+  display_name VARCHAR(100) NOT NULL,
+  description TEXT,
+  campus_tag VARCHAR(50) REFERENCES campuses(campus_tag),
+  logo_url TEXT,
+  website TEXT,
+  is_verified BOOLEAN DEFAULT FALSE,
+  profile_type VARCHAR(20) NOT NULL DEFAULT 'SCHOOL' CHECK (profile_type = 'SCHOOL'),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Media Table
-CREATE TABLE media (
-    media_id UUID PRIMARY KEY,
-    entity_type VARCHAR(50) CHECK (entity_type IN ('gist', 'event')),
-    entity_id UUID,
-    media_type VARCHAR(50) CHECK (media_type IN ('image', 'video')),
-    media_url VARCHAR(255) NOT NULL,
-    uploaded_at TIMESTAMP DEFAULT NOW(),
-    edited_at TIMESTAMP,
-    thumbnail_url VARCHAR(255)
+-- Profiles: Creator
+CREATE TABLE IF NOT EXISTS creator_profiles (
+  avitag VARCHAR(50) PRIMARY KEY,
+  account_id UUID NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+  display_name VARCHAR(100) NOT NULL,
+  description TEXT,
+  campus_tag VARCHAR(50) REFERENCES campuses(campus_tag),
+  profile_image TEXT,
+  engagement_score DOUBLE PRECISION,
+  earnings_balance DOUBLE PRECISION DEFAULT 0.0,
+  monetization_enabled BOOLEAN DEFAULT FALSE,
+  top_gist_id UUID,
+  is_verified BOOLEAN DEFAULT FALSE,
+  profile_type VARCHAR(20) NOT NULL DEFAULT 'CREATOR' CHECK (profile_type = 'CREATOR'),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Reactions Table
-CREATE TABLE reactions (
-    reaction_id UUID PRIMARY KEY,
-    avitag UUID REFERENCES profiles(avitag) ON DELETE CASCADE,
-    entity_type VARCHAR(50) CHECK (entity_type IN ('GIST', 'COMMENT')),
-    entity_id UUID,
-    type VARCHAR(50) CHECK (type IN ('LIKE', 'LOVE', 'FIRE', 'SAD', 'WOW')),
-    created_at TIMESTAMP DEFAULT NOW()
+-- Profiles: Admin
+CREATE TABLE IF NOT EXISTS admin_profiles (
+  avitag VARCHAR(50) PRIMARY KEY,
+  account_id UUID NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+  full_name VARCHAR(100) NOT NULL,
+  description TEXT,
+  profile_image TEXT,
+  role VARCHAR(50) NOT NULL CHECK (role IN ('SUPER_ADMIN','MODERATOR','CONTENT_REVIEWER','SUPPORT')),
+  permissions JSONB,
+  is_verified BOOLEAN DEFAULT FALSE,
+  profile_type VARCHAR(20) NOT NULL DEFAULT 'ADMIN' CHECK (profile_type = 'ADMIN'),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Events Table
-CREATE TABLE events (
-    event_id UUID PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    host_avi_tags TEXT[] NOT NULL CHECK (array_length(host_avi_tags, 1) <= 3),
-    location VARCHAR(50) REFERENCES campus(campus_tag),
-    description TEXT NOT NULL,
-    event_date TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+-- Gists
+CREATE TABLE IF NOT EXISTS gists (
+  gist_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  avitag VARCHAR(50) NOT NULL,
+  gist_text TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  edited_at TIMESTAMP WITH TIME ZONE,
+  gist_approval BOOLEAN DEFAULT FALSE
 );
 
--- Event Registrations Table
-CREATE TABLE event_registrations (
-    id SERIAL PRIMARY KEY,
-    event_id UUID REFERENCES events(event_id) ON DELETE CASCADE,
-    student_avi_tag UUID REFERENCES profiles(avitag) ON DELETE CASCADE,
-    registered_at TIMESTAMP DEFAULT NOW()
+-- Media (polymorphic: gist or event)
+CREATE TABLE IF NOT EXISTS media (
+  media_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_type VARCHAR(20) NOT NULL CHECK (entity_type IN ('gist','event')),
+  entity_id UUID NOT NULL,
+  media_type VARCHAR(20) NOT NULL CHECK (media_type IN ('image','video')),
+  media_url TEXT NOT NULL,
+  uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  edited_at TIMESTAMP WITH TIME ZONE,
+  thumbnail_url TEXT
 );
 
--- Notifications Table
-CREATE TABLE notifications (
-    notification_id UUID PRIMARY KEY,
-    avitag UUID REFERENCES profiles(avitag) ON DELETE CASCADE,
-    type VARCHAR(50) CHECK (type IN ('NEW_GIST', 'GIST_LIKE', 'GIST_COMMENT', 'MAJOR_GIST', 'INSTITUTION_GIST')),
-    message TEXT NOT NULL,
-    reference_id UUID,
-    is_read BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT NOW()
+-- Comments
+CREATE TABLE IF NOT EXISTS comments (
+  comment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  gist_id UUID NOT NULL REFERENCES gists(gist_id) ON DELETE CASCADE,
+  avitag VARCHAR(50) NOT NULL,
+  text TEXT NOT NULL,
+  commented_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Reports Table
-CREATE TABLE reports (
-    report_id UUID PRIMARY KEY,
-    reported_by UUID REFERENCES profiles(avitag) ON DELETE SET NULL,
-    gist_id UUID REFERENCES gists(gist_id) ON DELETE CASCADE,
-    reason TEXT NOT NULL,
-    status VARCHAR(50) CHECK (status IN ('PENDING', 'REVIEWED', 'ACTION_TAKEN', 'DISMISSED')) DEFAULT 'PENDING',
-    action_taken TEXT,
-    reviewed_by UUID REFERENCES profiles(avitag),
-    reviewed_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW()
+-- Reactions (polymorphic: gist or comment)
+CREATE TABLE IF NOT EXISTS reactions (
+  reaction_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  avitag VARCHAR(50) NOT NULL,
+  entity_type VARCHAR(20) NOT NULL CHECK (entity_type IN ('GIST','COMMENT')),
+  entity_id UUID NOT NULL,
+  type VARCHAR(20) NOT NULL CHECK (type IN ('LIKE','LOVE','FIRE','SAD','WOW')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Views Table
-CREATE TABLE views (
-    view_id UUID PRIMARY KEY,
-    gist_id UUID REFERENCES gists(gist_id) ON DELETE CASCADE,
-    avitag UUID REFERENCES profiles(avitag) ON DELETE CASCADE,
-    viewed_at TIMESTAMP DEFAULT NOW()
+-- Notifications
+CREATE TABLE IF NOT EXISTS notifications (
+  notification_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  avitag VARCHAR(50) NOT NULL,
+  type VARCHAR(50) NOT NULL CHECK (type IN ('NEW_GIST','GIST_LIKE','GIST_COMMENT','MAJOR_GIST','INSTITUTION_GIST')),
+  message TEXT NOT NULL,
+  reference_id UUID,
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insert sample campus and major data
-INSERT INTO campus (campus_tag, campus_name) VALUES
-('FUL', 'Federal University Lokoja'),
-('OAU', 'Obafemi Awolowo University');
+-- Reports
+CREATE TABLE IF NOT EXISTS reports (
+  report_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reported_by VARCHAR(50) NOT NULL,
+  gist_id UUID REFERENCES gists(gist_id) ON DELETE CASCADE,
+  reason TEXT NOT NULL,
+  status VARCHAR(20) NOT NULL CHECK (status IN ('PENDING','REVIEWED','ACTION_TAKEN','DISMISSED')) DEFAULT 'PENDING',
+  action_taken TEXT,
+  reviewed_by VARCHAR(50),
+  reviewed_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 
-INSERT INTO majors (major_tag, major_name) VALUES
-('CSC', 'Computer Science');
+-- Views
+CREATE TABLE IF NOT EXISTS views (
+  view_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  gist_id UUID NOT NULL REFERENCES gists(gist_id) ON DELETE CASCADE,
+  avitag VARCHAR(50),
+  viewed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Events
+CREATE TABLE IF NOT EXISTS events (
+  event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title VARCHAR(255) NOT NULL,
+  host_avi_tags TEXT[] NOT NULL,
+  location VARCHAR(50) NOT NULL REFERENCES campuses(campus_tag),
+  description TEXT NOT NULL,
+  event_date TIMESTAMP WITH TIME ZONE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT host_avi_tags_len CHECK (array_length(host_avi_tags,1) <= 3)
+);
+
+-- Event registrations
+CREATE TABLE IF NOT EXISTS event_registrations (
+  id BIGSERIAL PRIMARY KEY,
+  event_id UUID NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
+  student_avi_tag VARCHAR(255) NOT NULL,
+  registered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Follows
+CREATE TABLE IF NOT EXISTS follows (
+  follower_avitag VARCHAR(50) NOT NULL,
+  followee_avitag VARCHAR(50) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (follower_avitag, followee_avitag)
+);
+
+-- Blocked Users
+CREATE TABLE IF NOT EXISTS blocked_users (
+  blocker_avitag VARCHAR(50) NOT NULL,
+  blocked_avitag VARCHAR(50) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (blocker_avitag, blocked_avitag)
+);
+
+-- Validate avitag exists in any profile
+CREATE OR REPLACE FUNCTION validate_avitag_reference()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM (
+      SELECT avitag FROM student_profiles
+      UNION SELECT avitag FROM kompany_profiles
+      UNION SELECT avitag FROM school_profiles
+      UNION SELECT avitag FROM creator_profiles
+      UNION SELECT avitag FROM admin_profiles
+    ) p WHERE p.avitag = NEW.avitag
+  ) THEN
+    RAISE EXCEPTION 'Invalid avitag reference: %', NEW.avitag;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DO $$
+BEGIN
+  PERFORM 1 FROM pg_trigger WHERE tgname = 'gists_avitag_trigger';
+  IF NOT FOUND THEN
+    CREATE TRIGGER gists_avitag_trigger BEFORE INSERT OR UPDATE ON gists
+    FOR EACH ROW EXECUTE FUNCTION validate_avitag_reference();
+  END IF;
+
+  PERFORM 1 FROM pg_trigger WHERE tgname = 'comments_avitag_trigger';
+  IF NOT FOUND THEN
+    CREATE TRIGGER comments_avitag_trigger BEFORE INSERT OR UPDATE ON comments
+    FOR EACH ROW EXECUTE FUNCTION validate_avitag_reference();
+  END IF;
+
+  PERFORM 1 FROM pg_trigger WHERE tgname = 'reactions_avitag_trigger';
+  IF NOT FOUND THEN
+    CREATE TRIGGER reactions_avitag_trigger BEFORE INSERT OR UPDATE ON reactions
+    FOR EACH ROW EXECUTE FUNCTION validate_avitag_reference();
+  END IF;
+
+  PERFORM 1 FROM pg_trigger WHERE tgname = 'notifications_avitag_trigger';
+  IF NOT FOUND THEN
+    CREATE TRIGGER notifications_avitag_trigger BEFORE INSERT OR UPDATE ON notifications
+    FOR EACH ROW EXECUTE FUNCTION validate_avitag_reference();
+  END IF;
+
+  PERFORM 1 FROM pg_trigger WHERE tgname = 'views_avitag_trigger';
+  IF NOT FOUND THEN
+    CREATE TRIGGER views_avitag_trigger BEFORE INSERT OR UPDATE ON views
+    FOR EACH ROW EXECUTE FUNCTION validate_avitag_reference();
+  END IF;
+END; $$;
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email);
+CREATE INDEX IF NOT EXISTS idx_profiles_student_account ON student_profiles(account_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_creator_account ON creator_profiles(account_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_admin_account ON admin_profiles(account_id);
+CREATE INDEX IF NOT EXISTS idx_gists_avitag ON gists(avitag);
+CREATE INDEX IF NOT EXISTS idx_gists_created_at ON gists(created_at);
+CREATE INDEX IF NOT EXISTS idx_comments_gist_id ON comments(gist_id);
+CREATE INDEX IF NOT EXISTS idx_media_entity ON media(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_reactions_entity ON reactions(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_avitag ON notifications(avitag);
+CREATE INDEX IF NOT EXISTS idx_views_gist_id ON views(gist_id);
+CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date);
 `;
 
 export async function runSqlScript(sqlToRun: string): Promise<void> {
@@ -199,15 +330,3 @@ if (require.main === module) {
     }
   })();
 }
-
-
-// CREATE INDEX idx_gists_avitag ON gists(avitag);
-// CREATE INDEX idx_comments_gist_id ON comments(gist_id);
-// CREATE INDEX idx_reactions_entity ON reactions(entity_type, entity_id);
-// CREATE INDEX idx_media_entity ON media(entity_type, entity_id);
-// CREATE INDEX idx_events_location ON events(location);
-// CREATE INDEX idx_event_registrations_event_id ON event_registrations(event_id);
-// CREATE INDEX idx_event_registrations_student_avi_tag ON event_registrations(student_avi_tag);
-// CREATE INDEX idx_reports_gist_id ON reports(gist_id);
-// CREATE INDEX idx_views_gist_id ON views(gist_id);
-// CREATE INDEX idx_notifications_avitag ON notifications(avitag);
