@@ -1,40 +1,41 @@
-import express from "express";
-import { isAuth } from "../../middleware/auth";
-import { GistController } from "./gist.controller";
-import { GistSchemas } from "./gist.schema";
-import { validateBody, validateQuery } from "../../middleware/validateSchema";
-import { restrictTo } from "../../middleware/rbac";
+import { Router } from "express";
+import { gistController } from "./gist.controller";
+import { isAuth, requireAdmin } from "../../middleware/auth";
+import { gistSchema, approveSchema } from "./gist.schema";
+import { validateBody } from "../../middleware/validateSchema";
 
-const router = express.Router();
+const router = Router();
 
 router.post(
   "/create",
   isAuth,
-  restrictTo("STUDENT", "KAMPOSER", "CREATOR"),
-  validateBody(GistSchemas.createGist),
-  GistController.create
+  validateBody(gistSchema),
+  gistController.createGist
 );
-router.get("/", GistController.getAll);
-router.get("/:gistId", GistController.getById);
+router.get("/", gistController.getAllGists);
+router.get("/:gist_id", gistController.getGistById);
 router.patch(
-  "/:gistId",
+  "/:gist_id",
   isAuth,
-  restrictTo("STUDENT", "KAMPOSER", "CREATOR"),
-  validateBody(GistSchemas.updateGist),
-  GistController.update
+  validateBody(gistSchema.partial()),
+  gistController.updateGist
 );
-router.delete(
-  "/:gistId",
+router.delete("/:gist_id", isAuth, gistController.deleteGist);
+router.get("/user/:avitag", gistController.getGistsByAvitag);
+router.get("/trending", gistController.getTrendingGists);
+router.get("/search", gistController.searchGists);
+router.patch(
+  "/:gist_id/approve",
   isAuth,
-  restrictTo("STUDENT", "KAMPOSER", "CREATOR"),
-  GistController.delete
+  requireAdmin,
+  validateBody(approveSchema),
+  gistController.approveGist
 );
-router.get("/user/:avi_tag", GistController.getByAvitag);
-router.get("/trending", GistController.getTrending);
 router.get(
-  "/search",
-  validateQuery(GistSchemas.searchGists),
-  GistController.search
+  "/reported",
+  isAuth,
+  requireAdmin,
+  gistController.getReportedGists
 );
 
 export default router;

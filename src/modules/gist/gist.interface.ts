@@ -1,9 +1,10 @@
-export type GistEntityType = "GIST";
-
 export interface IGist {
-  gistId?: string;
-  gistText: string;
+  gist_id: string;
   avitag: string;
-  createdAt?: string;
-  editedAt?: string | null;
+  gist_text: string;
+  media_ids?: string[];
+  visibility: "PUBLIC" | "PRIVATE" | "FOLLOWERS";
+  created_at: Date;
+  edited_at?: Date;
+  gist_approval: boolean;
 }

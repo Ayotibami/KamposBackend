@@ -1,62 +1,133 @@
-import type { Request, Response } from "express";
-import { GistService } from "./gist.service";
+import type { Request, Response, NextFunction } from "express";
+import { gistService } from "./gist.service";
+import { ApiError } from "../../utils/responseHandler";
 
 export class GistController {
-  static async create(req: Request, res: Response) {
-    const avitag = (req as any).user?.avitag;
-    const result = await GistService.createGist(avitag, req.body);
-    return res.status(result.status || 201).json(result);
+  static async createGist(req: Request, res: Response, next: NextFunction) {
+    try {
+      const avitag = req.user!.avitag;
+      const gistData = req.body;
+      const result = await gistService.createGist(avitag, gistData);
+      res.status(result.status_code).json(result);
+    } catch (error) {
+      next(error);
+    }
   }
 
-  static async getAll(req: Request, res: Response) {
-    const { page = 1, limit = 10 } = req.query;
-    const result = await GistService.getAllGists(Number(page), Number(limit));
-    return res.status(result.status || 200).json(result);
+  static async getAllGists(req: Request, res: Response, next: NextFunction) {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const isAdmin = req.user?.profile_type === "ADMIN";
+      const result = await gistService.getAllGists(page, limit, isAdmin);
+      res.status(result.status_code).json(result);
+    } catch (error) {
+      next(error);
+    }
   }
 
-  static async getById(req: Request, res: Response) {
-    const { gistId } = req.params;
-    const result = await GistService.getGistById(gistId || "");
-    return res.status(result.status || 200).json(result);
+  static async getGistById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { gist_id } = req.params;
+      const isAdmin = req.user?.profile_type === "ADMIN";
+      const result = await gistService.getGistById(gist_id || "", isAdmin);
+      res.status(result.status_code).json(result);
+    } catch (error) {
+      next(error);
+    }
   }
 
-  static async update(req: Request, res: Response) {
-    const { gistId } = req.params;
-    const avitag = (req as any).user?.avitag;
-    const result = await GistService.updateGist(gistId || "", avitag, req.body);
-    return res.status(result.status || 200).json(result);
+  static async updateGist(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { gist_id } = req.params;
+      const avitag = req.user!.avitag;
+      const updates = req.body;
+      const result = await gistService.updateGist(gist_id || "", avitag, updates);
+      res.status(result.status_code).json(result);
+    } catch (error) {
+      next(error);
+    }
   }
 
-  static async delete(req: Request, res: Response) {
-    const { gistId } = req.params;
-    const avitag = (req as any).user?.avitag;
-    const result = await GistService.deleteGist(gistId || "", avitag);
-    return res.status(result.status || 200).json(result);
+  static async deleteGist(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { gist_id } = req.params;
+      const avitag = req.user!.avitag;
+      const result = await gistService.deleteGist(gist_id || "", avitag);
+      res.status(result.status_code).json(result);
+    } catch (error) {
+      next(error);
+    }
   }
 
-  static async getByAvitag(req: Request, res: Response) {
-    const { avi_tag } = req.params;
-    const result = await GistService.getGistsByAvitag(avi_tag || "");
-    return res.status(result.status || 200).json(result);
+  static async getGistsByAvitag(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
+    try {
+      const { avitag } = req.params;
+      const result = await gistService.getGistsByAvitag(avitag || "");
+      res.status(result.status_code).json(result);
+    } catch (error) {
+      next(error);
+    }
   }
 
-  static async getTrending(req: Request, res: Response) {
-    const { page = 1, limit = 10, timeRange = "7 days" } = req.query;
-    const result = await GistService.getTrendingGists(
-      Number(page),
-      Number(limit),
-      String(timeRange)
-    );
-    return res.status(result.status || 200).json(result);
+  static async getTrendingGists(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const timeRange = (req.query.timeRange as string) || "24h";
+      const result = await gistService.getTrendingGists(page, limit, timeRange);
+      res.status(result.status_code).json(result);
+    } catch (error) {
+      next(error);
+    }
   }
 
-  static async search(req: Request, res: Response) {
-    const { query, page = 1, limit = 10 } = req.query;
-    const result = await GistService.searchGists(
-      String(query),
-      Number(page),
-      Number(limit)
-    );
-    return res.status(result.status || 200).json(result);
+  static async searchGists(req: Request, res: Response, next: NextFunction) {
+    try {
+      const query = req.query.query as string;
+      if (!query) throw ApiError.badRequest("Search query is required");
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const result = await gistService.searchGists(query, page, limit);
+      res.status(result.status_code).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async approveGist(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { gist_id } = req.params;
+      const { approved } = req.body;
+      const avitag = req.user!.avitag;
+      const result = await gistService.approveGist(avitag, gist_id || "", approved);
+      res.status(result.status_code).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getReportedGists(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
+    try {
+      const avitag = req.user!.avitag;
+      const result = await gistService.getReportedGists(avitag);
+      res.status(result.status_code).json(result);
+    } catch (error) {
+      next(error);
+    }
   }
 }
+
+export const gistController = GistController;

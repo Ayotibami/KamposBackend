@@ -1,23 +1,14 @@
 import { z } from "zod";
 
-export class GistSchemas {
-  static createGist = z
-    .object({
-      gistText: z
-        .string({ required_error: "Gist text is required" })
-        .min(1, "Gist text cannot be empty"),
-    })
-    .strict();
+export const gistSchema = z.object({
+  gist_text: z
+    .string()
+    .min(1, "Gist text is required")
+    .max(1000, "Gist text too long"),
+  media_ids: z.array(z.string().uuid()).optional(),
+  visibility: z.enum(["PUBLIC", "PRIVATE", "FOLLOWERS"]).default("PUBLIC"),
+});
 
-  static updateGist = z
-    .object({
-      gistText: z.string().min(1, "Gist text cannot be empty").optional(),
-    })
-    .strict();
-
-  static searchGists = z.object({
-    query: z.string({ required_error: "Search query is required" }).min(1),
-    page: z.number().int().positive().default(1).optional(),
-    limit: z.number().int().positive().default(10).optional(),
-  });
-}
+export const approveSchema = z.object({
+  approved: z.boolean(),
+});
