@@ -29,11 +29,7 @@ kampos-backend/
 │   │   │   └── apple.provider.ts
 │   │   ├── profile/
 │   │   │   ├── profile.interface.ts
-│   │   │   ├── profile.model.ts
-│   │   │   ├── profile.controller.ts
-│   │   │   ├── profile.routes.ts
-│   │   │   ├── profile.schema.ts
-│   │   │   └── profile.service.ts
+│   │   │   └── profile.model.ts
 │   │   ├── gist/
 │   │   │   ├── gist.interface.ts
 │   │   │   ├── gist.model.ts
@@ -97,9 +93,7 @@ kampos-backend/
 │   │   │   ├── view.schema.ts
 │   │   │   └── view.service.ts
 │   │   └── otp/
-│   │       ├── otp.interface.ts
-│   │       ├── otp.model.ts
-│   │       └── otp.service.ts
+│   │       └── otp.model.ts
 │   ├── services/
 │   │   ├── job-queue.service.ts
 │   │   ├── mail.service.ts
