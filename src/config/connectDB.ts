@@ -4,6 +4,9 @@ import logger from "../utils/logger";
 
 const pool = new Pool({
   connectionString: env.POSTGRES_URI,
+  ssl: {
+    rejectUnauthorized: false,
+  },
   // optional pool settings
   max: 10,
   idleTimeoutMillis: 30000,
