@@ -9,4 +9,12 @@ export class CommentSchemas {
         .min(1, "Comment text cannot be empty"),
     })
     .strict();
+
+  static updateComment = z
+    .object({
+      text: z
+        .string({ required_error: "Comment text is required" })
+        .min(1, "Comment text cannot be empty"),
+    })
+    .strict();
 }

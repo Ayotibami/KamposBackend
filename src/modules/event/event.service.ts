@@ -28,6 +28,11 @@ export class EventService {
     return ApiSuccess.ok("Events fetched", events);
   }
 
+  static async listAllEvents() {
+    const events = await eventRepo.findAllEvents();
+    return ApiSuccess.ok("Events fetched", events);
+  }
+
   static async updateEvent(
     eventId: string,
     avitag: string,

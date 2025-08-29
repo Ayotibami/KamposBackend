@@ -13,6 +13,12 @@ router.post(
   ReactionController.create
 );
 router.get("/entity/:entityType/:entityId", ReactionController.getByEntity);
+router.get("/user/:aviTag", ReactionController.getByUser);
 router.delete("/:reactionId", isAuth, ReactionController.delete);
+router.delete(
+  "/entity/:entityType/:entityId/user/:aviTag",
+  isAuth,
+  ReactionController.deleteByEntityAndUser
+);
 
 export default router;

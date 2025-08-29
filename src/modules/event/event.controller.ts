@@ -8,6 +8,11 @@ export class EventController {
     return res.status(result.status || 201).json(result);
   }
 
+  static async listAll(_req: Request, res: Response) {
+    const result = await EventService.listAllEvents();
+    return res.status(result.status || 200).json(result);
+  }
+
   static async getById(req: Request, res: Response) {
     const { eventId } = req.params;
     const result = await EventService.getEventById(eventId || "");

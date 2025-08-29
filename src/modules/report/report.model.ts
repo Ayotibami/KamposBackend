@@ -80,3 +80,23 @@ export const updateReportById = async (
   if (!rows[0]) return null;
   return mapRow(rows[0]);
 };
+
+export const findAllReports = async (): Promise<IReport[]> => {
+  const { rows } = await pool.query(
+    `SELECT * FROM reports ORDER BY created_at DESC`
+  );
+  return rows.map(mapRow);
+};
+
+export const findReportsByUser = async (aviTag: string): Promise<IReport[]> => {
+  const { rows } = await pool.query(
+    `SELECT * FROM reports WHERE reported_by = $1 ORDER BY created_at DESC`,
+    [aviTag]
+  );
+  return rows.map(mapRow);
+};
+
+export const deleteReportById = async (reportId: string): Promise<void> => {
+  await pool.query(`DELETE FROM reports WHERE report_id = $1`, [reportId]);
+};
+

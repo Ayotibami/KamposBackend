@@ -90,12 +90,37 @@ export class ReactionService {
     return ApiSuccess.ok("Reactions fetched", reactions);
   }
 
+  static async getReactionsByUser(aviTag: string) {
+    const profile = await profileRepo.findProfileByAvitag(aviTag);
+    if (!profile) throw ApiError.notFound("Profile not found");
+    const reactions = await reactionRepo.findReactionsByUser(aviTag);
+    return ApiSuccess.ok("Reactions fetched", reactions);
+  }
+
   static async deleteReaction(reactionId: string, avitag: string) {
     const reaction = await reactionRepo.findReactionById(reactionId);
     if (!reaction) throw ApiError.notFound("Reaction not found");
     if (reaction.avitag !== avitag)
       throw ApiError.forbidden("Not authorized to delete this reaction");
     await reactionRepo.deleteReactionById(reactionId);
+    return ApiSuccess.ok("Reaction deleted");
+  }
+
+  static async deleteByEntityAndUser(
+    entityType: ReactionEntityType,
+    entityId: string,
+    targetAviTag: string,
+    requesterAviTag: string
+  ) {
+    // Only the owner (targetAviTag) can delete their reaction via this route
+    if (targetAviTag !== requesterAviTag)
+      throw ApiError.forbidden("Not authorized to delete this reaction");
+    const deleted = await reactionRepo.deleteByEntityAndUser(
+      entityType,
+      entityId,
+      targetAviTag
+    );
+    if (deleted === 0) throw ApiError.notFound("Reaction not found");
     return ApiSuccess.ok("Reaction deleted");
   }
 }

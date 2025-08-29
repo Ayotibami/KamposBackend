@@ -34,11 +34,43 @@ export class CommentService {
     return ApiSuccess.created("Comment created", comment);
   }
 
+  static async getAllComments() {
+    const comments = await commentRepo.findAllComments();
+    return ApiSuccess.ok("Comments fetched", comments);
+  }
+
+  static async getCommentById(commentId: string) {
+    const comment = await commentRepo.findCommentById(commentId);
+    if (!comment) throw ApiError.notFound("Comment not found");
+    return ApiSuccess.ok("Comment fetched", comment);
+  }
+
   static async getCommentsByGistId(gistId: string) {
     const gist = await gistRepo.findGistById(gistId);
     if (!gist) throw ApiError.notFound("Gist not found");
     const comments = await commentRepo.findCommentsByGistId(gistId);
     return ApiSuccess.ok("Comments fetched", comments);
+  }
+
+  static async getCommentsByUser(avitag: string) {
+    const profile = await profileRepo.findProfileByAvitag(avitag);
+    if (!profile) throw ApiError.notFound("Profile not found");
+    const comments = await commentRepo.findCommentsByAvitag(avitag);
+    return ApiSuccess.ok("Comments fetched", comments);
+  }
+
+  static async updateComment(
+    commentId: string,
+    avitag: string,
+    updates: Partial<IComment>
+  ) {
+    const comment = await commentRepo.findCommentById(commentId);
+    if (!comment) throw ApiError.notFound("Comment not found");
+    if (comment.avitag !== avitag)
+      throw ApiError.forbidden("Not authorized to update this comment");
+    const updated = await commentRepo.updateCommentById(commentId, updates);
+    if (!updated) throw ApiError.notFound("Comment not found");
+    return ApiSuccess.ok("Comment updated", updated);
   }
 
   static async deleteComment(commentId: string, avitag: string) {

@@ -47,4 +47,30 @@ export class ReportService {
     if (!updated) throw ApiError.notFound("Report not found");
     return ApiSuccess.ok("Report updated", updated);
   }
+
+  static async listAllReports() {
+    const reports = await reportRepo.findAllReports();
+    return ApiSuccess.ok("Reports fetched", reports);
+  }
+
+  static async getReportsByUser(targetAviTag: string, requesterAviTag: string) {
+    const requester = await profileRepo.findProfileByAvitag(requesterAviTag);
+    if (!requester) throw ApiError.notFound("Profile not found");
+    const isAdmin = requester.profileType === "ADMIN";
+    if (!isAdmin && requesterAviTag !== targetAviTag)
+      throw ApiError.forbidden("Not authorized to view these reports");
+    const reports = await reportRepo.findReportsByUser(targetAviTag);
+    return ApiSuccess.ok("Reports fetched", reports);
+  }
+
+  static async deleteReport(reportId: string, requesterAviTag: string) {
+    const requester = await profileRepo.findProfileByAvitag(requesterAviTag);
+    if (!requester) throw ApiError.notFound("Profile not found");
+    if (requester.profileType !== "ADMIN")
+      throw ApiError.forbidden("Only admins can delete reports");
+    const existing = await reportRepo.findReportById(reportId);
+    if (!existing) throw ApiError.notFound("Report not found");
+    await reportRepo.deleteReportById(reportId);
+    return ApiSuccess.ok("Report deleted");
+  }
 }

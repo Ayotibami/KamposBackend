@@ -43,6 +43,28 @@ export const findReactionsByEntity = async (
   return rows.map(mapRow);
 };
 
+export const findReactionsByUser = async (
+  avitag: string
+): Promise<IReaction[]> => {
+  const { rows } = await pool.query(
+    `SELECT * FROM reactions WHERE avitag = $1 ORDER BY created_at DESC`,
+    [avitag]
+  );
+  return rows.map(mapRow);
+};
+
+export const deleteByEntityAndUser = async (
+  entityType: ReactionEntityType,
+  entityId: string,
+  avitag: string
+): Promise<number> => {
+  const { rowCount } = await pool.query(
+    `DELETE FROM reactions WHERE entity_type = $1 AND entity_id = $2 AND avitag = $3`,
+    [entityType, entityId, avitag]
+  );
+  return rowCount || 0;
+};
+
 export const deleteReactionById = async (reactionId: string): Promise<void> => {
   await pool.query(`DELETE FROM reactions WHERE reaction_id = $1`, [
     reactionId,

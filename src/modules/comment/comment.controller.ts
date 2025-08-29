@@ -8,9 +8,33 @@ export class CommentController {
     return res.status(result.status || 201).json(result);
   }
 
+  static async listAll(_req: Request, res: Response) {
+    const result = await CommentService.getAllComments();
+    return res.status(result.status || 200).json(result);
+  }
+
+  static async getById(req: Request, res: Response) {
+    const { commentId } = req.params as { commentId: string };
+    const result = await CommentService.getCommentById(commentId);
+    return res.status(result.status || 200).json(result);
+  }
+
   static async getByGistId(req: Request, res: Response) {
     const { gistId } = req.params;
     const result = await CommentService.getCommentsByGistId(gistId || "");
+    return res.status(result.status || 200).json(result);
+  }
+
+  static async getByUser(req: Request, res: Response) {
+    const { aviTag } = req.params as { aviTag: string };
+    const result = await CommentService.getCommentsByUser(aviTag);
+    return res.status(result.status || 200).json(result);
+  }
+
+  static async update(req: Request, res: Response) {
+    const { commentId } = req.params as { commentId: string };
+    const avitag = (req as any).user?.avitag;
+    const result = await CommentService.updateComment(commentId, avitag, req.body);
     return res.status(result.status || 200).json(result);
   }
 

@@ -116,3 +116,90 @@ kampos-backend/
 ├── .env
 ├── package.json
 └── tsconfig.json
+
+## Endpoints
+
+Base path: `/api/v1`
+
+- Auth (`/auth`)
+  - POST `/signup`
+  - POST `/signin`
+  - POST `/refresh`
+  - POST `/logout` (auth)
+  - POST `/oauth/:provider` where `provider` ∈ `google|facebook|apple`
+  - POST `/send-otp`
+  - POST `/verify-otp`
+  - POST `/forgot-password`
+  - POST `/reset-password`
+
+- Gists (`/gists`)
+  - POST `/create` (auth; roles: STUDENT, KAMPOSER, CREATOR)
+  - GET `/`
+  - GET `/approved`
+  - GET `/:gistId`
+  - GET `/approved/:gistId`
+  - PATCH `/:gistId` (auth; roles: STUDENT, KAMPOSER, CREATOR)
+  - DELETE `/:gistId` (auth; roles: STUDENT, KAMPOSER, CREATOR)
+  - GET `/user/:avi_tag`
+  - GET `/user/:avi_tag/approved`
+  - GET `/trending`
+  - GET `/trending/approved`
+  - GET `/search`
+  - GET `/search/approved`
+  - GET `/pending` (auth; role: ADMIN)
+  - PATCH `/:gistId/approve` (auth; role: ADMIN)
+
+- Media (`/media`)
+  - POST `/upload` (auth)
+  - GET `/:mediaId`
+  - GET `/entity/:entityType/:entityId`
+  - PATCH `/:mediaId` (auth)
+  - DELETE `/:mediaId` (auth)
+
+- Notifications (`/notifications`)
+  - GET `/` (auth)
+  - PATCH `/:notificationId/read` (auth)
+
+- Comments (`/comments`)
+  - GET `/` 
+  - GET `/:commentId`
+  - GET `/user/:aviTag`
+  - GET `/gist/:gistId`
+  - POST `/create` (auth)
+  - PATCH `/:commentId` (auth)
+  - DELETE `/:commentId` (auth)
+
+- Reactions (`/reactions`)
+  - POST `/create` (auth)
+  - GET `/entity/:entityType/:entityId`
+  - GET `/user/:aviTag`
+  - DELETE `/:reactionId` (auth)
+  - DELETE `/entity/:entityType/:entityId/user/:aviTag` (auth)
+
+- Events (`/events`)
+  - POST `/create` (auth; roles: KAMPOSER, ADMIN)
+  - GET `/:eventId`
+  - GET `/campus/:campusTag`
+  - PATCH `/:eventId` (auth; roles: KAMPOSER, ADMIN)
+  - DELETE `/:eventId` (auth; roles: KAMPOSER, ADMIN)
+
+- Event Registrations (`/event-registrations`)
+  - POST `/create` (auth; role: STUDENT)
+  - GET `/event/:eventId` (auth)
+  - GET `/student` (auth; role: STUDENT)
+  - DELETE `/:id` (auth; role: STUDENT)
+
+- Reports (`/reports`)
+  - GET `/` (auth; role: ADMIN)
+  - GET `/user/:aviTag` (auth; self or ADMIN)
+  - GET `/gist/:gistId` (auth; role: ADMIN)
+  - GET `/:reportId` (auth; role: ADMIN)
+  - POST `/create` (auth)
+  - PATCH `/:reportId` (auth; role: ADMIN)
+  - DELETE `/:reportId` (auth; role: ADMIN)
+
+- Views (`/views`)
+  - POST `/create` (auth)
+  - GET `/gist/:gistId`
+  - GET `/gist/:gistId/count`
+  

@@ -40,6 +40,35 @@ export const findCommentsByGistId = async (
   return rows.map(mapRow);
 };
 
+export const findAllComments = async (): Promise<IComment[]> => {
+  const { rows } = await pool.query(
+    `SELECT * FROM comments ORDER BY commented_at DESC`
+  );
+  return rows.map(mapRow);
+};
+
+export const findCommentsByAvitag = async (
+  avitag: string
+): Promise<IComment[]> => {
+  const { rows } = await pool.query(
+    `SELECT * FROM comments WHERE avitag = $1 ORDER BY commented_at DESC`,
+    [avitag]
+  );
+  return rows.map(mapRow);
+};
+
+export const updateCommentById = async (
+  commentId: string,
+  updates: Partial<IComment>
+): Promise<IComment | null> => {
+  const { rows } = await pool.query(
+    `UPDATE comments SET text = COALESCE($1, text) WHERE comment_id = $2 RETURNING *`,
+    [updates.text ?? null, commentId]
+  );
+  if (!rows[0]) return null;
+  return mapRow(rows[0]);
+};
+
 export const deleteCommentById = async (commentId: string): Promise<void> => {
   await pool.query(`DELETE FROM comments WHERE comment_id = $1`, [commentId]);
 };

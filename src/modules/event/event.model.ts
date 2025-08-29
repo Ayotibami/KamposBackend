@@ -48,6 +48,13 @@ export const findEventsByCampus = async (
   return rows.map(mapRow);
 };
 
+export const findAllEvents = async (): Promise<IEvent[]> => {
+  const { rows } = await pool.query(
+    `SELECT * FROM events ORDER BY event_date DESC`
+  );
+  return rows.map(mapRow);
+};
+
 export const updateEventById = async (
   eventId: string,
   updates: Partial<IEvent>
@@ -90,3 +97,4 @@ export const updateEventById = async (
 export const deleteEventById = async (eventId: string): Promise<void> => {
   await pool.query(`DELETE FROM events WHERE event_id = $1`, [eventId]);
 };
+

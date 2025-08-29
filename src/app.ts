@@ -18,6 +18,8 @@ import reportRoutes from "./modules/report/report.routes";
 import viewRoutes from "./modules/view/view.routes";
 import { apiLimiter } from "./middleware/rateLimit";
 import { initSentry } from "./config/sentry";
+import accountRoutes from "./modules/account/account.routes";
+import profileRoutes from "./modules/profile/profile.routes";
 
 // Build and export an app instance suitable for testing without starting a server
 const app: Express = express();
@@ -46,8 +48,11 @@ app.use("/api/v1/events", eventRoutes);
 app.use("/api/v1/event-registrations", eventRegistrationRoutes);
 app.use("/api/v1/reports", reportRoutes);
 app.use("/api/v1/views", viewRoutes);
+app.use("/api/v1/account", accountRoutes);
+app.use("/api/v1/profiles", profileRoutes);
 
 app.use(notFound);
 app.use(errorMiddleware);
 
 export default app;
+

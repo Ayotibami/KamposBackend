@@ -301,11 +301,11 @@ CREATE INDEX IF NOT EXISTS idx_views_gist_id ON views(gist_id);
 CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date);
 `;
 
-export async function runSqlScript(sqlToRun: string): Promise<void> {
+export async function runSqlScript(sql: string): Promise<void> {
   try {
     await connectDB();
     logger.info("Running SQL script...");
-    await pool.query(sqlToRun);
+    await pool.query(sql);
     logger.info("SQL script executed successfully.");
   } catch (error: any) {
     logger.error("Error executing SQL script:", error);

@@ -7,6 +7,8 @@ import { isAuth } from "../../middleware/auth";
 
 const router = express.Router();
 
+router.get("/", EventController.listAll);
+
 router.post(
   "/create",
   isAuth,
