@@ -336,6 +336,368 @@
               "variable": [{ "key": "avitag", "value": "test-avitag" }]
             }
           }
+        },
+        {
+          "name": "Create Creator (auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Creator One\",\n  \"bio\": \"About me\",\n  \"campusTag\": \"Main Campus\",\n  \"profilePictureUrl\": \"https://example.com/avatar.jpg\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/creators",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","creators"]
+            }
+          }
+        },
+        {
+          "name": "Get Creator",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/creators/:avitag",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","creators",":avitag"],
+              "variable": [{ "key": "avitag", "value": "test-avitag" }]
+            }
+          }
+        },
+        {
+          "name": "List Creators",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/creators",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","creators"]
+            }
+          }
+        },
+        {
+          "name": "Update Creator (auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Updated Creator\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/creators/:avitag",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","creators",":avitag"],
+              "variable": [{ "key": "avitag", "value": "test-avitag" }]
+            }
+          }
+        },
+        {
+          "name": "Verify Creator (ADMIN auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/creators/:avitag/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","creators",":avitag","verify"],
+              "variable": [{ "key": "avitag", "value": "test-avitag" }]
+            }
+          }
+        },
+        {
+          "name": "Delete Creator (ADMIN auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/creators/:avitag",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","creators",":avitag"],
+              "variable": [{ "key": "avitag", "value": "test-avitag" }]
+            }
+          }
+        },
+        {
+          "name": "Create Kompany (auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Kompany One\",\n  \"email\": \"biz@example.com\",\n  \"phoneNumber\": \"+123456789\",\n  \"bio\": \"About org\",\n  \"profilePictureUrl\": \"https://example.com/logo.png\",\n  \"website\": \"https://example.com\",\n  \"socialLinks\": { \"x\": \"https://x.com/org\" }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/kompanies",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","kompanies"]
+            }
+          }
+        },
+        {
+          "name": "Get Kompany",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/kompanies/:avitag",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","kompanies",":avitag"],
+              "variable": [{ "key": "avitag", "value": "test-avitag" }]
+            }
+          }
+        },
+        {
+          "name": "List Kompanies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/kompanies",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","kompanies"]
+            }
+          }
+        },
+        {
+          "name": "Update Kompany (auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Updated Org\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/kompanies/:avitag",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","kompanies",":avitag"],
+              "variable": [{ "key": "avitag", "value": "test-avitag" }]
+            }
+          }
+        },
+        {
+          "name": "Verify Kompany (ADMIN auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/kompanies/:avitag/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","kompanies",":avitag","verify"],
+              "variable": [{ "key": "avitag", "value": "test-avitag" }]
+            }
+          }
+        },
+        {
+          "name": "Delete Kompany (ADMIN auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/kompanies/:avitag",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","kompanies",":avitag"],
+              "variable": [{ "key": "avitag", "value": "test-avitag" }]
+            }
+          }
+        },
+        {
+          "name": "Create School (auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Kampos University\",\n  \"bio\": \"School description\",\n  \"campusTag\": \"Main Campus\",\n  \"website\": \"https://school.example\",\n  \"profilePictureUrl\": \"https://school.example/logo.png\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/schools",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","schools"]
+            }
+          }
+        },
+        {
+          "name": "Get School",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/schools/:avitag",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","schools",":avitag"],
+              "variable": [{ "key": "avitag", "value": "test-school" }]
+            }
+          }
+        },
+        {
+          "name": "List Schools",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/schools",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","schools"]
+            }
+          }
+        },
+        {
+          "name": "Update School (auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Updated School\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/schools/:avitag",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","schools",":avitag"],
+              "variable": [{ "key": "avitag", "value": "test-school" }]
+            }
+          }
+        },
+        {
+          "name": "Verify School (ADMIN auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/schools/:avitag/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","schools",":avitag","verify"],
+              "variable": [{ "key": "avitag", "value": "test-school" }]
+            }
+          }
+        },
+        {
+          "name": "Delete School (ADMIN auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/schools/:avitag",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","schools",":avitag"],
+              "variable": [{ "key": "avitag", "value": "test-school" }]
+            }
+          }
+        },
+        {
+          "name": "Create Admin (SUPER_ADMIN auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Admin One\",\n  \"bio\": \"Oversees moderation\",\n  \"role\": \"CONTENT_REVIEWER\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/admins",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","admins"]
+            }
+          }
+        },
+        {
+          "name": "Get Admin (ADMIN auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/admins/:avitag",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","admins",":avitag"],
+              "variable": [{ "key": "avitag", "value": "admin-avi" }]
+            }
+          }
+        },
+        {
+          "name": "List Admins (ADMIN auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/admins",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","admins"]
+            }
+          }
+        },
+        {
+          "name": "Update Admin (SUPER_ADMIN auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Updated Admin\",\n  \"role\": \"MODERATOR\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/admins/:avitag",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","admins",":avitag"],
+              "variable": [{ "key": "avitag", "value": "admin-avi" }]
+            }
+          }
+        },
+        {
+          "name": "Verify Admin (SUPER_ADMIN auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/admins/:avitag/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","admins",":avitag","verify"],
+              "variable": [{ "key": "avitag", "value": "admin-avi" }]
+            }
+          }
+        },
+        {
+          "name": "Delete Admin (SUPER_ADMIN auth)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profiles/admins/:avitag",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","profiles","admins",":avitag"],
+              "variable": [{ "key": "avitag", "value": "admin-avi" }]
+            }
+          }
         }
       ]
     },
@@ -343,7 +705,7 @@
       "name": "Gists",
       "item": [
         {
-          "name": "Create Gist (auth: STUDENT|KAMPOSER|CREATOR)",
+          "name": "Create Gist (auth: STUDENT|KOMPANY|CREATOR)",
           "request": {
             "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
             "method": "POST",
@@ -411,7 +773,7 @@
           }
         },
         {
-          "name": "Update Gist (auth: STUDENT|KAMPOSER|CREATOR)",
+          "name": "Update Gist (auth: STUDENT|KOMPANY|CREATOR)",
           "request": {
             "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
             "method": "PATCH",
@@ -430,7 +792,7 @@
           }
         },
         {
-          "name": "Delete Gist (auth: STUDENT|KAMPOSER|CREATOR)",
+          "name": "Delete Gist (auth: STUDENT|KOMPANY|CREATOR)",
           "request": {
             "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
             "method": "DELETE",
@@ -894,7 +1256,7 @@
           }
         },
         {
-          "name": "Create Event (auth: KAMPOSER|ADMIN)",
+          "name": "Create Event (auth: KOMPANY|ADMIN)",
           "request": {
             "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
             "method": "POST",
@@ -938,7 +1300,7 @@
           }
         },
         {
-          "name": "Update Event (auth: KAMPOSER|ADMIN)",
+          "name": "Update Event (auth: KOMPANY|ADMIN)",
           "request": {
             "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
             "method": "PATCH",
@@ -957,7 +1319,7 @@
           }
         },
         {
-          "name": "Delete Event (auth: KAMPOSER|ADMIN)",
+          "name": "Delete Event (auth: KOMPANY|ADMIN)",
           "request": {
             "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
             "method": "DELETE",

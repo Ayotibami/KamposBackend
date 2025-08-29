@@ -1,4 +1,4 @@
-export type ProfileType = "STUDENT" | "KAMPOSER" | "CREATOR" | "ADMIN" | "SCHOOL";
+export type ProfileType = "STUDENT" | "KOMPANY" | "SCHOOL" | "CREATOR" | "ADMIN";
 
 export interface IProfile {
   avitag?: string; // UUID

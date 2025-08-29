@@ -12,7 +12,7 @@ router.get("/", EventController.listAll);
 router.post(
   "/create",
   isAuth,
-  restrictTo("KAMPOSER", "ADMIN"),
+  restrictTo("KOMPANY", "ADMIN"),
   validateBody(EventSchemas.createEvent),
   EventController.create
 );
@@ -21,14 +21,14 @@ router.get("/campus/:campusTag", EventController.getByCampus);
 router.patch(
   "/:eventId",
   isAuth,
-  restrictTo("KAMPOSER", "ADMIN"),
+  restrictTo("KOMPANY", "ADMIN"),
   validateBody(EventSchemas.updateEvent),
   EventController.update
 );
 router.delete(
   "/:eventId",
   isAuth,
-  restrictTo("KAMPOSER", "ADMIN"),
+  restrictTo("KOMPANY", "ADMIN"),
   EventController.delete
 );
 

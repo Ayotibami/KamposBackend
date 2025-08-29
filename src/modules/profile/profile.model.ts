@@ -68,7 +68,6 @@ const detectTableByType = (type?: string): string => {
     case "ADMIN":
       return "admin_profiles";
     case "KOMPANY":
-    case "KAMPOSER": // fallback alias
       return "kompany_profiles";
     case "SCHOOL":
       return "school_profiles";

@@ -10,7 +10,7 @@ const router = express.Router();
 router.post(
   "/create",
   isAuth,
-  restrictTo("STUDENT", "KAMPOSER", "CREATOR"),
+  restrictTo("STUDENT", "KOMPANY", "CREATOR"),
   validateBody(GistSchemas.createGist),
   GistController.create
 );
@@ -21,14 +21,14 @@ router.get("/approved/:gistId", GistController.getApprovedById);
 router.patch(
   "/:gistId",
   isAuth,
-  restrictTo("STUDENT", "KAMPOSER", "CREATOR"),
+  restrictTo("STUDENT", "KOMPANY", "CREATOR"),
   validateBody(GistSchemas.updateGist),
   GistController.update
 );
 router.delete(
   "/:gistId",
   isAuth,
-  restrictTo("STUDENT", "KAMPOSER", "CREATOR"),
+  restrictTo("STUDENT", "KOMPANY", "CREATOR"),
   GistController.delete
 );
 router.get("/user/:avi_tag", GistController.getByAvitag);
