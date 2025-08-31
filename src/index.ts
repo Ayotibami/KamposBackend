@@ -7,15 +7,16 @@ import { WebSocketService } from "./services/websocket.service";
 // import * as Sentry from "@sentry/node";
 import { startEmailWorker } from "./services/job-queue.service";
 import app from "./app";
+import { runSqlScript, sql } from "./helper/sql";
 
 const startServer = async (): Promise<void> => {
   try {
     await connectDB(); // Ensure DB connectivity before listening
     // await connectRedis();
-    startEmailWorker();
+    // startEmailWorker();
 
     const server = http.createServer(app); // Create server here
-    WebSocketService.initialize(server); // Initialize WebSocket after server creation
+    WebSocketService.initialize(server);
 
     server.listen(env.PORT, () =>
       logger.info(`Server is listening on PORT:${env.PORT}`)
