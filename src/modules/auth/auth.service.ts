@@ -197,7 +197,7 @@ export class AuthService {
           if (lastName) updates.lastName = lastName;
         }
         if (Object.keys(updates).length) {
-          await profileRepo.updateProfileByAvitag(profile.avitag!, updates);
+          await profileRepo.updateProfile(profile.avitag!, updates);
         }
       }
     }
