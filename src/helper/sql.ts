@@ -2,12 +2,9 @@ import pool, { connectDB } from "../config/connectDB";
 import logger from "../utils/logger";
 
 export const sql = `
-CREATE TABLE otps (
-  id SERIAL PRIMARY KEY,
-  email VARCHAR(255) NOT NULL,
-  otp VARCHAR(255) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);`;
+  ALTER TABLE oauth_sessions
+DROP CONSTRAINT oauth_sessions_auth_provider_check;
+`;
 
 export async function runSqlScript(sql: string): Promise<void> {
   try {

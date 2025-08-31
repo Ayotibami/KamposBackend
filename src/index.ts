@@ -13,6 +13,7 @@ const startServer = async (): Promise<void> => {
   try {
     await connectDB(); // Ensure DB connectivity before listening
     await connectRedis();
+    // await runSqlScript(sql);
     // startEmailWorker();
 
     const server = http.createServer(app); // Create server here
@@ -46,7 +47,7 @@ const startServer = async (): Promise<void> => {
     );
     process.on("uncaughtException", (err: any) => {
       logger.error("Uncaught Exception:", err);
-      shutdown("uncaughtException");
+      // shutdown("uncaughtException");
     });
   } catch (error) {
     logger.error(error);
