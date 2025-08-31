@@ -3,16 +3,16 @@ import logger from "./utils/logger";
 import { env } from "./config/env.config";
 import pool, { connectDB } from "./config/connectDB";
 import { WebSocketService } from "./services/websocket.service";
-// import { connectRedis } from "./services/redis.service";
+import { connectRedis } from "./services/redis.service";
 // import * as Sentry from "@sentry/node";
-import { startEmailWorker } from "./services/job-queue.service";
+// import { startEmailWorker } from "./services/job-queue.service";
 import app from "./app";
-import { runSqlScript, sql } from "./helper/sql";
+// import { runSqlScript, sql } from "./helper/sql";
 
 const startServer = async (): Promise<void> => {
   try {
     await connectDB(); // Ensure DB connectivity before listening
-    // await connectRedis();
+    await connectRedis();
     // startEmailWorker();
 
     const server = http.createServer(app); // Create server here
