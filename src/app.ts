@@ -6,6 +6,11 @@ import rateLimit from 'express-rate-limit';
 import fileUpload from 'express-fileupload';
 import { env } from './config/env';
 import { notFound, errorHandler } from './middleware/error';
+import gistRoutes from './modules/gist/gist.routes';
+import authRoutes from './modules/auth/auth.routes';
+import accountRoutes from './modules/account/account.routes';
+import profileRoutes from './modules/profile/profile.routes';
+import moderationRoutes from './modules/idiot/moderation.routes';
 import type { GraphQLSchema } from 'graphql';
 import { graphqlHTTP } from 'express-graphql';
 import { buildSchema } from 'graphql';
@@ -57,7 +62,12 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 // GraphQL (feeds only)
 app.use('/graphql', graphqlHTTP({ schema, rootValue: root, graphiql: env.NODE_ENV !== 'production' }));
 
-// TODO: mount REST routes as we implement modules
+// REST routes
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/account', accountRoutes);
+app.use('/api/v1/profiles', profileRoutes);
+app.use('/api/v1/gists', gistRoutes);
+app.use('/api/v1/idiot/moderation', moderationRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
