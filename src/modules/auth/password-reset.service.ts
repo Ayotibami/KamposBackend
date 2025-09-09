@@ -1,32 +1,37 @@
 import * as accountRepo from '../account/account.repo';
-import * as prRepo from './password-reset.repo';
+import * as otpRepo from './otp.repo';
+import { sendPasswordResetEmail } from '../../services/email/email.service';
+import { generateOTP } from '../../utils/otp';
 import argon2 from 'argon2';
-import { sendMail } from '../../config/mail';
 
 export const PasswordResetService = {
   async request(email: string) {
     const account = await accountRepo.findAccountByEmail(email);
     if (!account) {
-      // Do not reveal existence; act as if email sent
-      return { requested: true };
+      throw Object.assign(new Error('Account with this email does not exist'), { statusCode: 404 });
     }
-    const token = await prRepo.createResetToken(account.account_id, 3600);
-    await sendMail({
-      to: email,
-      subject: 'Reset your Kampos password',
-      text: `Use this token to reset your password: ${token.token}. It expires in 1 hour.`,
-    });
+    const code = generateOTP();
+    await otpRepo.createOTP(email, code, 600);
+    try {
+      await sendPasswordResetEmail(email, code, 10);
+    } catch (_e) {
+      // Do not fail the flow if email sending fails; client can request again
+    }
     return { requested: true };
   },
 
-  async reset(token: string, newPassword: string) {
-    const found = await prRepo.findValidToken(token);
-    if (!found) {
-      throw Object.assign(new Error('Invalid or expired token'), { statusCode: 400 });
+  async reset(email: string, code: string, newPassword: string) {
+    const account = await accountRepo.findAccountByEmail(email);
+    if (!account) {
+      throw Object.assign(new Error('Account with this email does not exist'), { statusCode: 404 });
+    }
+    const otp = await otpRepo.findValidOTP(email, code);
+    if (!otp) {
+      throw Object.assign(new Error('Invalid or expired code'), { statusCode: 400 });
     }
     const hash = await argon2.hash(newPassword, { type: argon2.argon2id });
-    await accountRepo.updatePasswordHash(found.account_id, hash);
-    await prRepo.consumeToken(token);
+    await accountRepo.updatePasswordHash(account.account_id, hash);
+    await otpRepo.deleteOTP(otp.id);
     return { reset: true };
   },
 };

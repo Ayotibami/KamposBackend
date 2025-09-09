@@ -64,3 +64,51 @@ export async function listProfilesByAccount(account_id: string): Promise<Profile
   );
   return rows;
 }
+
+export async function updateProfile(
+  avitag: string,
+  account_id: string,
+  updates: {
+    display_name?: string | null;
+    campus_tag?: string | null;
+    major_tag?: string | null;
+    level?: number | null;
+  }
+): Promise<Profile | null> {
+  const fields: string[] = [];
+  const values: any[] = [];
+  let idx = 1;
+  if (updates.display_name !== undefined) {
+    fields.push(`display_name = $${idx++}`);
+    values.push(updates.display_name);
+  }
+  if (updates.campus_tag !== undefined) {
+    fields.push(`campus_tag = $${idx++}`);
+    values.push(updates.campus_tag);
+  }
+  if (updates.major_tag !== undefined) {
+    fields.push(`major_tag = $${idx++}`);
+    values.push(updates.major_tag);
+  }
+  if (updates.level !== undefined) {
+    fields.push(`level = $${idx++}`);
+    values.push(updates.level);
+  }
+  if (fields.length === 0) return findProfile(avitag);
+  fields.push(`updated_at = NOW()`);
+  values.push(avitag);
+  values.push(account_id);
+  const { rows } = await pool.query<Profile>(
+    `UPDATE profiles SET ${fields.join(', ')} WHERE avitag = $${idx++} AND account_id = $${idx} RETURNING *`,
+    values
+  );
+  return rows[0] ?? null;
+}
+
+export async function deleteProfile(avitag: string, account_id: string): Promise<boolean> {
+  const result = await pool.query(
+    `DELETE FROM profiles WHERE avitag = $1 AND account_id = $2`,
+    [avitag, account_id]
+  );
+  return (result.rowCount || 0) > 0;
+}

@@ -1,15 +1,23 @@
 import * as otpRepo from './otp.repo';
 import * as accountRepo from '../account/account.repo';
-import { sendMail } from '../../config/mail';
+import { sendOTPEmail } from '../../services/email/email.service';
+import logger from '../../utils/logger';
+import { env } from '../../config/env';
 
 export const OTPService = {
   async send(email: string, code: string) {
     const otp = await otpRepo.createOTP(email, code, 600);
-    await sendMail({
-      to: email,
-      subject: 'Your Kampos verification code',
-      text: `Your OTP is ${code}. It expires in 10 minutes.`,
-    });
+    try {
+      if (env.BREVO_PASSWORD) {
+        await sendOTPEmail(email, code, 10);
+      } else {
+        // No email config: log OTP for dev convenience
+        logger.warn({ email, code }, 'OTP (dev): Email config missing, logging code');
+      }
+    } catch (e) {
+      // Email failures should not break the auth flow; also log OTP in dev
+      logger.warn({ email, code, err: e }, 'OTP email failed; logging code for dev');
+    }
     return otp;
   },
 

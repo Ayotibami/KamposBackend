@@ -19,6 +19,7 @@ export const env = cleanEnv(process.env, {
 
   BREVO_EMAIL: str({ default: '' }),
   BREVO_PASSWORD: str({ default: '' }),
+  BREVO_FROM: str({ default: '' }),
 
   CLOUDINARY_NAME: str({ default: '' }),
   CLOUDINARY_API_KEY: str({ default: '' }),
