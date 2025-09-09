@@ -87,12 +87,12 @@ CREATE TABLE IF NOT EXISTS gists (
   campus_tag TEXT REFERENCES campus(campus_tag),
   major_tag TEXT REFERENCES major(major_tag),
   level INT,
-  status moderation_status NOT NULL DEFAULT 'SUBMITTED',
+  gist_status moderation_status NOT NULL DEFAULT 'SUBMITTED',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   edited_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS idx_gists_author ON gists(avitag);
-CREATE INDEX IF NOT EXISTS idx_gists_status ON gists(status);
+CREATE INDEX IF NOT EXISTS idx_gists_status ON gists(gist_status);
 CREATE INDEX IF NOT EXISTS idx_gists_created ON gists(created_at DESC);
 
 -- Full text search (optional basic)

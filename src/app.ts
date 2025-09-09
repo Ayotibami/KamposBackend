@@ -51,6 +51,7 @@ const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
 app.use('/api/v1', apiLimiter);
 
 // Health
+app.get('/', (_req, res) => res.json({ ok: true, message: "Welcome to Kampos Backend!!!" }));
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 // GraphQL (feeds only)
