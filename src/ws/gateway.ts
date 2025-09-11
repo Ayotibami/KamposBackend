@@ -4,6 +4,8 @@ import { verifyToken } from '../config/jwt';
 import logger from '../utils/logger';
 import * as gistRepo from '../modules/gist/gist.repo';
 import { GistService } from '../modules/gist/gist.service';
+import * as commentRepo from '../modules/comment/comment.repo';
+import * as reactionRepo from '../modules/reaction/reaction.repo';
 
 export class WSGateway {
   private static wss: WebSocketServer | null = null;
@@ -38,6 +40,126 @@ export class WSGateway {
                 await gistRepo.incrementView(gist_id, avitag);
                 // Broadcast a lightweight event; clients may refetch counts
                 WSGateway.broadcast('gist:viewed', { gist_id, by: avitag });
+                break;
+              }
+              // COMMENTS
+              case 'comments:create': {
+                const avitag: string | undefined = (user as any)?.avitag;
+                if (!avitag) { ws.send(JSON.stringify({ type: 'comments:create:error', requestId, message: 'Unauthorized' })); break; }
+                const gist_id: string | undefined = msg?.gist_id;
+                const text: string = String(msg?.text || '').trim();
+                if (!gist_id || !text) { ws.send(JSON.stringify({ type: 'comments:create:error', requestId, message: 'gist_id and text required' })); break; }
+                const created = await commentRepo.create({ gist_id, avitag, text });
+                ws.send(JSON.stringify({ type: 'comments:create:ok', requestId, data: created }));
+                WSGateway.broadcast('comment:created', { comment: created });
+                break;
+              }
+              case 'comments:get': {
+                const comment_id: string | undefined = msg?.comment_id;
+                if (!comment_id) { ws.send(JSON.stringify({ type: 'comments:get:error', requestId, message: 'comment_id required' })); break; }
+                const c = await commentRepo.get(comment_id);
+                if (!c) { ws.send(JSON.stringify({ type: 'comments:get:error', requestId, message: 'Not found' })); break; }
+                ws.send(JSON.stringify({ type: 'comments:get:ok', requestId, data: c }));
+                break;
+              }
+              case 'comments:list_by_gist': {
+                const gist_id: string | undefined = msg?.gist_id;
+                if (!gist_id) { ws.send(JSON.stringify({ type: 'comments:list_by_gist:error', requestId, message: 'gist_id required' })); break; }
+                const limit = Number(msg?.limit ?? 20);
+                const cursor = typeof msg?.cursor === 'string' ? msg.cursor : undefined;
+                const data = await commentRepo.listByGist(gist_id, limit, cursor);
+                ws.send(JSON.stringify({ type: 'comments:list_by_gist:ok', requestId, data }));
+                break;
+              }
+              case 'comments:list_by_user': {
+                const targetAvitag: string | undefined = msg?.avitag;
+                if (!targetAvitag) { ws.send(JSON.stringify({ type: 'comments:list_by_user:error', requestId, message: 'avitag required' })); break; }
+                const limit = Number(msg?.limit ?? 20);
+                const cursor = typeof msg?.cursor === 'string' ? msg.cursor : undefined;
+                const data = await commentRepo.listByUser(targetAvitag, limit, cursor);
+                ws.send(JSON.stringify({ type: 'comments:list_by_user:ok', requestId, data }));
+                break;
+              }
+              case 'comments:update': {
+                const avitag: string | undefined = (user as any)?.avitag;
+                if (!avitag) { ws.send(JSON.stringify({ type: 'comments:update:error', requestId, message: 'Unauthorized' })); break; }
+                const comment_id: string | undefined = msg?.comment_id;
+                const text: string = String(msg?.text || '').trim();
+                if (!comment_id || !text) { ws.send(JSON.stringify({ type: 'comments:update:error', requestId, message: 'comment_id and text required' })); break; }
+                const updated = await commentRepo.update(comment_id, avitag, text);
+                if (!updated) { ws.send(JSON.stringify({ type: 'comments:update:error', requestId, message: 'Not found or forbidden' })); break; }
+                ws.send(JSON.stringify({ type: 'comments:update:ok', requestId, data: updated }));
+                WSGateway.broadcast('comment:updated', { comment: updated });
+                break;
+              }
+              case 'comments:delete': {
+                const avitag: string | undefined = (user as any)?.avitag;
+                const role: string | undefined = (user as any)?.role;
+                if (!avitag && role !== 'IDIOT') { ws.send(JSON.stringify({ type: 'comments:delete:error', requestId, message: 'Unauthorized' })); break; }
+                const comment_id: string | undefined = msg?.comment_id;
+                if (!comment_id) { ws.send(JSON.stringify({ type: 'comments:delete:error', requestId, message: 'comment_id required' })); break; }
+                let ok = false;
+                if (role === 'IDIOT') ok = await commentRepo.removeAsAdmin(comment_id);
+                else ok = await commentRepo.remove(comment_id, avitag!);
+                if (!ok) { ws.send(JSON.stringify({ type: 'comments:delete:error', requestId, message: 'Not found or forbidden' })); break; }
+                ws.send(JSON.stringify({ type: 'comments:delete:ok', requestId }));
+                WSGateway.broadcast('comment:deleted', { comment_id });
+                break;
+              }
+
+              // REACTIONS
+              case 'reactions:upsert': {
+                const avitag: string | undefined = (user as any)?.avitag;
+                if (!avitag) { ws.send(JSON.stringify({ type: 'reactions:upsert:error', requestId, message: 'Unauthorized' })); break; }
+                const entity_type = msg?.entity_type as reactionRepo.ReactionEntity;
+                const entity_id: string | undefined = msg?.entity_id;
+                const typeVal = msg?.type as reactionRepo.ReactionType;
+                if (!entity_type || !entity_id || !typeVal) { ws.send(JSON.stringify({ type: 'reactions:upsert:error', requestId, message: 'entity_type, entity_id, type required' })); break; }
+                const r = await reactionRepo.upsert({ avitag, entity_type, entity_id, type: typeVal });
+                ws.send(JSON.stringify({ type: 'reactions:upsert:ok', requestId, data: r }));
+                WSGateway.broadcast('reaction:upserted', { reaction: r });
+                break;
+              }
+              case 'reactions:list_by_entity': {
+                const entity_type = msg?.entity_type as reactionRepo.ReactionEntity;
+                const entity_id: string | undefined = msg?.entity_id;
+                if (!entity_type || !entity_id) { ws.send(JSON.stringify({ type: 'reactions:list_by_entity:error', requestId, message: 'entity_type and entity_id required' })); break; }
+                const data = await reactionRepo.listByEntity(entity_type, entity_id);
+                ws.send(JSON.stringify({ type: 'reactions:list_by_entity:ok', requestId, data }));
+                break;
+              }
+              case 'reactions:list_by_user': {
+                const targetAvitag: string | undefined = msg?.avitag;
+                if (!targetAvitag) { ws.send(JSON.stringify({ type: 'reactions:list_by_user:error', requestId, message: 'avitag required' })); break; }
+                const data = await reactionRepo.listByUser(targetAvitag);
+                ws.send(JSON.stringify({ type: 'reactions:list_by_user:ok', requestId, data }));
+                break;
+              }
+              case 'reactions:remove': {
+                const role: string | undefined = (user as any)?.role;
+                const reaction_id: string | undefined = msg?.reaction_id;
+                if (!reaction_id) { ws.send(JSON.stringify({ type: 'reactions:remove:error', requestId, message: 'reaction_id required' })); break; }
+                // Allow IDIOT to remove any; otherwise fallback to composite removal below
+                if (role === 'IDIOT') {
+                  const ok = await reactionRepo.removeById(reaction_id);
+                  if (!ok) { ws.send(JSON.stringify({ type: 'reactions:remove:error', requestId, message: 'Not found' })); break; }
+                  ws.send(JSON.stringify({ type: 'reactions:remove:ok', requestId }));
+                  WSGateway.broadcast('reaction:removed', { reaction_id });
+                } else {
+                  ws.send(JSON.stringify({ type: 'reactions:remove:error', requestId, message: 'Forbidden' }));
+                }
+                break;
+              }
+              case 'reactions:remove_by_entity': {
+                const avitag: string | undefined = (user as any)?.avitag;
+                if (!avitag) { ws.send(JSON.stringify({ type: 'reactions:remove_by_entity:error', requestId, message: 'Unauthorized' })); break; }
+                const entity_type = msg?.entity_type as reactionRepo.ReactionEntity;
+                const entity_id: string | undefined = msg?.entity_id;
+                if (!entity_type || !entity_id) { ws.send(JSON.stringify({ type: 'reactions:remove_by_entity:error', requestId, message: 'entity_type and entity_id required' })); break; }
+                const ok = await reactionRepo.removeByComposite(entity_type, entity_id, avitag);
+                if (!ok) { ws.send(JSON.stringify({ type: 'reactions:remove_by_entity:error', requestId, message: 'Not found' })); break; }
+                ws.send(JSON.stringify({ type: 'reactions:remove_by_entity:ok', requestId }));
+                WSGateway.broadcast('reaction:removed', { entity_type, entity_id, avitag });
                 break;
               }
               case 'gists:list': {
