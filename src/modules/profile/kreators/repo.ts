@@ -58,6 +58,15 @@ export async function listVerifiedActive(limit = 20, offset = 0): Promise<Kreato
   return rows;
 }
 
+export async function listActive(limit = 20, offset = 0): Promise<KreatorProfile[]> {
+  const { rows } = await pool.query<KreatorProfile>(
+    `SELECT * FROM kreator_profiles WHERE profile_status = 'ACTIVE'
+     ORDER BY joined_at DESC LIMIT $1 OFFSET $2`,
+    [limit, offset]
+  );
+  return rows;
+}
+
 export async function update(
   avitag: string,
   account_id: string,

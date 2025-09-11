@@ -26,6 +26,8 @@ export const env = cleanEnv(process.env, {
   CLOUDINARY_API_SECRET: str({ default: '' }),
   DEFAULT_PROFILE_PIC_URL: str({ default: '' }),
   ADMIN_ACCOUNT_IDS: str({ default: '' }),
+  UNVERIFIED_GIST_MAX: num({ default: 280 }),
+  VERIFIED_GIST_MAX: num({ default: 5000 }),
 
   GOOGLE_CLIENT_ID: str({ default: '' }),
   GOOGLE_CLIENT_SECRET: str({ default: '' }),

@@ -1,5 +1,8 @@
 import type { Request, Response } from "express";
-import { GistService } from "./gist.service";
+import { GistService } from './gist.service';
+import { WSGateway } from '../../ws/gateway';
+import { env } from '../../config/env';
+import * as ProfileUtils from '../profile/utils';
 
 export const GistController = {
   create: async (req: Request, res: Response) => {
@@ -13,25 +16,60 @@ export const GistController = {
         });
     }
     const { gist_text } = req.body || {};
+    const profile = await ProfileUtils.findByAvitag(req.user.avitag);
+    const isVerified = !!profile?.is_verified;
+    const maxLen = isVerified ? env.VERIFIED_GIST_MAX : env.UNVERIFIED_GIST_MAX;
+    if (typeof gist_text !== 'string' || gist_text.length < 1) {
+      return res.status(400).json({ success: false, message: 'gist_text is required' });
+    }
+    if (gist_text.length > maxLen) {
+      return res.status(400).json({ success: false, message: `gist_text exceeds limit (${maxLen} chars for ${isVerified ? 'verified' : 'unverified'} profiles)` });
+    }
     const gist = await GistService.create(req.user.avitag, gist_text);
     return res.status(201).json({ success: true, data: gist });
   },
 
   get: async (req: Request, res: Response) => {
     const id = req.params.gist_id;
-    const gist = await GistService.findWithCounts(id);
-    if (!gist)
-      return res
-        .status(404)
-        .json({ success: false, message: "Gist not found" });
-    return res.json({ success: true, data: gist });
+    // Fetch regardless of status
+    const gistAny = await GistService.findWithCounts(id);
+    if (gistAny) {
+      const viewer = req.user?.avitag ?? null;
+      await GistService.incrementView(id, viewer);
+      WSGateway.broadcast('gist:viewed', { gist_id: id, by: viewer });
+      return res.json({ success: true, data: gistAny });
+    }
+    // If not found among APPROVED, try any status and allow owner/IDIOT access
+    const full = await GistService.findWithCountsAnyStatus?.(id as any);
+    if (!full) return res.status(404).json({ success: false, message: 'Gist not found' });
+    const isOwner = req.user?.avitag && req.user.avitag === full.avitag;
+    const isAdmin = req.user?.role === 'IDIOT';
+    if (isOwner || isAdmin) {
+      const viewer = req.user?.avitag ?? null;
+      await GistService.incrementView(id, viewer);
+      WSGateway.broadcast('gist:viewed', { gist_id: id, by: viewer });
+      return res.json({ success: true, data: full });
+    }
+    return res.status(404).json({ success: false, message: 'Gist not found' });
   },
 
   list: async (req: Request, res: Response) => {
     const limit = Number(req.query.limit ?? 20);
     const cursor =
       typeof req.query.cursor === "string" ? req.query.cursor : undefined;
-    const data = await GistService.listRecent(limit, cursor);
+    const viewerAvitag = req.user?.avitag;
+    const data = await GistService.listRecent(limit, cursor, viewerAvitag);
+    // Increment views for all returned gists and notify via WS
+    const viewer = req.user?.avitag ?? null;
+    try {
+      await Promise.all(
+        data.map((g: any) => GistService.incrementView(g.gist_id, viewer))
+      );
+      WSGateway.broadcast('gist:viewed_batch', {
+        gist_ids: data.map((g: any) => g.gist_id),
+        by: viewer,
+      });
+    } catch {}
     return res.json({ success: true, data });
   },
 
@@ -77,12 +115,24 @@ export const GistController = {
     const limit = Number(req.query.limit ?? 20);
     const cursor =
       typeof req.query.cursor === "string" ? req.query.cursor : undefined;
-    const data = await GistService.listByUser(avitag, limit, cursor);
+    const viewerAvitag = req.user?.avitag;
+    const data = await GistService.listByUser(avitag, limit, cursor, viewerAvitag);
+    const viewer = req.user?.avitag ?? null;
+    try {
+      await Promise.all(data.map((g: any) => GistService.incrementView(g.gist_id, viewer)));
+      WSGateway.broadcast('gist:viewed_batch', { gist_ids: data.map((g: any) => g.gist_id), by: viewer });
+    } catch {}
     return res.json({ success: true, data });
   },
 
-  trending: async (_req: Request, res: Response) => {
-    const data = await GistService.trending(20);
+  trending: async (req: Request, res: Response) => {
+    const viewerAvitag = req.user?.avitag;
+    const data = await GistService.trending(20, viewerAvitag);
+    const viewer = req.user?.avitag ?? null;
+    try {
+      await Promise.all(data.map((g: any) => GistService.incrementView(g.gist_id, viewer)));
+      WSGateway.broadcast('gist:viewed_batch', { gist_ids: data.map((g: any) => g.gist_id), by: viewer });
+    } catch {}
     return res.json({ success: true, data });
   },
 
@@ -90,7 +140,13 @@ export const GistController = {
     const q = String(req.query.query || "").trim();
     const limit = Number(req.query.limit ?? 20);
     const offset = Number(req.query.offset ?? 0);
-    const data = q ? await GistService.search(q, limit, offset) : [];
+    const viewerAvitag = req.user?.avitag;
+    const data = q ? await GistService.search(q, limit, offset, viewerAvitag) : [];
+    const viewer = req.user?.avitag ?? null;
+    try {
+      await Promise.all(data.map((g: any) => GistService.incrementView(g.gist_id, viewer)));
+      WSGateway.broadcast('gist:viewed_batch', { gist_ids: data.map((g: any) => g.gist_id), by: viewer });
+    } catch {}
     return res.json({ success: true, data });
   },
 

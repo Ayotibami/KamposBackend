@@ -68,10 +68,10 @@ export async function findByAvitag(avitag: string): Promise<StudentProfile | nul
   return rows[0] ?? null;
 }
 
-export async function listVerifiedActive(limit = 20, offset = 0): Promise<StudentProfile[]> {
+export async function listActive(limit = 20, offset = 0): Promise<StudentProfile[]> {
   const { rows } = await pool.query<StudentProfile>(
     `SELECT * FROM student_profiles
-     WHERE is_verified = TRUE AND profile_status = 'ACTIVE'
+     WHERE profile_status = 'ACTIVE'
      ORDER BY created_at DESC
      LIMIT $1 OFFSET $2`,
     [limit, offset]

@@ -10,13 +10,14 @@ export const GistService = {
   deleteAsIdiot: (gist_id: string) => gistRepo.removeAsIdiot(gist_id),
   findById: (gist_id: string) => gistRepo.findById(gist_id),
   findWithCounts: (gist_id: string) => gistRepo.findWithCounts(gist_id),
-  listRecent: (limit?: number, cursor?: string) =>
-    gistRepo.listRecent(limit, cursor),
-  listByUser: (avitag: string, limit?: number, cursor?: string) =>
-    gistRepo.listByUser(avitag, limit, cursor),
-  trending: (limit?: number) => gistRepo.trending(limit),
-  search: (term: string, limit?: number, offset?: number) =>
-    gistRepo.search(term, limit, offset),
+  findWithCountsAnyStatus: (gist_id: string) => gistRepo.findWithCountsAnyStatus(gist_id),
+  listRecent: (limit?: number, cursor?: string, viewerAvitag?: string) =>
+    gistRepo.listRecent(limit, cursor, viewerAvitag),
+  listByUser: (avitag: string, limit?: number, cursor?: string, viewerAvitag?: string) =>
+    gistRepo.listByUser(avitag, limit, cursor, viewerAvitag),
+  trending: (limit?: number, viewerAvitag?: string) => gistRepo.trending(limit, viewerAvitag),
+  search: (term: string, limit?: number, offset?: number, viewerAvitag?: string) =>
+    gistRepo.search(term, limit, offset, viewerAvitag),
   report: (gist_id: string, reporter_avitag: string, reason: string | null) =>
     gistRepo.report(gist_id, reporter_avitag, reason),
   incrementView: (gist_id: string, avitag: string | null) =>

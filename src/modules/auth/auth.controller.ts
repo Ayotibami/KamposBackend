@@ -45,9 +45,10 @@ export const AuthController = {
     if (!profile || profile.account_id !== req.user.account_id) {
       return res.status(404).json({ success: false, message: 'Profile not found for this account' });
     }
-    if (!profile.is_verified) {
-      return res.status(403).json({ success: false, message: 'Profile not verified yet' });
-    }
+    // if (!profile.is_verified) {
+    //   return res.status(403).json({ success: false, message: 'Profile not verified yet' });
+    // }
+    
 
     const adminIds = (env.ADMIN_ACCOUNT_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
     const role = adminIds.includes(req.user.account_id) ? 'IDIOT' : 'USER';

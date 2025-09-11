@@ -80,10 +80,8 @@ export const create = async (req: Request, res: Response) => {
 
 export const get = async (req: Request, res: Response) => {
   const avitag = req.params.avitag;
-  logger.info(`Fetching profile for ${avitag}`);
   const profile = await repo.findByAvitag(avitag);
-  logger.info(`Fetching profile for ${profile}`);
-  if (!profile || !profile.is_verified || profile.profile_status !== 'ACTIVE') {
+  if (!profile || profile.profile_status !== 'ACTIVE') {
     return res.status(404).json({ success: false, message: 'Profile not found' });
   }
   return res.json({ success: true, data: profile });
@@ -92,7 +90,7 @@ export const get = async (req: Request, res: Response) => {
 export const list = async (req: Request, res: Response) => {
   const limit = Number(req.query.limit ?? 20);
   const offset = Number(req.query.offset ?? 0);
-  const data = await repo.listVerifiedActive(limit, offset);
+  const data = await repo.listActive(limit, offset);
   return res.json({ success: true, data });
 };
 
@@ -103,7 +101,7 @@ export const update = async (req: Request, res: Response) => {
   // Only owner or IDIOT can update
   const existing = await repo.findByAvitag(avitag);
   if (!existing) return res.status(404).json({ success: false, message: 'Profile not found' });
-  if (existing.account_id !== req.user.account_id && req.user.profileType !== 'IDIOT') {
+  if (existing.account_id !== req.user.account_id && req.user.role !== 'IDIOT') {
     return res.status(403).json({ success: false, message: 'Forbidden' });
   }
 

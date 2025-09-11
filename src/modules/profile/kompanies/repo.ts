@@ -63,6 +63,15 @@ export async function listVerifiedActive(limit = 20, offset = 0): Promise<Kompan
   return rows;
 }
 
+export async function listActive(limit = 20, offset = 0): Promise<KompanyProfile[]> {
+  const { rows } = await pool.query<KompanyProfile>(
+    `SELECT * FROM kompany_profiles WHERE profile_status = 'ACTIVE'
+     ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+    [limit, offset]
+  );
+  return rows;
+}
+
 export async function update(
   avitag: string,
   account_id: string,
