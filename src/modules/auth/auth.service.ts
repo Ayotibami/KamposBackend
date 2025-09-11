@@ -16,7 +16,7 @@ export const AuthService = {
     // Send OTP for verification
     const code = generateOTP();
     await OTPService.send(email, code);
-    const token = signToken({ account_id: account.account_id, is_otp_verified: false });
+    const token = signToken({ account_id: account.account_id, is_otp_verified: false, role: 'USER' });
     return { account, token };
   },
 
@@ -35,7 +35,7 @@ export const AuthService = {
       const code = generateOTP();
       await OTPService.send(email, code);
     }
-    const token = signToken({ account_id: account.account_id, is_otp_verified: account.is_otp_verified });
+    const token = signToken({ account_id: account.account_id, is_otp_verified: account.is_otp_verified, role: 'USER' });
     return { account, token };
   },
 
@@ -45,6 +45,6 @@ export const AuthService = {
       const acc = await accountRepo.findAccountById(claims.account_id);
       isVerified = !!acc?.is_otp_verified;
     }
-    return signToken({ ...claims, is_otp_verified: isVerified });
+    return signToken({ ...claims, is_otp_verified: isVerified, role: claims.role ?? 'USER' });
   },
 };

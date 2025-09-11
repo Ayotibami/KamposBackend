@@ -1,12 +1,12 @@
 import * as accountRepo from './account.repo';
-import * as profileRepo from '../profile/profile.repo';
+import * as ProfileUtils from '../profile/utils';
 import argon2 from 'argon2';
 
 export const AccountService = {
   me: async (account_id: string) => {
     const account = await accountRepo.findAccountById(account_id);
     if (!account) return null;
-    const profiles = await profileRepo.listProfilesByAccount(account_id);
+    const profiles = await ProfileUtils.listByAccount(account_id);
     return { account, profiles };
   },
 

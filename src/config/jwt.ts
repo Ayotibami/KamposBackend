@@ -6,7 +6,7 @@ export interface JwtClaims {
   account_id: string;
   avitag?: string; // active profile (optional until selected)
   profileType?: 'STUDENT' | 'KREATOR' | 'KOMPANY' | 'SCHOOL' | 'IDIOT';
-  role?: 'IDIOT';
+  role?: 'IDIOT' | 'USER';
   is_otp_verified?: boolean;
   jti?: string;
   iat?: number;

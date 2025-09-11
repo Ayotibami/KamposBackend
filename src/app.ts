@@ -9,7 +9,12 @@ import { notFound, errorHandler } from './middleware/error';
 import gistRoutes from './modules/gist/gist.routes';
 import authRoutes from './modules/auth/auth.routes';
 import accountRoutes from './modules/account/account.routes';
-import profileRoutes from './modules/profile/profile.routes';
+// Separated profile routes
+import studentProfileRoutes from './modules/profile/students/routes';
+import kreatorProfileRoutes from './modules/profile/kreators/routes';
+import kompanyProfileRoutes from './modules/profile/kompanies/routes';
+import schoolProfileRoutes from './modules/profile/schools/routes';
+import profileUploadRoutes from './modules/profile/upload.routes';
 import moderationRoutes from './modules/idiot/moderation.routes';
 import type { GraphQLSchema } from 'graphql';
 import { graphqlHTTP } from 'express-graphql';
@@ -65,7 +70,11 @@ app.use('/graphql', graphqlHTTP({ schema, rootValue: root, graphiql: env.NODE_EN
 // REST routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/account', accountRoutes);
-app.use('/api/v1/profiles', profileRoutes);
+app.use('/api/v1/profiles/students', studentProfileRoutes);
+app.use('/api/v1/profiles/kreators', kreatorProfileRoutes);
+app.use('/api/v1/profiles/kompanies', kompanyProfileRoutes);
+app.use('/api/v1/profiles/schools', schoolProfileRoutes);
+app.use('/api/v1/profiles', profileUploadRoutes);
 app.use('/api/v1/gists', gistRoutes);
 app.use('/api/v1/idiot/moderation', moderationRoutes);
 

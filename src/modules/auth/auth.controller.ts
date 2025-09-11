@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
-import { ProfileService } from '../profile/profile.service';
+import * as ProfileUtils from '../profile/utils';
+import { env } from '../../config/env';
 import { revokeToken } from './token.service';
 
 export const AuthController = {
@@ -40,7 +41,7 @@ export const AuthController = {
     if (!avitag) {
       return res.status(400).json({ success: false, message: 'avitag is required' });
     }
-    const profile = await ProfileService.findByAvitag(avitag);
+    const profile = await ProfileUtils.findByAvitag(avitag);
     if (!profile || profile.account_id !== req.user.account_id) {
       return res.status(404).json({ success: false, message: 'Profile not found for this account' });
     }
@@ -48,11 +49,13 @@ export const AuthController = {
       return res.status(403).json({ success: false, message: 'Profile not verified yet' });
     }
 
+    const adminIds = (env.ADMIN_ACCOUNT_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
+    const role = adminIds.includes(req.user.account_id) ? 'IDIOT' : 'USER';
     const token = await AuthService.issueTokenForProfile({
       account_id: req.user.account_id,
       avitag: profile.avitag,
       profileType: profile.profile_type,
-      role: profile.profile_type === 'IDIOT' ? 'IDIOT' : undefined,
+      role,
     });
 
     return res.json({ success: true, data: { token, avitag: profile.avitag, profileType: profile.profile_type } });
