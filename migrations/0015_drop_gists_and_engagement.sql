@@ -6,15 +6,10 @@ DO $$
 DECLARE r RECORD;
 BEGIN
   FOR r IN
-    SELECT conname, conrelid::regclass AS tbl
-    FROM pg_constraint
-    WHERE confrelid IN (
-      'gists'::regclass,
-      'gist_media'::regclass,
-      'comments'::regclass,
-      'reactions'::regclass,
-      'views'::regclass,
-      'shares'::regclass
+    SELECT c.conname, c.conrelid::regclass AS tbl
+    FROM pg_constraint c
+    WHERE c.confrelid IN (
+      SELECT oid FROM pg_class WHERE relname IN ('gists','gist_media','comments','reactions','views','shares')
     )
   LOOP
     EXECUTE format('ALTER TABLE %s DROP CONSTRAINT IF EXISTS %I', r.tbl, r.conname);
