@@ -27,6 +27,29 @@ export async function getCounts(gist_id: string): Promise<GistCounts | null> {
   return rows[0] ?? null;
 }
 
+export async function getReactionBreakdownForGist(
+  gist_id: string
+): Promise<Record<string, number>> {
+  const { rows } = await pool.query<{ type: string; count: string }>(
+    `SELECT type, COUNT(*)::int AS count FROM reactions WHERE entity_type = 'GIST' AND entity_id = $1 GROUP BY type`,
+    [gist_id]
+  );
+  const map: Record<string, number> = {};
+  for (const r of rows) map[r.type] = Number(r.count);
+  return map;
+}
+
+export async function getCountsFull(gist_id: string): Promise<{
+  counts: GistCounts | null;
+  reactions_by_type: Record<string, number>;
+}> {
+  const [counts, reactions_by_type] = await Promise.all([
+    getCounts(gist_id),
+    getReactionBreakdownForGist(gist_id),
+  ]);
+  return { counts, reactions_by_type };
+}
+
  
 export interface GistWithCounts extends GistRow {
   reactions_count: number;

@@ -6,7 +6,7 @@ import { connectDB, pool } from './config/db';
 import { connectRedis, redis } from './config/redis';
 import { WSGateway } from './ws/gateway';
 import { WebSocketServer } from 'ws';
-import { useServer } from 'graphql-ws/lib/use/ws';
+import { useServer } from 'graphql-ws/use/ws';
 import { execute, subscribe, GraphQLSchema } from 'graphql';
 import { verifyToken } from './config/jwt';
 
@@ -26,7 +26,7 @@ async function main() {
       execute,
       subscribe,
       roots: { subscription: root as any },
-      context: async (ctx) => {
+      context: async (ctx: any) => {
         // Handle auth from connectionParams.Authorization
         const auth = (ctx.connectionParams as any)?.Authorization || (ctx.connectionParams as any)?.authorization;
         if (typeof auth === 'string' && auth.startsWith('Bearer ')) {

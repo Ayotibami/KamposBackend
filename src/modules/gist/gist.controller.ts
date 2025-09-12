@@ -44,6 +44,10 @@ export const GistController = {
       const viewer = req.user?.avitag ?? null;
       await GistService.incrementView(id, viewer);
       WSGateway.broadcast('gist:viewed', { gist_id: id, by: viewer });
+      try {
+        const countsFull = await GistService.getCountsFull(id);
+        WSGateway.broadcast('counts:updated', { gist_id: id, ...countsFull });
+      } catch {}
       return res.json({ success: true, data: gistAny });
     }
     // If not found among APPROVED, try any status and allow owner/IDIOT access
@@ -55,6 +59,10 @@ export const GistController = {
       const viewer = req.user?.avitag ?? null;
       await GistService.incrementView(id, viewer);
       WSGateway.broadcast('gist:viewed', { gist_id: id, by: viewer });
+      try {
+        const countsFull = await GistService.getCountsFull(id);
+        WSGateway.broadcast('counts:updated', { gist_id: id, ...countsFull });
+      } catch {}
       return res.json({ success: true, data: full });
     }
     return res.status(404).json({ success: false, message: 'Gist not found' });
@@ -76,6 +84,13 @@ export const GistController = {
         gist_ids: data.map((g: any) => g.gist_id),
         by: viewer,
       });
+      // Emit counts for each gist in batch
+      const countsAll = await Promise.all(
+        data.map((g: any) => GistService.getCountsFull(g.gist_id))
+      );
+      data.forEach((g: any, idx: number) =>
+        WSGateway.broadcast('counts:updated', { gist_id: g.gist_id, ...countsAll[idx] })
+      );
     } catch {}
     return res.json({ success: true, data });
   },
@@ -128,6 +143,12 @@ export const GistController = {
     try {
       await Promise.all(data.map((g: any) => GistService.incrementView(g.gist_id, viewer)));
       WSGateway.broadcast('gist:viewed_batch', { gist_ids: data.map((g: any) => g.gist_id), by: viewer });
+      const countsAll = await Promise.all(
+        data.map((g: any) => GistService.getCountsFull(g.gist_id))
+      );
+      data.forEach((g: any, idx: number) =>
+        WSGateway.broadcast('counts:updated', { gist_id: g.gist_id, ...countsAll[idx] })
+      );
     } catch {}
     return res.json({ success: true, data });
   },

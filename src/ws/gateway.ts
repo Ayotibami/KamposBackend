@@ -53,6 +53,10 @@ export class WSGateway {
                 const created = await commentRepo.create({ gist_id, avitag, text });
                 ws.send(JSON.stringify({ type: 'comments:create:ok', requestId, data: created }));
                 WSGateway.broadcast('comment:created', { comment: created });
+                try {
+                  const counts = await GistService.getCountsFull(gist_id);
+                  WSGateway.broadcast('counts:updated', { gist_id, ...counts });
+                } catch {}
                 break;
               }
               case 'comments:get': {
@@ -99,12 +103,19 @@ export class WSGateway {
                 if (!avitag && role !== 'IDIOT') { ws.send(JSON.stringify({ type: 'comments:delete:error', requestId, message: 'Unauthorized' })); break; }
                 const comment_id: string | undefined = msg?.comment_id;
                 if (!comment_id) { ws.send(JSON.stringify({ type: 'comments:delete:error', requestId, message: 'comment_id required' })); break; }
+                const existing = await commentRepo.get(comment_id);
                 let ok = false;
                 if (role === 'IDIOT') ok = await commentRepo.removeAsAdmin(comment_id);
                 else ok = await commentRepo.remove(comment_id, avitag!);
                 if (!ok) { ws.send(JSON.stringify({ type: 'comments:delete:error', requestId, message: 'Not found or forbidden' })); break; }
                 ws.send(JSON.stringify({ type: 'comments:delete:ok', requestId }));
                 WSGateway.broadcast('comment:deleted', { comment_id });
+                if (existing?.gist_id) {
+                  try {
+                    const counts = await GistService.getCountsFull(existing.gist_id);
+                    WSGateway.broadcast('counts:updated', { gist_id: existing.gist_id, ...counts });
+                  } catch {}
+                }
                 break;
               }
 
@@ -119,6 +130,12 @@ export class WSGateway {
                 const r = await reactionRepo.upsert({ avitag, entity_type, entity_id, type: typeVal });
                 ws.send(JSON.stringify({ type: 'reactions:upsert:ok', requestId, data: r }));
                 WSGateway.broadcast('reaction:upserted', { reaction: r });
+                if (entity_type === 'GIST') {
+                  try {
+                    const counts = await GistService.getCountsFull(entity_id);
+                    WSGateway.broadcast('counts:updated', { gist_id: entity_id, ...counts });
+                  } catch {}
+                }
                 break;
               }
               case 'reactions:list_by_entity': {
@@ -161,6 +178,12 @@ export class WSGateway {
                 if (!ok) { ws.send(JSON.stringify({ type: 'reactions:remove_by_entity:error', requestId, message: 'Not found' })); break; }
                 ws.send(JSON.stringify({ type: 'reactions:remove_by_entity:ok', requestId }));
                 WSGateway.broadcast('reaction:removed', { entity_type, entity_id, avitag });
+                if (entity_type === 'GIST') {
+                  try {
+                    const counts = await GistService.getCountsFull(entity_id);
+                    WSGateway.broadcast('counts:updated', { gist_id: entity_id, ...counts });
+                  } catch {}
+                }
                 break;
               }
               case 'gists:list': {
