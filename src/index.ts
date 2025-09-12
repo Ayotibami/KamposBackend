@@ -5,6 +5,7 @@ import { env } from './config/env';
 import { connectDB, pool } from './config/db';
 import { connectRedis, redis } from './config/redis';
 import { WSGateway } from './ws/gateway';
+import { SIGateway } from './ws/socketio';
 import { WebSocketServer } from 'ws';
 import { useServer } from 'graphql-ws/use/ws';
 import { execute, subscribe, GraphQLSchema } from 'graphql';
@@ -16,8 +17,9 @@ async function main() {
     await connectRedis();
 
     const server = http.createServer(app);
-    // WS Gateway for app events
-    WSGateway.init(server);
+    // Socket.IO Gateway (standardized for realtime client usage)
+    SIGateway.init(server);
+
 
     // GraphQL Subscriptions over WS at /graphql
     const gqlWSS = new WebSocketServer({ server, path: '/graphql' });

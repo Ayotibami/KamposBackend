@@ -7,31 +7,36 @@ import { GistService } from '../modules/gist/gist.service';
 import * as commentRepo from '../modules/comment/comment.repo';
 import * as reactionRepo from '../modules/reaction/reaction.repo';
 import { PubSub } from '../graphql/pubsub';
+import { SIGateway } from './socketio';
 
 export class WSGateway {
   private static wss: WebSocketServer | null = null;
 
   static init(server: Server) {
     if (this.wss) return this.wss;
-    this.wss = new WebSocketServer({ server, path: '/ws' });
+    this.wss = new WebSocketServer({ server, path: '/ws', perMessageDeflate: true });
 
     this.wss.on('connection', (ws: WebSocket, req) => {
       try {
         const auth = req.headers['authorization'] as string | undefined;
         if (!auth || !auth.startsWith('Bearer ')) {
-          ws.close(4401, 'Unauthorized');
-          return;
+          // Fake/guest auth: allow connection but no write privileges
+          const guest = { avitag: null, role: 'GUEST' } as any;
+          (ws as any).user = guest;
+          ws.send(JSON.stringify({ type: 'welcome', avitag: null }));
+        } else {
+          const token = auth.slice('Bearer '.length);
+          const user = verifyToken(token);
+          (ws as any).user = user;
+          ws.send(JSON.stringify({ type: 'welcome', avitag: user.avitag }));
         }
-        const token = auth.slice('Bearer '.length);
-        const user = verifyToken(token);
-        (ws as any).user = user;
-        ws.send(JSON.stringify({ type: 'welcome', avitag: user.avitag }));
         // Handle incoming messages
         ws.on('message', async (raw) => {
           try {
             const msg = JSON.parse(String(raw || '{}'));
             const type: string = msg?.type || '';
             const requestId: string | undefined = msg?.requestId;
+            const user = (ws as any).user;
             if (!type) return;
             switch (type) {
               case 'gist:view': {
@@ -249,7 +254,10 @@ export class WSGateway {
           }
         });
       } catch (e) {
-        ws.close(4401, 'Invalid token');
+        // On parsing/verification error, continue as guest instead of closing
+        const guest = { avitag: null, role: 'GUEST' } as any;
+        (ws as any).user = guest;
+        try { ws.send(JSON.stringify({ type: 'welcome', avitag: null })); } catch {}
       }
     });
 
@@ -258,17 +266,20 @@ export class WSGateway {
   }
 
   static broadcast(topic: string, payload: any) {
-    if (!this.wss) return;
     const message = JSON.stringify({ topic, payload, ts: Date.now() });
-    this.wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(message);
-      }
-    });
+    if (this.wss) {
+      this.wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(message);
+        }
+      });
+    }
     // Also publish to GraphQL subscriptions
     try {
       PubSub.publish('broadcast', { topic, payload });
       PubSub.publish(`broadcast:${topic}`, payload);
     } catch {}
+    // Also emit to Socket.IO
+    try { SIGateway.emit(topic, payload); } catch {}
   }
 }

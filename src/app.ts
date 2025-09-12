@@ -28,6 +28,7 @@ import * as CommentRepo from './modules/comment/comment.repo';
 import * as ReactionRepo from './modules/reaction/reaction.repo';
 import { PubSub } from './graphql/pubsub';
 import { fakeAuth } from './middleware/auth';
+import path from 'path';
 
 // GraphQL schema (queries only; subscriptions can be added later with Apollo)
 export const schema: GraphQLSchema = buildSchema(`
@@ -141,6 +142,8 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(fileUpload({ limits: { fileSize: 100 * 1024 * 1024 } })); // up to 100MB (videos)
 app.use(morgan('dev'));
+// Static assets
+app.use(express.static(path.join(process.cwd(), 'public')));
 
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
 app.use('/api/v1', apiLimiter);
