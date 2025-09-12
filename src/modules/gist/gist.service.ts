@@ -18,6 +18,7 @@ export const GistService = {
   trending: (limit?: number, viewerAvitag?: string) => gistRepo.trending(limit, viewerAvitag),
   search: (term: string, limit?: number, offset?: number, viewerAvitag?: string) =>
     gistRepo.search(term, limit, offset, viewerAvitag),
+  getCounts: (gist_id: string) => gistRepo.getCounts(gist_id),
   report: (gist_id: string, reporter_avitag: string, reason: string | null) =>
     gistRepo.report(gist_id, reporter_avitag, reason),
   incrementView: (gist_id: string, avitag: string | null) =>

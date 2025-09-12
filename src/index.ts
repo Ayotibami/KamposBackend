@@ -1,10 +1,14 @@
 import http from 'http';
-import app from './app';
+import app, { schema, root } from './app';
 import logger from './utils/logger';
 import { env } from './config/env';
 import { connectDB, pool } from './config/db';
 import { connectRedis, redis } from './config/redis';
 import { WSGateway } from './ws/gateway';
+import { WebSocketServer } from 'ws';
+import { useServer } from 'graphql-ws/lib/use/ws';
+import { execute, subscribe, GraphQLSchema } from 'graphql';
+import { verifyToken } from './config/jwt';
 
 async function main() {
   try {
@@ -12,7 +16,29 @@ async function main() {
     await connectRedis();
 
     const server = http.createServer(app);
+    // WS Gateway for app events
     WSGateway.init(server);
+
+    // GraphQL Subscriptions over WS at /graphql
+    const gqlWSS = new WebSocketServer({ server, path: '/graphql' });
+    useServer({
+      schema: schema as GraphQLSchema,
+      execute,
+      subscribe,
+      roots: { subscription: root as any },
+      context: async (ctx) => {
+        // Handle auth from connectionParams.Authorization
+        const auth = (ctx.connectionParams as any)?.Authorization || (ctx.connectionParams as any)?.authorization;
+        if (typeof auth === 'string' && auth.startsWith('Bearer ')) {
+          try {
+            const token = auth.slice('Bearer '.length);
+            const user = verifyToken(token);
+            return { user };
+          } catch {}
+        }
+        return {};
+      },
+    }, gqlWSS);
 
     server.listen(env.PORT, () => {
       logger.info(`Server listening on http://localhost:${env.PORT}`);

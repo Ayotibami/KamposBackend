@@ -18,6 +18,7 @@ router.get('/user/:avitag', fakeAuth, GistController.byUser);
 router.get('/approved', fakeAuth, GistController.list);
 
 // Single
+router.get('/:gist_id/counts', GistController.counts);
 router.get('/:gist_id', fakeAuth, GistController.get);
 router.patch('/:gist_id', isAuth, requireOtpVerified, validateBody(updateGistSchema), GistController.update);
 router.delete('/:gist_id', isAuth, GistController.remove);

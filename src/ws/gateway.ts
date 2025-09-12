@@ -6,13 +6,14 @@ import * as gistRepo from '../modules/gist/gist.repo';
 import { GistService } from '../modules/gist/gist.service';
 import * as commentRepo from '../modules/comment/comment.repo';
 import * as reactionRepo from '../modules/reaction/reaction.repo';
+import { PubSub } from '../graphql/pubsub';
 
 export class WSGateway {
   private static wss: WebSocketServer | null = null;
 
   static init(server: Server) {
     if (this.wss) return this.wss;
-    this.wss = new WebSocketServer({ server });
+    this.wss = new WebSocketServer({ server, path: '/ws' });
 
     this.wss.on('connection', (ws: WebSocket, req) => {
       try {
@@ -241,5 +242,10 @@ export class WSGateway {
         client.send(message);
       }
     });
+    // Also publish to GraphQL subscriptions
+    try {
+      PubSub.publish('broadcast', { topic, payload });
+      PubSub.publish(`broadcast:${topic}`, payload);
+    } catch {}
   }
 }

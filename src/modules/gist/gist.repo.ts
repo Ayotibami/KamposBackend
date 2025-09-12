@@ -11,6 +11,39 @@ export interface GistRow {
   gist_status?: "SUBMITTED" | "APPROVED" | "REJECTED";
 }
 
+export interface GistCounts {
+  gist_id: string;
+  reactions_count: number;
+  comments_count: number;
+  views_count: number;
+  reports_count: number;
+}
+
+export async function getCounts(gist_id: string): Promise<GistCounts | null> {
+  const { rows } = await pool.query<GistCounts>(
+    `SELECT gist_id, reactions_count, comments_count, views_count, reports_count FROM v_gist_counts WHERE gist_id = $1`,
+    [gist_id]
+  );
+  return rows[0] ?? null;
+}
+
+ 
+export interface GistWithCounts extends GistRow {
+  reactions_count: number;
+  comments_count: number;
+  views_count: number;
+  reports_count: number;
+  media: Array<{
+    media_id: string;
+    media_type: "IMAGE" | "VIDEO";
+    media_url: string;
+    thumbnail_url: string | null;
+    order_index: number;
+    uploaded_at: string;
+    edited_at: string | null;
+  }>;
+}
+
 export async function findWithCountsAnyStatus(
   gist_id: string
 ): Promise<GistWithCounts | null> {
@@ -35,22 +68,6 @@ export async function findWithCountsAnyStatus(
     [gist_id]
   );
   return rows[0] ?? null;
-}
-
-export interface GistWithCounts extends GistRow {
-  reactions_count: number;
-  comments_count: number;
-  views_count: number;
-  reports_count: number;
-  media: Array<{
-    media_id: string;
-    media_type: "IMAGE" | "VIDEO";
-    media_url: string;
-    thumbnail_url: string | null;
-    order_index: number;
-    uploaded_at: string;
-    edited_at: string | null;
-  }>;
 }
 
 export async function create(
@@ -300,7 +317,7 @@ export async function search(
        ) ORDER BY gm.order_index ASC) AS media
        FROM gist_media gm WHERE gm.gist_id = g.gist_id
      ) m ON TRUE
-     WHERE (g.gist_status = 'APPROVED' OR ($4 IS NOT NULL AND g.avitag = $4)) AND g.gist_text ILIKE $1
+     WHERE (g.gist_status = 'APPROVED' OR ($4::text IS NOT NULL AND g.avitag = $4::text)) AND g.gist_text ILIKE $1
      ORDER BY g.created_at DESC
      LIMIT $2 OFFSET $3`,
     [q, limit, offset, viewerAvitag ?? null]

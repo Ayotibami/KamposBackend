@@ -29,6 +29,13 @@ export const GistController = {
     return res.status(201).json({ success: true, data: gist });
   },
 
+  counts: async (req: Request, res: Response) => {
+    const id = req.params.gist_id;
+    const counts = await GistService.getCounts(id);
+    if (!counts) return res.status(404).json({ success: false, message: 'Gist not found' });
+    return res.json({ success: true, data: counts });
+  },
+
   get: async (req: Request, res: Response) => {
     const id = req.params.gist_id;
     // Fetch regardless of status
