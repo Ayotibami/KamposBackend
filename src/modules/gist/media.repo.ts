@@ -1,0 +1,72 @@
+import { pool } from '../../config/db';
+
+export type MediaType = 'IMAGE' | 'VIDEO';
+
+export interface GistMediaRow {
+  media_id: string;
+  gist_id: string;
+  order_index: number;
+  media_type: MediaType;
+  media_url: string;
+  thumbnail_url: string | null;
+  public_id: string | null;
+  uploaded_at: string;
+  edited_at: string | null;
+}
+
+export async function addMedia(params: {
+  gist_id: string;
+  media_type: MediaType;
+  media_url: string;
+  thumbnail_url?: string | null;
+  order_index?: number;
+  public_id?: string | null;
+}): Promise<GistMediaRow> {
+  const { rows } = await pool.query<GistMediaRow>(
+    `INSERT INTO gist_media (gist_id, media_type, media_url, thumbnail_url, order_index, public_id)
+     VALUES ($1,$2,$3,$4, COALESCE($5, (
+       SELECT COALESCE(MAX(order_index)+1, 0) FROM gist_media WHERE gist_id = $1
+     )), $6)
+     RETURNING *`,
+    [params.gist_id, params.media_type, params.media_url, params.thumbnail_url ?? null, params.order_index ?? null, params.public_id ?? null]
+  );
+  return rows[0];
+}
+
+export async function listByGist(gist_id: string): Promise<GistMediaRow[]> {
+  const { rows } = await pool.query<GistMediaRow>(
+    `SELECT * FROM gist_media WHERE gist_id = $1 ORDER BY order_index ASC`,
+    [gist_id]
+  );
+  return rows;
+}
+
+export async function updateMedia(media_id: string, updates: Partial<Pick<GistMediaRow, 'order_index'|'thumbnail_url'|'media_url'>>): Promise<GistMediaRow | null> {
+  const fields: string[] = [];
+  const vals: any[] = [];
+  let i = 1;
+  for (const [k, v] of Object.entries(updates)) {
+    if (v !== undefined) {
+      fields.push(`${k} = $${i++}`);
+      vals.push(v);
+    }
+  }
+  if (!fields.length) return get(media_id);
+  fields.push('edited_at = NOW()');
+  vals.push(media_id);
+  const { rows } = await pool.query<GistMediaRow>(
+    `UPDATE gist_media SET ${fields.join(', ')} WHERE media_id = $${i} RETURNING *`,
+    vals
+  );
+  return rows[0] ?? null;
+}
+
+export async function remove(media_id: string): Promise<boolean> {
+  const { rowCount } = await pool.query(`DELETE FROM gist_media WHERE media_id = $1`, [media_id]);
+  return (rowCount || 0) > 0;
+}
+
+export async function get(media_id: string): Promise<GistMediaRow | null> {
+  const { rows } = await pool.query<GistMediaRow>(`SELECT * FROM gist_media WHERE media_id = $1`, [media_id]);
+  return rows[0] ?? null;
+}

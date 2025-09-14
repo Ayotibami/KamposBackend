@@ -1,0 +1,30 @@
+import { Router } from 'express';
+import { isAuth, fakeAuth } from '../../middleware/auth';
+import { requireOtpVerified } from '../../middleware/otp';
+import { GistController } from './gist.controller';
+import { validateBody } from '../../middleware/validate';
+import { createGistSchema, updateGistSchema } from '../../schemas/gist';
+
+const router = Router();
+
+// Create
+router.post('/', isAuth, requireOtpVerified, validateBody(createGistSchema), GistController.create);
+
+// List & discovery
+router.get('/', fakeAuth, GistController.list);
+router.get('/trending', fakeAuth, GistController.trending);
+router.get('/search', fakeAuth, GistController.search);
+router.get('/user/:avitag', fakeAuth, GistController.byUser);
+router.get('/approved', fakeAuth, GistController.list);
+
+// Single
+router.get('/:gist_id/counts', GistController.counts);
+router.get('/:gist_id', fakeAuth, GistController.get);
+router.patch('/:gist_id', isAuth, requireOtpVerified, validateBody(updateGistSchema), GistController.update);
+router.delete('/:gist_id', isAuth, GistController.remove);
+
+// Engagement
+router.post('/:gist_id/report', isAuth, requireOtpVerified, GistController.report);
+router.post('/:gist_id/view', GistController.view);
+
+export default router;

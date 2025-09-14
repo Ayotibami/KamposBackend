@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Socket.IO Test</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; }
+      #log { white-space: pre-wrap; border: 1px solid #ddd; padding: 12px; border-radius: 8px; max-height: 60vh; overflow: auto; }
+      input, button { font-size: 14px; padding: 6px 10px; }
+      .row { margin-bottom: 8px; }
+    </style>
+  </head>
+  <body>
+    <h1>Socket.IO Test</h1>
+
+    <div class="row">
+      <label>Server URL: <input id="server" value="http://localhost:8888" size="40" /></label>
+    </div>
+    <div class="row">
+      <label>JWT (optional): <input id="jwt" value="" size="60" /></label>
+    </div>
+    <div class="row">
+      <button id="connect">Connect</button>
+      <button id="disconnect">Disconnect</button>
+    </div>
+
+    <div class="row">
+      <label>Subscribe topic: <input id="topic" value="counts:updated" size="30" /></label>
+      <button id="subscribe">Subscribe</button>
+      <button id="unsubscribe">Unsubscribe</button>
+    </div>
+
+    <h3>Log</h3>
+    <div id="log"></div>
+
+    <!-- Load from same-origin to satisfy CSP 'self' -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/socket-test.js"></script>
+  </body>
+</html>
