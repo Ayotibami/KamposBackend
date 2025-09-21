@@ -1,7 +1,7 @@
 import { pool } from '../../config/db';
 
 export async function logAudit(params: {
-  action: 'PROFILE_VERIFY' | 'PROFILE_REJECT' | 'GIST_APPROVE' | 'GIST_REJECT';
+  action: 'PROFILE_VERIFY' | 'PROFILE_REJECT' | 'GIST_APPROVE' | 'GIST_REJECT' | 'REPORT_ACCEPT' | 'REPORT_REJECT';
   target_type: 'PROFILE' | 'GIST';
   target_id: string; // avitag or gist_id
   idiot_avitag: string;

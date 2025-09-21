@@ -56,4 +56,35 @@ export const ModerationController = {
     const result = await ModerationService.rejectProfile(avitag, req.user.avitag, reason ?? null);
     res.json({ success: true, data: result });
   },
+
+  listPendingReports: async (req: Request, res: Response) => {
+    const limit = Number(req.query.limit ?? 20);
+    const offset = Number(req.query.offset ?? 0);
+    const data = await ModerationService.listPendingReports(limit, offset);
+    res.json({ success: true, data });
+  },
+
+  acceptReport: async (req: Request, res: Response) => {
+    if (!req.user?.avitag) {
+      return res.status(400).json({ success: false, message: 'Active profile (avitag) is required. Switch profile and retry.' });
+    }
+    const { report_id } = req.params;
+    try {
+      const report = await ModerationService.acceptReport(report_id, req.user.avitag);
+      return res.json({ success: true, data: report });
+    } catch (err: any) {
+      const status = err.statusCode || 400;
+      return res.status(status).json({ success: false, message: err.message || 'Unable to accept report' });
+    }
+  },
+
+  rejectReport: async (req: Request, res: Response) => {
+    if (!req.user?.avitag) {
+      return res.status(400).json({ success: false, message: 'Active profile (avitag) is required. Switch profile and retry.' });
+    }
+    const { report_id } = req.params;
+    const row = await ModerationService.rejectReport(report_id, req.user.avitag);
+    if (!row) return res.status(404).json({ success: false, message: 'Report not found or already reviewed' });
+    return res.json({ success: true, data: row });
+  },
 };
