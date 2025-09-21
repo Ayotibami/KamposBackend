@@ -12,6 +12,20 @@ export const GistMediaController = {
     const f = filesAny?.file ? (Array.isArray(filesAny.file) ? filesAny.file[0] : filesAny.file) : null;
     const buffer: Buffer | null = f?.data ?? null;
     if (!buffer) return res.status(400).json({ success: false, message: 'file required' });
+    // Validate size/type: allow image/* up to 10MB, video/* up to 100MB
+    const mimetype: string = f.mimetype || '';
+    const size: number = typeof f.size === 'number' ? f.size : buffer.length;
+    const isImage = mimetype.startsWith('image/');
+    const isVideo = mimetype.startsWith('video/');
+    if (!isImage && !isVideo) {
+      return res.status(415).json({ success: false, message: 'Unsupported media type. Allowed: image/*, video/*' });
+    }
+    if (isImage && size > 10 * 1024 * 1024) {
+      return res.status(413).json({ success: false, message: 'Image too large (max 10MB)' });
+    }
+    if (isVideo && size > 100 * 1024 * 1024) {
+      return res.status(413).json({ success: false, message: 'Video too large (max 100MB)' });
+    }
     const uploaded: any = await uploadBuffer(buffer, `kampos/gists/${gist_id}`);
     const media_type: mediaRepo.MediaType = (uploaded.resource_type === 'video' ? 'VIDEO' : 'IMAGE');
     const media_url: string = uploaded.secure_url || uploaded.url;
@@ -47,5 +61,17 @@ export const GistMediaController = {
     if (!ok) return res.status(404).json({ success: false, message: 'Not found' });
     try { WSGateway.broadcast('gist_media:deleted', { gist_id: existing.gist_id, media_id }); } catch {}
     return res.json({ success: true, message: 'Deleted' });
+  },
+
+  reorder: async (req: Request, res: Response) => {
+    if (!req.user?.avitag) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const gist_id = req.params.gist_id;
+    const { media_ids } = req.body || {};
+    if (!Array.isArray(media_ids) || media_ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'media_ids array required' });
+    }
+    const updated = await mediaRepo.reorderMedia(gist_id, media_ids);
+    try { WSGateway.broadcast('gist_media:reordered', { gist_id, media_ids }); } catch {}
+    return res.json({ success: true, data: updated });
   },
 };

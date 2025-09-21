@@ -4,6 +4,8 @@ import { requireOtpVerified } from '../../middleware/otp';
 import { GistController } from './gist.controller';
 import { validateBody } from '../../middleware/validate';
 import { createGistSchema, updateGistSchema } from '../../schemas/gist';
+import { reorderGistMediaSchema } from '../../schemas/gist_media';
+import { GistMediaController } from './media.controller';
 
 const router = Router();
 
@@ -26,5 +28,8 @@ router.delete('/:gist_id', isAuth, GistController.remove);
 // Engagement
 router.post('/:gist_id/report', isAuth, requireOtpVerified, GistController.report);
 router.post('/:gist_id/view', GistController.view);
+
+// Media reorder
+router.patch('/:gist_id/media/reorder', isAuth, validateBody(reorderGistMediaSchema), GistMediaController.reorder);
 
 export default router;

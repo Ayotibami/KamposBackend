@@ -5,3 +5,7 @@ export const updateGistMediaSchema = z.object({
   thumbnail_url: z.string().url().nullable().optional(),
   media_url: z.string().url().optional(),
 });
+
+export const reorderGistMediaSchema = z.object({
+  media_ids: z.array(z.string().uuid()).min(1),
+});

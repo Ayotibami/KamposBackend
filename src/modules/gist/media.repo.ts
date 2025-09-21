@@ -70,3 +70,30 @@ export async function get(media_id: string): Promise<GistMediaRow | null> {
   const { rows } = await pool.query<GistMediaRow>(`SELECT * FROM gist_media WHERE media_id = $1`, [media_id]);
   return rows[0] ?? null;
 }
+
+export async function reorderMedia(gist_id: string, media_ids: string[]): Promise<GistMediaRow[]> {
+  // Update order_index for the provided media_ids sequence, ensuring they belong to the gist
+  // Use a transaction for atomicity
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let idx = 0;
+    for (const id of media_ids) {
+      await client.query(
+        `UPDATE gist_media SET order_index = $1, edited_at = NOW() WHERE media_id = $2 AND gist_id = $3`,
+        [idx++, id, gist_id]
+      );
+    }
+    const { rows } = await client.query<GistMediaRow>(
+      `SELECT * FROM gist_media WHERE gist_id = $1 ORDER BY order_index ASC`,
+      [gist_id]
+    );
+    await client.query('COMMIT');
+    return rows;
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch {}
+    throw e;
+  } finally {
+    client.release();
+  }
+}

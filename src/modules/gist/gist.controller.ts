@@ -34,19 +34,48 @@ export const GistController = {
     try {
       const filesAny = req.files as any;
       // Support either 'file' (single) or 'files' (array). express-fileupload maps both to objects or arrays
-      let inputs: Array<{ name: string; data: Buffer }> = [];
+      let inputs: Array<{ name: string; data: Buffer; mimetype: string; size: number }> = [];
       const single = filesAny?.file;
       const multi = filesAny?.files;
       if (single) {
         const arr = Array.isArray(single) ? single : [single];
-        inputs.push(...arr.map((f: any) => ({ name: f.name as string, data: f.data as Buffer })));
+        inputs.push(
+          ...arr.map((f: any) => ({
+            name: f.name as string,
+            data: f.data as Buffer,
+            mimetype: String(f.mimetype || ''),
+            size: typeof f.size === 'number' ? f.size as number : (f.data?.length || 0),
+          }))
+        );
       }
       if (multi) {
         const arr = Array.isArray(multi) ? multi : [multi];
-        inputs.push(...arr.map((f: any) => ({ name: f.name as string, data: f.data as Buffer })));
+        inputs.push(
+          ...arr.map((f: any) => ({
+            name: f.name as string,
+            data: f.data as Buffer,
+            mimetype: String(f.mimetype || ''),
+            size: typeof f.size === 'number' ? f.size as number : (f.data?.length || 0),
+          }))
+        );
       }
 
       if (inputs.length) {
+        // Validate each file: image/* up to 10MB, video/* up to 100MB
+        for (const f of inputs) {
+          const isImage = f.mimetype.startsWith('image/');
+          const isVideo = f.mimetype.startsWith('video/');
+          if (!isImage && !isVideo) {
+            return res.status(415).json({ success: false, message: 'Unsupported media type. Allowed: image/*, video/*' });
+          }
+          if (isImage && f.size > 10 * 1024 * 1024) {
+            return res.status(413).json({ success: false, message: `Image ${f.name} too large (max 10MB)` });
+          }
+          if (isVideo && f.size > 100 * 1024 * 1024) {
+            return res.status(413).json({ success: false, message: `Video ${f.name} too large (max 100MB)` });
+          }
+        }
+
         // Upload in sequence to preserve order_index
         let idx = 0;
         for (const f of inputs) {
