@@ -11,6 +11,18 @@ Backend stack
 ## Environment
 Copy `.env.example` to `.env` and fill in values.
 
+### OAuth environment
+Set the following for OAuth:
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET` (optional for ID token verification but commonly set)
+- `FACEBOOK_CLIENT_ID` (App ID)
+- `FACEBOOK_CLIENT_SECRET`
+- `APPLE_CLIENT_ID` (Service ID used by your client)
+- `OAUTH_ENC_KEY` (32+ chars; used to encrypt provider refresh tokens before storing)
+
+Optional Apple values present in `src/config/env.ts` are reserved for future server-to-server flows.
+
 ## Run (dev)
 - Install deps: `bun install`
 - Start API: `bun run dev`
@@ -49,6 +61,68 @@ Copy `.env.example` to `.env` and fill in values.
 
 ## Migrations
 - `migrations/0001_init.sql` creates core enums, tables, indexes.
+  - `oauth_sessions` table is created here.
+- `migrations/0020_add_oauth_sessions_unique.sql` ensures a unique constraint on `(account_id, auth_provider)` for idempotent session upserts.
+
+## OAuth usage
+
+### Google Sign-In (ID token)
+Client obtains an `id_token` from Google Sign-In SDK and sends it to the backend. Backend verifies signature and audience, links/creates account, persists optional refresh token and returns a JWT.
+
+Request:
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/oauth/google \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": null,
+    "refresh_expires_at": null
+  }'
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "account": { "account_id": "...", "email": "user@example.com", "auth_provider": "GOOGLE", ... },
+    "token": "<JWT access token>"
+  }
+}
+```
+
+### Facebook Login (Access Token)
+Client obtains a Facebook `access_token` and sends to backend. Backend validates it via Graph API `/me`.
+
+Request:
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/oauth/facebook \
+  -H "Content-Type: application/json" \
+  -d '{
+    "access_token": "EAABsbCS1iHgBA...",
+    "refresh_token": null,
+    "refresh_expires_at": null
+  }'
+```
+
+### Apple Sign-In (Identity Token)
+Client obtains an Apple `identity_token` (JWT). Backend verifies its signature using Apple JWKS, validates audience and issuer, then links/creates account.
+
+Request:
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/oauth/apple \
+  -H "Content-Type: application/json" \
+  -d '{
+    "identity_token": "eyJraWQiOiJBSU9...",
+    "refresh_token": null,
+    "refresh_expires_at": null
+  }'
+```
+
+Notes:
+- If the provider returns an email that matches an existing account, the OAuth ID is linked to that account.
+- If `OAUTH_ENC_KEY` is set, provider refresh tokens are encrypted at rest in `oauth_sessions.encrypted_refresh_token`.
+- All OAuth logins return a standard JWT (subject to `JWT_EXPIRES`) that you use for authenticated endpoints.
 
 ## Roadmap
 - Phase 1: Schema, skeleton app, Auth (JWT + OAuth), Profiles + verification, Gists + approvals (WS + cache invalidation), GraphQL feeds, basic tests.
