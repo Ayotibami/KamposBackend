@@ -37,6 +37,7 @@ export const env = cleanEnv(process.env, {
   APPLE_TEAM_ID: str({ default: '' }),
   APPLE_KEY_ID: str({ default: '' }),
   APPLE_PRIVATE_KEY: str({ default: '' }),
+  OAUTH_ENC_KEY: str({ default: '' }),
 
   SENTRY_DSN: str({ default: '' }),
   FCM_SERVER_KEY: str({ default: '' }),

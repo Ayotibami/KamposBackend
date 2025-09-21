@@ -18,12 +18,11 @@ import profileUploadRoutes from './modules/profile/upload.routes';
 import moderationRoutes from './modules/idiot/moderation.routes';
 import commentRoutes from './modules/comment/comment.routes';
 import reactionRoutes from './modules/reaction/reaction.routes';
-import gistMediaRoutes from './modules/gist/media.routes';
+// rebuilt gist module mounts its own media handling inline; no separate media routes
 import type { GraphQLSchema } from 'graphql';
 import { graphqlHTTP } from 'express-graphql';
 import { buildSchema } from 'graphql';
 import { GistService } from './modules/gist/gist.service';
-import * as GistMediaRepo from './modules/gist/media.repo';
 import * as CommentRepo from './modules/comment/comment.repo';
 import * as ReactionRepo from './modules/reaction/reaction.repo';
 import { PubSub } from './graphql/pubsub';
@@ -121,7 +120,7 @@ export const root = {
     CommentRepo.listByGist(gist_id, limit, cursor),
   reactionsByEntity: async ({ entity_type, entity_id }: { entity_type: ReactionRepo.ReactionEntity; entity_id: string }) =>
     ReactionRepo.listByEntity(entity_type, entity_id),
-  mediaByGist: async ({ gist_id }: { gist_id: string }) => GistMediaRepo.listByGist(gist_id),
+  // mediaByGist: async ({ gist_id }: { gist_id: string }) => GistMediaRepo.listByGist(gist_id),
   // Subscriptions
   broadcast: ({ topic }: { topic: string }) => {
     const iter = PubSub.asyncIterator<any>(`broadcast:${topic}`) as any;
@@ -164,7 +163,6 @@ app.use('/api/v1/profiles/kompanies', kompanyProfileRoutes);
 app.use('/api/v1/profiles/schools', schoolProfileRoutes);
 app.use('/api/v1/profiles', profileUploadRoutes);
 app.use('/api/v1/gists', gistRoutes);
-app.use('/api/v1/gists', gistMediaRoutes);
 app.use('/api/v1/comments', commentRoutes);
 app.use('/api/v1/reactions', reactionRoutes);
 app.use('/api/v1/idiot/moderation', moderationRoutes);

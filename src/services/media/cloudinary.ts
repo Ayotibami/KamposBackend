@@ -32,3 +32,7 @@ export async function uploadBuffer(buffer: Buffer, folder = 'kampos/profiles') {
 export async function deleteByPublicId(public_id: string) {
   return cloudinary.uploader.destroy(public_id, { invalidate: true, resource_type: 'image' });
 }
+
+export async function deleteByPublicIdWithType(public_id: string, resource_type: 'image' | 'video') {
+  return cloudinary.uploader.destroy(public_id, { invalidate: true, resource_type });
+}

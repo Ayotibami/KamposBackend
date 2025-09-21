@@ -3,6 +3,8 @@ import { GistService } from './gist.service';
 import { WSGateway } from '../../ws/gateway';
 import { env } from '../../config/env';
 import * as ProfileUtils from '../profile/utils';
+import * as GistMediaRepo from './media.repo';
+import { uploadBuffer } from '../../services/media/cloudinary';
 
 export const GistController = {
   create: async (req: Request, res: Response) => {
@@ -25,8 +27,57 @@ export const GistController = {
     if (gist_text.length > maxLen) {
       return res.status(400).json({ success: false, message: `gist_text exceeds limit (${maxLen} chars for ${isVerified ? 'verified' : 'unverified'} profiles)` });
     }
+    // Create the gist first
     const gist = await GistService.create(req.user.avitag, gist_text);
-    return res.status(201).json({ success: true, data: gist });
+
+    // If files are provided (multipart/form-data), upload and attach as media
+    try {
+      const filesAny = req.files as any;
+      // Support either 'file' (single) or 'files' (array). express-fileupload maps both to objects or arrays
+      let inputs: Array<{ name: string; data: Buffer }> = [];
+      const single = filesAny?.file;
+      const multi = filesAny?.files;
+      if (single) {
+        const arr = Array.isArray(single) ? single : [single];
+        inputs.push(...arr.map((f: any) => ({ name: f.name as string, data: f.data as Buffer })));
+      }
+      if (multi) {
+        const arr = Array.isArray(multi) ? multi : [multi];
+        inputs.push(...arr.map((f: any) => ({ name: f.name as string, data: f.data as Buffer })));
+      }
+
+      if (inputs.length) {
+        // Upload in sequence to preserve order_index
+        let idx = 0;
+        for (const f of inputs) {
+          const uploaded: any = await uploadBuffer(f.data);
+          const media_type: GistMediaRepo.MediaType = uploaded?.resource_type === 'video' ? 'VIDEO' : 'IMAGE';
+          const media_url: string = uploaded?.secure_url || uploaded?.url;
+          const thumbnail_url: string | null = uploaded?.thumbnail_url || uploaded?.eager?.[0]?.secure_url || null;
+          const public_id: string | null = uploaded?.public_id || null;
+          const saved = await GistMediaRepo.addMedia({
+            gist_id: gist.gist_id,
+            media_type,
+            media_url,
+            thumbnail_url,
+            order_index: idx,
+            public_id,
+          });
+          idx += 1;
+          try { WSGateway.broadcast('gist_media:created', { gist_id: gist.gist_id, media: saved }); } catch {}
+        }
+      }
+    } catch (e) {
+      // Do not fail the request if media upload fails; return gist data
+      // Optionally, log error here
+    }
+
+    // Fetch the gist with media aggregated so client gets media inline
+    try {
+      const full = await GistService.findWithCountsAnyStatus?.(gist.gist_id as any);
+      if (full) return res.status(201).json({ success: true, data: full });
+    } catch {}
+    return res.status(201).json({ success: true, data: { ...gist, media: [] } });
   },
 
   counts: async (req: Request, res: Response) => {
