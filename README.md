@@ -124,6 +124,40 @@ Notes:
 - If `OAUTH_ENC_KEY` is set, provider refresh tokens are encrypted at rest in `oauth_sessions.encrypted_refresh_token`.
 - All OAuth logins return a standard JWT (subject to `JWT_EXPIRES`) that you use for authenticated endpoints.
 
+## Gists: create with media (form-data)
+
+`POST /api/v1/gists` supports creating a gist with optional media in a single request using `multipart/form-data`.
+
+Headers:
+- `Authorization: Bearer <JWT>`
+- `Content-Type: multipart/form-data`
+
+Fields:
+- `gist_text` (string, required)
+- `file` (file) for a single media OR `files` (multiple file fields) for multiple media
+
+Single file example:
+```bash
+curl -X POST http://localhost:8080/api/v1/gists \
+  -H "Authorization: Bearer $TOKEN" \
+  -F gist_text='My first gist with a photo' \
+  -F file=@/path/to/image.jpg
+```
+
+Multiple files example (preserves order):
+```bash
+curl -X POST http://localhost:8080/api/v1/gists \
+  -H "Authorization: Bearer $TOKEN" \
+  -F gist_text='Trip highlights' \
+  -F files=@/path/photo1.jpg \
+  -F files=@/path/photo2.jpg \
+  -F files=@/path/video.mp4
+```
+
+Notes:
+- The backend uploads each file to Cloudinary and stores a `gist_media` row with an `order_index` matching the upload order.
+- Response returns the newly created gist with its `media` array inline. If media upload fails, the gist is still created and returned without media.
+
 ## Roadmap
 - Phase 1: Schema, skeleton app, Auth (JWT + OAuth), Profiles + verification, Gists + approvals (WS + cache invalidation), GraphQL feeds, basic tests.
 - Phase 2: Remaining modules (events, media, notifications, reports), push notifications (FCM), more tests and docs.
