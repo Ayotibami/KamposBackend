@@ -59,6 +59,305 @@ Optional Apple values present in `src/config/env.ts` are reserved for future ser
 - Moderation (IDIOT): queues for pending gists/profiles, approve/reject
 - GraphQL (feeds): approved-only with filters and cursor pagination
 
+## REST API Documentation
+
+Base URL: `http://localhost:8080`
+
+Auth and Account
+- Register
+  - POST `/api/v1/auth/register`
+  - Body:
+    ```json
+    { "email": "user@example.com", "password": "My$ecretPass123" }
+    ```
+  - Response:
+    ```json
+    { "success": true, "data": { "account_id": "...", "email": "user@example.com" } }
+    ```
+
+- Login
+  - POST `/api/v1/auth/login`
+  - Body:
+    ```json
+    { "email": "user@example.com", "password": "My$ecretPass123" }
+    ```
+  - Response includes JWT token:
+    ```json
+    { "success": true, "data": { "token": "<JWT>", "account": { "account_id": "...", "email": "user@example.com" } } }
+    ```
+
+- OAuth
+  - Google: POST `/api/v1/auth/oauth/google` (body `{ id_token, refresh_token?, refresh_expires_at? }`)
+  - Facebook: POST `/api/v1/auth/oauth/facebook` (body `{ access_token, refresh_token?, refresh_expires_at? }`)
+  - Apple: POST `/api/v1/auth/oauth/apple` (body `{ identity_token, refresh_token?, refresh_expires_at? }`)
+
+- Switch profile
+  - POST `/api/v1/auth/switch-profile`
+  - Auth: Bearer
+  - Body:
+    ```json
+    { "avitag": "john_doe@abc" }
+    ```
+  - Response contains a token bound to the active profile.
+
+- Account: Me
+  - GET `/api/v1/account/me`
+  - Auth: Bearer
+  - Response: account + active profile context
+
+- Account: Update
+  - PATCH `/api/v1/account/update`
+  - Body:
+    ```json
+    { "display_name": "John D.", "bio": "Student at ABC" }
+    ```
+
+- Change password
+  - PATCH `/api/v1/account/change-password`
+  - Body:
+    ```json
+    { "old_password": "...", "new_password": "..." }
+    ```
+
+- Delete (soft)
+  - DELETE `/api/v1/account/delete`
+
+Profiles
+- Create student profile
+  - POST `/api/v1/profiles/students`
+  - Body:
+    ```json
+    { "avitag": "john@abc", "display_name": "John", "campus_tag": "ABC", "major_tag": "CS" }
+    ```
+
+- Get profile by avitag
+  - GET `/api/v1/profiles/students/:avitag`
+
+- Update profile
+  - PATCH `/api/v1/profiles/students/:avitag`
+  - Body: fields to update (e.g., `display_name`, `bio`)
+
+- Upload profile picture (form-data)
+  - POST `/api/v1/profiles/upload-picture`
+  - Field: `file`
+
+Gists
+- Create a gist (form-data, optional media)
+  - POST `/api/v1/gists`
+  - Auth: Bearer
+  - Fields:
+    - `gist_text` (string, required)
+    - `file` (one) or `files` (multiple)
+  - Example curl:
+    ```bash
+    curl -X POST http://localhost:8080/api/v1/gists \
+      -H "Authorization: Bearer $TOKEN" \
+      -F gist_text='Trip highlights' \
+      -F files=@/path/photo1.jpg \
+      -F files=@/path/photo2.jpg \
+      -F files=@/path/video.mp4
+    ```
+  - Response:
+    ```json
+    {
+      "success": true,
+      "data": {
+        "gist_id": "...",
+        "avitag": "john@abc",
+        "gist_text": "Trip highlights",
+        "created_at": "...",
+        "media": [ { "media_id": "...", "media_type": "IMAGE", "order_index": 0, "media_url": "..." } ]
+      }
+    }
+    ```
+
+- List recent
+  - GET `/api/v1/gists?limit=20&cursor=<gist_id>`
+
+- Trending
+  - GET `/api/v1/gists/trending?limit=20`
+
+- Search
+  - GET `/api/v1/gists/search?term=abc&limit=20&offset=0`
+
+- Get by id
+  - GET `/api/v1/gists/:gist_id`
+
+- Counts
+  - GET `/api/v1/gists/:gist_id/counts`
+
+- Update gist text
+  - PATCH `/api/v1/gists/:gist_id`
+  - Body:
+    ```json
+    { "gist_text": "Updated text" }
+    ```
+
+- Delete gist
+  - DELETE `/api/v1/gists/:gist_id`
+
+- Report a gist
+  - POST `/api/v1/gists/:gist_id/report`
+  - Body:
+    ```json
+    { "reason": "Spam or inappropriate content" }
+    ```
+
+- Record a view
+  - POST `/api/v1/gists/:gist_id/view`
+
+- Reorder gist media
+  - PATCH `/api/v1/gists/:gist_id/media/reorder`
+  - Body:
+    ```json
+    { "media_ids": ["<MEDIA_ID_3>", "<MEDIA_ID_1>", "<MEDIA_ID_2>"] }
+    ```
+
+- Upload single media (form-data)
+  - POST `/api/v1/gists/:gist_id/media`
+  - Field: `file`
+
+Comments
+- Create
+  - POST `/api/v1/comments`
+  - Body:
+    ```json
+    { "gist_id": "<GIST_ID>", "text": "Nice post!" }
+    ```
+
+- List by gist
+  - GET `/api/v1/comments/gist/:gist_id?limit=20&cursor=<comment_id>`
+
+- Delete
+  - DELETE `/api/v1/comments/:comment_id`
+
+Reactions
+- Upsert reaction
+  - POST `/api/v1/reactions`
+  - Body:
+    ```json
+    { "entity_type": "GIST", "entity_id": "<GIST_ID>", "type": "LIKE" }
+    ```
+
+- List by entity
+  - GET `/api/v1/reactions/entity?entity_type=GIST&entity_id=<GIST_ID>`
+
+- Remove reaction
+  - DELETE `/api/v1/reactions/:reaction_id`
+
+IDIOT Moderation (admin)
+- Base path: `/api/v1/idiot/moderation` (JWT + role `IDIOT`)
+
+- Pending gists
+  - GET `/api/v1/idiot/moderation/gists?limit=20&offset=0`
+
+- Approve gist
+  - POST `/api/v1/idiot/moderation/gists/:id/approve`
+
+- Reject gist
+  - POST `/api/v1/idiot/moderation/gists/:id/reject`
+  - Body:
+    ```json
+    { "reason": "Contains disallowed content" }
+    ```
+
+- Pending profiles
+  - GET `/api/v1/idiot/moderation/profiles?limit=20&offset=0`
+
+- Verify profile
+  - POST `/api/v1/idiot/moderation/profiles/:avitag/verify`
+
+- Reject profile (log)
+  - POST `/api/v1/idiot/moderation/profiles/:avitag/reject`
+  - Body:
+    ```json
+    { "reason": "Impersonation" }
+    ```
+
+- Pending reports
+  - GET `/api/v1/idiot/moderation/reports?limit=20&offset=0`
+
+- Accept report (reject gist)
+  - POST `/api/v1/idiot/moderation/reports/:report_id/accept`
+
+- Reject report
+  - POST `/api/v1/idiot/moderation/reports/:report_id/reject`
+
+## Socket.IO Live Updates (React Native Expo)
+
+The backend emits WebSocket events (via `socket.io`) for certain topics, e.g.:
+- `feed.global`: approvals/rejections broadcast
+- `gist_media:created`, `gist_media:reordered`, `gist_media:deleted`
+
+Example: React Native (Expo) minimal subscriber using `socket.io-client`.
+
+Install dependencies:
+```bash
+expo install socket.io-client
+```
+
+Usage:
+```tsx
+// App.tsx
+import React, { useEffect, useRef, useState } from 'react';
+import { SafeAreaView, Text, FlatList } from 'react-native';
+import io, { Socket } from 'socket.io-client';
+
+type EventItem = { id: string; msg: string };
+
+export default function App() {
+  const socketRef = useRef<Socket | null>(null);
+  const [events, setEvents] = useState<EventItem[]>([]);
+
+  useEffect(() => {
+    // Connect with optional auth (Bearer token)
+    const socket = io('http://localhost:8080', {
+      transports: ['websocket'],
+      auth: { token: 'Bearer <JWT>' },
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      setEvents((e) => [{ id: Date.now()+':c', msg: 'connected' }, ...e]);
+    });
+
+    // Subscribe to global feed broadcast
+    socket.on('feed.global', (payload: any) => {
+      setEvents((e) => [{ id: Date.now()+':fg', msg: JSON.stringify(payload) }, ...e]);
+    });
+
+    // Media changes
+    socket.on('gist_media:created', (payload: any) => {
+      setEvents((e) => [{ id: Date.now()+':mc', msg: JSON.stringify(payload) }, ...e]);
+    });
+    socket.on('gist_media:reordered', (payload: any) => {
+      setEvents((e) => [{ id: Date.now()+':mr', msg: JSON.stringify(payload) }, ...e]);
+    });
+    socket.on('gist_media:deleted', (payload: any) => {
+      setEvents((e) => [{ id: Date.now()+':md', msg: JSON.stringify(payload) }, ...e]);
+    });
+
+    return () => { socket.disconnect(); };
+  }, []);
+
+  return (
+    <SafeAreaView>
+      <Text>Live events</Text>
+      <FlatList
+        data={events}
+        keyExtractor={(it) => it.id}
+        renderItem={({ item }) => <Text>{item.msg}</Text>}
+      />
+    </SafeAreaView>
+  );
+}
+```
+
+Notes:
+- Replace `http://localhost:8080` with your server URL.
+- Pass the authenticated JWT via `auth: { token: 'Bearer <JWT>' }` if your server checks auth on WS handshake.
+- The backend uses `WSGateway.broadcast(topic, payload)`, so the client listens directly to those topics.
+
 ## Migrations
 - `migrations/0001_init.sql` creates core enums, tables, indexes.
   - `oauth_sessions` table is created here.
