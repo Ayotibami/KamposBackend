@@ -1,6 +1,6 @@
 import { pool } from '../../config/db';
 
-export type ReactionEntity = 'GIST' | 'COMMENT';
+export type ReactionEntity = 'GIST' | 'COMMENT' | 'EVENT';
 export type ReactionType = 'LIKE' | 'LOVE' | 'FIRE' | 'SAD' | 'WOW';
 
 export interface ReactionRow {

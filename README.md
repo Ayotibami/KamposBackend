@@ -245,6 +245,83 @@ Reactions
 - Remove reaction
   - DELETE `/api/v1/reactions/:reaction_id`
 
+Events
+- Create event (optional thumbnail; JSON or form-data)
+  - POST `/api/v1/events`
+  - Auth: Bearer
+  - Fields:
+    - `title` (string), `host_avi_tags` (string[] up to 3), `location` (string), `description` (string), `event_date` (ISO string)
+    - `thumbnail` (file, image, optional)
+  - Example (multipart):
+    ```bash
+    curl -X POST http://localhost:8080/api/v1/events \
+      -H "Authorization: Bearer $TOKEN" \
+      -F title='Tech Talk' \
+      -F host_avi_tags='["dev@abc","club@abc"]' \
+      -F location='ABC Campus' \
+      -F description='A deep dive into JS runtimes' \
+      -F event_date='2025-09-28T14:00:00Z' \
+      -F thumbnail=@/path/banner.jpg
+    ```
+
+- List events
+  - GET `/api/v1/events?limit=20&before=<EVENT_ID>`
+
+- Get event by id
+  - GET `/api/v1/events/:event_id`
+
+- Update event
+  - PUT `/api/v1/events/:event_id`
+  - Body (any subset):
+    ```json
+    { "title": "Updated Title", "event_date": "2025-10-01T15:00:00Z" }
+    ```
+
+- Delete event
+  - DELETE `/api/v1/events/:event_id`
+
+- Record a view
+  - POST `/api/v1/events/:event_id/view`
+
+Event Comments
+- Create
+  - POST `/api/v1/event-comments`
+  - Body:
+    ```json
+    { "event_id": "<EVENT_ID>", "text": "Excited for this!" }
+    ```
+
+- List by event
+  - GET `/api/v1/event-comments/event/:event_id?limit=20&cursor=<comment_id>`
+
+- Update
+  - PUT `/api/v1/event-comments/:comment_id`
+  - Body:
+    ```json
+    { "text": "Updated comment" }
+    ```
+
+- Delete
+  - DELETE `/api/v1/event-comments/:comment_id`
+
+Event Registrations
+- Register for event
+  - POST `/api/v1/event-registrations`
+  - Auth: Bearer
+  - Body:
+    ```json
+    { "event_id": "<EVENT_ID>" }
+    ```
+
+- Get registered students for event
+  - GET `/api/v1/event-registrations/event/:event_id`
+
+- Get a student's registered events
+  - GET `/api/v1/event-registrations/student/:avitag`
+
+- Unregister
+  - DELETE `/api/v1/event-registrations/:id`
+
 IDIOT Moderation (admin)
 - Base path: `/api/v1/idiot/moderation` (JWT + role `IDIOT`)
 
@@ -288,6 +365,8 @@ IDIOT Moderation (admin)
 The backend emits WebSocket events (via `socket.io`) for certain topics, e.g.:
 - `feed.global`: approvals/rejections broadcast
 - `gist_media:created`, `gist_media:reordered`, `gist_media:deleted`
+- `event.created`, `event.updated`, `event.deleted`, `event.viewed`
+- `event_comment:created`, `event_comment:updated`, `event_comment:deleted`
 
 Example: React Native (Expo) minimal subscriber using `socket.io-client`.
 
