@@ -8,6 +8,8 @@ Backend stack
 - GraphQL (feeds only)
 - Email (Brevo SMTP) + Push (FCM)
 
+---
+
 ## Environment
 Copy `.env.example` to `.env` and fill in values.
 
@@ -59,9 +61,39 @@ Optional Apple values present in `src/config/env.ts` are reserved for future ser
 - Moderation (IDIOT): queues for pending gists/profiles, approve/reject
 - GraphQL (feeds): approved-only with filters and cursor pagination
 
+---
+
+## Table of Contents
+- [Environment](#environment)
+- [Run (dev)](#run-dev)
+- [Database](#database)
+- [Design Principles](#design-principles)
+- [Endpoints (high level)](#endpoints-high-level)
+- [REST API Documentation](#rest-api-documentation)
+  - [Auth and Account](#auth-and-account)
+  - [Profiles](#profiles)
+  - [Gists](#gists)
+  - [Comments](#comments)
+  - [Reactions](#reactions)
+  - [Events](#events)
+  - [Event Comments](#event-comments)
+  - [Event Registrations](#event-registrations)
+  - [IDIOT Moderation (admin)](#idiot-moderation-admin)
+  - [Socket.IO Live Updates (React Native Expo)](#socketio-live-updates-react-native-expo)
+- [Migrations](#migrations)
+- [OAuth usage](#oauth-usage)
+- [Gists: create with media (form-data)](#gists-create-with-media-form-data)
+- [Roadmap](#roadmap)
+- [Scripts (coming)](#scripts-coming)
+- [Contributing](#contributing)
+
+---
+
 ## REST API Documentation
 
 Base URL: `http://localhost:8080`
+
+All endpoints return a JSON envelope: `{ success: boolean, data?: any, message?: string }`.
 
 Auth and Account
 - Register
@@ -141,7 +173,7 @@ Profiles
   - POST `/api/v1/profiles/upload-picture`
   - Field: `file`
 
-Gists
+### Gists
 - Create a gist (form-data, optional media)
   - POST `/api/v1/gists`
   - Auth: Bearer
@@ -172,13 +204,16 @@ Gists
     ```
 
 - List recent
-  - GET `/api/v1/gists?limit=20&cursor=<gist_id>`
+  - GET `/api/v1/gists?limit=20&cursor=<gist_id>&campus_tag=<tag>&major_tag=<tag>`
+  - Filters (optional): `campus_tag`, `major_tag`
 
 - Trending
-  - GET `/api/v1/gists/trending?limit=20`
+  - GET `/api/v1/gists/trending?limit=20&campus_tag=<tag>&major_tag=<tag>`
+  - Filters (optional): `campus_tag`, `major_tag`
 
 - Search
-  - GET `/api/v1/gists/search?term=abc&limit=20&offset=0`
+  - GET `/api/v1/gists/search?term=abc&limit=20&offset=0&campus_tag=<tag>&major_tag=<tag>`
+  - Filters (optional): `campus_tag`, `major_tag`
 
 - Get by id
   - GET `/api/v1/gists/:gist_id`
@@ -217,7 +252,7 @@ Gists
   - POST `/api/v1/gists/:gist_id/media`
   - Field: `file`
 
-Comments
+### Comments
 - Create
   - POST `/api/v1/comments`
   - Body:
@@ -231,7 +266,7 @@ Comments
 - Delete
   - DELETE `/api/v1/comments/:comment_id`
 
-Reactions
+### Reactions
 - Upsert reaction
   - POST `/api/v1/reactions`
   - Body:
@@ -245,7 +280,7 @@ Reactions
 - Remove reaction
   - DELETE `/api/v1/reactions/:reaction_id`
 
-Events
+### Events
 - Create event (optional thumbnail; JSON or form-data)
   - POST `/api/v1/events`
   - Auth: Bearer
@@ -283,7 +318,7 @@ Events
 - Record a view
   - POST `/api/v1/events/:event_id/view`
 
-Event Comments
+### Event Comments
 - Create
   - POST `/api/v1/event-comments`
   - Body:
@@ -304,7 +339,7 @@ Event Comments
 - Delete
   - DELETE `/api/v1/event-comments/:comment_id`
 
-Event Registrations
+### Event Registrations
 - Register for event
   - POST `/api/v1/event-registrations`
   - Auth: Bearer
@@ -322,7 +357,7 @@ Event Registrations
 - Unregister
   - DELETE `/api/v1/event-registrations/:id`
 
-IDIOT Moderation (admin)
+### IDIOT Moderation (admin)
 - Base path: `/api/v1/idiot/moderation` (JWT + role `IDIOT`)
 
 - Pending gists
