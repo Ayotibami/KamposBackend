@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import * as EventRepo from './event.repo';
 import { uploadBuffer } from '../../services/media/cloudinary';
 import { WSGateway } from '../../ws/gateway';
+import { getCampusMajor } from '../profile/utils';
 
 export const EventController = {
   create: async (req: Request, res: Response) => {
@@ -37,6 +38,7 @@ export const EventController = {
       thumbnail_url = uploaded?.secure_url || uploaded?.url || null;
     }
 
+    const { campus_tag, major_tag } = await getCampusMajor(req.user.avitag);
     const ev = await EventRepo.create({
       title,
       host_avi_tags,
@@ -44,6 +46,8 @@ export const EventController = {
       description,
       event_date: new Date(event_date),
       thumbnail_url,
+      campus_tag,
+      major_tag,
     });
     try { WSGateway.broadcast('event.created', { event: ev }); } catch {}
     return res.status(201).json({ success: true, data: ev });

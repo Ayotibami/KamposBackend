@@ -1,8 +1,11 @@
 import * as gistRepo from "./gist.repo";
+import { getCampusMajor } from "../profile/utils";
 
 export const GistService = {
-  create: (avitag: string, gist_text: string) =>
-    gistRepo.create(avitag, gist_text),
+  create: async (avitag: string, gist_text: string) => {
+    const { campus_tag, major_tag } = await getCampusMajor(avitag);
+    return gistRepo.create(avitag, gist_text, campus_tag, major_tag);
+  },
   updateText: (gist_id: string, avitag: string, gist_text: string) =>
     gistRepo.updateText(gist_id, avitag, gist_text),
   deleteByOwner: (gist_id: string, avitag: string) =>

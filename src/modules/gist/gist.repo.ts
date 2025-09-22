@@ -9,6 +9,8 @@ export interface GistRow {
   edit_count: number;
   is_reported: boolean;
   gist_status?: "SUBMITTED" | "APPROVED" | "REJECTED";
+  campus_tag?: string | null;
+  major_tag?: string | null;
 }
 
 export interface GistCounts {
@@ -95,11 +97,13 @@ export async function findWithCountsAnyStatus(
 
 export async function create(
   avitag: string,
-  gist_text: string
+  gist_text: string,
+  campus_tag: string | null,
+  major_tag: string | null,
 ): Promise<GistRow> {
   const { rows } = await pool.query<GistRow>(
-    `INSERT INTO gists (avitag, gist_text) VALUES ($1, $2) RETURNING *`,
-    [avitag, gist_text]
+    `INSERT INTO gists (avitag, gist_text, campus_tag, major_tag) VALUES ($1, $2, $3, $4) RETURNING *`,
+    [avitag, gist_text, campus_tag, major_tag]
   );
   return rows[0];
 }

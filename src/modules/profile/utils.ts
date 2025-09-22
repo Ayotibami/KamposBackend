@@ -9,6 +9,16 @@ export interface BasicProfile {
   profile_type: ProfileType;
 }
 
+export async function getCampusMajor(avitag: string): Promise<{ campus_tag: string | null; major_tag: string | null }> {
+  // Currently only student_profiles define campus_tag/major_tag
+  const { rows } = await pool.query<{ campus_tag: string | null; major_tag: string | null }>(
+    `SELECT campus_tag, major_tag FROM student_profiles WHERE avitag = $1 LIMIT 1`,
+    [avitag]
+  );
+  const r = rows[0];
+  return { campus_tag: r?.campus_tag ?? null, major_tag: r?.major_tag ?? null };
+}
+
 export async function findByAvitag(avitag: string): Promise<BasicProfile | null> {
   // Check each subtype table for existence and return a normalized shape
   const checks: Array<{ sql: string; type: ProfileType }> = [

@@ -8,6 +8,8 @@ export interface EventRow {
   description: string;
   event_date: string; // ISO
   thumbnail_url: string | null;
+  campus_tag?: string | null;
+  major_tag?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -19,11 +21,13 @@ export async function create(ev: {
   description: string;
   event_date: Date;
   thumbnail_url?: string | null;
+  campus_tag?: string | null;
+  major_tag?: string | null;
 }): Promise<EventRow> {
   const { rows } = await pool.query<EventRow>(
-    `INSERT INTO events (title, host_avi_tags, location, description, event_date, thumbnail_url)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-    [ev.title, ev.host_avi_tags, ev.location, ev.description, ev.event_date, ev.thumbnail_url ?? null]
+    `INSERT INTO events (title, host_avi_tags, location, description, event_date, thumbnail_url, campus_tag, major_tag)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [ev.title, ev.host_avi_tags, ev.location, ev.description, ev.event_date, ev.thumbnail_url ?? null, ev.campus_tag ?? null, ev.major_tag ?? null]
   );
   return rows[0];
 }
