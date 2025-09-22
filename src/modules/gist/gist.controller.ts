@@ -153,7 +153,9 @@ export const GistController = {
     const cursor =
       typeof req.query.cursor === "string" ? req.query.cursor : undefined;
     const viewerAvitag = req.user?.avitag;
-    const data = await GistService.listRecent(limit, cursor, viewerAvitag);
+    const campus_tag = typeof req.query.campus_tag === 'string' ? req.query.campus_tag : undefined;
+    const major_tag = typeof req.query.major_tag === 'string' ? req.query.major_tag : undefined;
+    const data = await GistService.listRecent(limit, cursor, viewerAvitag, { campus_tag: campus_tag ?? null, major_tag: major_tag ?? null });
     // Increment views for all returned gists and notify via WS
     const viewer = req.user?.avitag ?? null;
     try {
@@ -235,7 +237,9 @@ export const GistController = {
 
   trending: async (req: Request, res: Response) => {
     const viewerAvitag = req.user?.avitag;
-    const data = await GistService.trending(20, viewerAvitag);
+    const campus_tag = typeof req.query.campus_tag === 'string' ? req.query.campus_tag : undefined;
+    const major_tag = typeof req.query.major_tag === 'string' ? req.query.major_tag : undefined;
+    const data = await GistService.trending(20, viewerAvitag, { campus_tag: campus_tag ?? null, major_tag: major_tag ?? null });
     const viewer = req.user?.avitag ?? null;
     try {
       await Promise.all(data.map((g: any) => GistService.incrementView(g.gist_id, viewer)));
@@ -249,7 +253,9 @@ export const GistController = {
     const limit = Number(req.query.limit ?? 20);
     const offset = Number(req.query.offset ?? 0);
     const viewerAvitag = req.user?.avitag;
-    const data = q ? await GistService.search(q, limit, offset, viewerAvitag) : [];
+    const campus_tag = typeof req.query.campus_tag === 'string' ? req.query.campus_tag : undefined;
+    const major_tag = typeof req.query.major_tag === 'string' ? req.query.major_tag : undefined;
+    const data = q ? await GistService.search(q, limit, offset, viewerAvitag, { campus_tag: campus_tag ?? null, major_tag: major_tag ?? null }) : [];
     const viewer = req.user?.avitag ?? null;
     try {
       await Promise.all(data.map((g: any) => GistService.incrementView(g.gist_id, viewer)));

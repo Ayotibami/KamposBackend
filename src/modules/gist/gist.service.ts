@@ -14,13 +14,14 @@ export const GistService = {
   findById: (gist_id: string) => gistRepo.findById(gist_id),
   findWithCounts: (gist_id: string) => gistRepo.findWithCounts(gist_id),
   findWithCountsAnyStatus: (gist_id: string) => gistRepo.findWithCountsAnyStatus(gist_id),
-  listRecent: (limit?: number, cursor?: string, viewerAvitag?: string) =>
-    gistRepo.listRecent(limit, cursor, viewerAvitag),
+  listRecent: (limit?: number, cursor?: string, viewerAvitag?: string, filters?: { campus_tag?: string | null; major_tag?: string | null }) =>
+    gistRepo.listRecent(limit, cursor, viewerAvitag, filters),
   listByUser: (avitag: string, limit?: number, cursor?: string, viewerAvitag?: string) =>
     gistRepo.listByUser(avitag, limit, cursor, viewerAvitag),
-  trending: (limit?: number, viewerAvitag?: string) => gistRepo.trending(limit, viewerAvitag),
-  search: (term: string, limit?: number, offset?: number, viewerAvitag?: string) =>
-    gistRepo.search(term, limit, offset, viewerAvitag),
+  trending: (limit?: number, viewerAvitag?: string, filters?: { campus_tag?: string | null; major_tag?: string | null }) =>
+    gistRepo.trending(limit, viewerAvitag, filters),
+  search: (term: string, limit?: number, offset?: number, viewerAvitag?: string, filters?: { campus_tag?: string | null; major_tag?: string | null }) =>
+    gistRepo.search(term, limit, offset, viewerAvitag, filters),
   getCounts: (gist_id: string) => gistRepo.getCounts(gist_id),
   getCountsFull: (gist_id: string) => gistRepo.getCountsFull(gist_id),
   getReactionBreakdownForGist: (gist_id: string) => gistRepo.getReactionBreakdownForGist(gist_id),

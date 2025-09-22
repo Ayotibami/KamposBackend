@@ -230,7 +230,7 @@ export async function listRecent(
      WHERE (g.gist_status = 'APPROVED' OR ($1::text IS NOT NULL AND g.avitag = $1::text))
        AND ($2::text IS NULL OR g.campus_tag = $2::text)
        AND ($3::text IS NULL OR g.major_tag = $3::text)
-     ORDER BY g.created_at DESC LIMIT $2`,
+     ORDER BY g.created_at DESC LIMIT $4`,
     [viewerAvitag ?? null, campus, major, limit]
   );
   return rows;
@@ -325,7 +325,7 @@ export async function trending(limit = 20, viewerAvitag?: string, filters?: { ca
        AND ($2::text IS NULL OR g.campus_tag = $2::text)
        AND ($3::text IS NULL OR g.major_tag = $3::text)
      ORDER BY t.score DESC
-     LIMIT $2`,
+     LIMIT $4`,
     [viewerAvitag ?? null, campus, major, limit]
   );
   return rows;
