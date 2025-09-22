@@ -177,8 +177,11 @@ export async function findWithCounts(
 export async function listRecent(
   limit = 20,
   cursor?: string,
-  viewerAvitag?: string
+  viewerAvitag?: string,
+  filters?: { campus_tag?: string | null; major_tag?: string | null }
 ): Promise<GistWithCounts[]> {
+  const campus = filters?.campus_tag ?? null;
+  const major = filters?.major_tag ?? null;
   if (cursor) {
     const { rows } = await pool.query<GistWithCounts>(
       `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
@@ -198,10 +201,12 @@ export async function listRecent(
          FROM gist_media gm WHERE gm.gist_id = g.gist_id
        ) m ON TRUE
        WHERE g.created_at < (SELECT created_at FROM gists WHERE gist_id = $1)
-         AND (g.gist_status = 'APPROVED' OR ($3::text IS NOT NULL AND g.avitag = $3::text))
+        AND (g.gist_status = 'APPROVED' OR ($3::text IS NOT NULL AND g.avitag = $3::text))
+        AND ($4::text IS NULL OR g.campus_tag = $4::text)
+        AND ($5::text IS NULL OR g.major_tag = $5::text)
        ORDER BY g.created_at DESC
        LIMIT $2`,
-      [cursor, limit, viewerAvitag ?? null]
+      [cursor, limit, viewerAvitag ?? null, campus, major]
     );
     return rows;
   }
@@ -223,8 +228,10 @@ export async function listRecent(
        FROM gist_media gm WHERE gm.gist_id = g.gist_id
      ) m ON TRUE
      WHERE (g.gist_status = 'APPROVED' OR ($1::text IS NOT NULL AND g.avitag = $1::text))
+       AND ($2::text IS NULL OR g.campus_tag = $2::text)
+       AND ($3::text IS NULL OR g.major_tag = $3::text)
      ORDER BY g.created_at DESC LIMIT $2`,
-    [viewerAvitag ?? null, limit]
+    [viewerAvitag ?? null, campus, major, limit]
   );
   return rows;
 }
@@ -284,7 +291,7 @@ export async function listByUser(
   return rows;
 }
 
-export async function trending(limit = 20, viewerAvitag?: string): Promise<
+export async function trending(limit = 20, viewerAvitag?: string, filters?: { campus_tag?: string | null; major_tag?: string | null }): Promise<
   Array<
     GistWithCounts & {
       score: number;
@@ -293,6 +300,8 @@ export async function trending(limit = 20, viewerAvitag?: string): Promise<
     }
   >
 > {
+  const campus = filters?.campus_tag ?? null;
+  const major = filters?.major_tag ?? null;
   const { rows } = await pool.query<any>(
     `SELECT g.*, counts.reactions_count, counts.comments_count, counts.views_count, counts.reports_count,
             t.score, t.reactions_3d, t.comments_3d,
@@ -313,9 +322,11 @@ export async function trending(limit = 20, viewerAvitag?: string): Promise<
        FROM gist_media gm WHERE gm.gist_id = g.gist_id
      ) m ON TRUE
      WHERE (g.gist_status = 'APPROVED' OR ($1::text IS NOT NULL AND g.avitag = $1::text))
+       AND ($2::text IS NULL OR g.campus_tag = $2::text)
+       AND ($3::text IS NULL OR g.major_tag = $3::text)
      ORDER BY t.score DESC
      LIMIT $2`,
-    [viewerAvitag ?? null, limit]
+    [viewerAvitag ?? null, campus, major, limit]
   );
   return rows;
 }
@@ -324,9 +335,12 @@ export async function search(
   term: string,
   limit = 20,
   offset = 0,
-  viewerAvitag?: string
+  viewerAvitag?: string,
+  filters?: { campus_tag?: string | null; major_tag?: string | null }
 ): Promise<GistWithCounts[]> {
   const q = `%${term}%`;
+  const campus = filters?.campus_tag ?? null;
+  const major = filters?.major_tag ?? null;
   const { rows } = await pool.query<GistWithCounts>(
     `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
             COALESCE(m.media, '[]'::json) AS media
@@ -344,10 +358,13 @@ export async function search(
        ) ORDER BY gm.order_index ASC) AS media
        FROM gist_media gm WHERE gm.gist_id = g.gist_id
      ) m ON TRUE
-     WHERE (g.gist_status = 'APPROVED' OR ($4::text IS NOT NULL AND g.avitag = $4::text)) AND g.gist_text ILIKE $1
+     WHERE (g.gist_status = 'APPROVED' OR ($6::text IS NOT NULL AND g.avitag = $6::text))
+       AND ($4::text IS NULL OR g.campus_tag = $4::text)
+       AND ($5::text IS NULL OR g.major_tag = $5::text)
+       AND g.gist_text ILIKE $1
      ORDER BY g.created_at DESC
      LIMIT $2 OFFSET $3`,
-    [q, limit, offset, viewerAvitag ?? null]
+    [q, limit, offset, campus, major, viewerAvitag ?? null]
   );
   return rows;
 }
