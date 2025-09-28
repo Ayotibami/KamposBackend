@@ -11,6 +11,7 @@ export interface Account {
   created_at: string;
   updated_at: string;
   last_login: string | null;
+  who: 'king' | 'user';
 }
 
 export async function createAccountEmail(email: string, password_hash: string): Promise<Account> {

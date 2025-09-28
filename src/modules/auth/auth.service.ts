@@ -1,4 +1,5 @@
 import * as accountRepo from '../account/account.repo';
+import { hasUnverifiedForAccount as hasUnverifiedIdiotProfile } from '../profile/idiots/repo';
 import argon2 from 'argon2';
 import { signToken, type JwtClaims } from '../../config/jwt';
 import { OTPService } from './otp.service';
@@ -35,7 +36,12 @@ export const AuthService = {
       const code = generateOTP();
       await OTPService.send(email, code);
     }
-    const token = signToken({ account_id: account.account_id, is_otp_verified: account.is_otp_verified, role: 'USER' });
+    // Block login if this account has an unverified IDIOT profile
+    if (await hasUnverifiedIdiotProfile(account.account_id)) {
+      throw Object.assign(new Error('Your IDIOT profile requires superadmin approval before you can login'), { statusCode: 403 });
+    }
+    const role = account.who === 'king' ? 'king' : 'USER';
+    const token = signToken({ account_id: account.account_id, is_otp_verified: account.is_otp_verified, role });
     return { account, token };
   },
 
