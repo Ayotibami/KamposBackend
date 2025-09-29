@@ -1,6 +1,6 @@
 import { pool } from '../../config/db';
 
-export type ProfileType = 'STUDENT' | 'KREATOR' | 'KOMPANY' | 'SCHOOL';
+export type ProfileType = 'STUDENT' | 'KREATOR' | 'KOMPANY' | 'SCHOOL' | 'IDIOT' | 'king';
 
 export interface BasicProfile {
   avitag: string;
@@ -26,6 +26,7 @@ export async function findByAvitag(avitag: string): Promise<BasicProfile | null>
     { sql: 'SELECT avitag, account_id, is_verified FROM kreator_profiles WHERE avitag = $1 LIMIT 1', type: 'KREATOR' },
     { sql: 'SELECT avitag, account_id, is_verified FROM kompany_profiles WHERE avitag = $1 LIMIT 1', type: 'KOMPANY' },
     { sql: 'SELECT avitag, account_id, is_verified FROM school_profiles WHERE avitag = $1 LIMIT 1', type: 'SCHOOL' },
+    { sql: 'SELECT avitag, account_id, is_verified FROM idiot_profiles WHERE avitag = $1 LIMIT 1', type: 'IDIOT' },
   ];
   for (const c of checks) {
     const { rows } = await pool.query<{ avitag: string; account_id: string; is_verified: boolean }>(c.sql, [avitag]);

@@ -15,6 +15,11 @@ export async function isAuth(req: Request, res: Response, next: NextFunction) {
     if (revoked) {
       return res.status(401).json({ success: false, message: 'Token revoked' });
     }
+    // King bypass: always pass
+    if (payload.who === 'king') {
+      req.user = { ...payload, who: 'king', avitag: 'king', profileType: 'king' };
+      return next();
+    }
     req.user = payload;
     return next();
   } catch (e) {
