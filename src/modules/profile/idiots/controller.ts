@@ -22,14 +22,21 @@ export const create = async (req: Request, res: Response) => {
   if (!finalUrl && image_url) finalUrl = image_url;
   if (!finalUrl && env.DEFAULT_PROFILE_PIC_URL) finalUrl = env.DEFAULT_PROFILE_PIC_URL;
 
-  const created = await repo.create({
-    avitag,
-    account_id: req.user.account_id,
-    display_name,
-    description: description ?? null,
-    image_url: finalUrl ?? null,
-  });
-  return res.status(201).json({ success: true, data: created });
+  try {
+    const created = await repo.create({
+      avitag,
+      account_id: req.user.account_id,
+      display_name,
+      description: description ?? null,
+      image_url: finalUrl ?? null,
+    });
+    return res.status(201).json({ success: true, data: created });
+  } catch (err: any) {
+    if (err.code === '23505') { // unique_violation
+      return res.status(409).json({ success: false, message: 'An idiot profile already exists for this account.' });
+    }
+    return res.status(500).json({ success: false, message: 'Failed to create idiot profile' });
+  }
 };
 
 export const get = async (req: Request, res: Response) => {
