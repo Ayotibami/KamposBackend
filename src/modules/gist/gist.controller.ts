@@ -27,8 +27,15 @@ export const GistController = {
     if (gist_text.length > maxLen) {
       return res.status(400).json({ success: false, message: `gist_text exceeds limit (${maxLen} chars for ${isVerified ? 'verified' : 'unverified'} profiles)` });
     }
-    // Create the gist first
-    const gist = await GistService.create(req.user.avitag, gist_text);
+    // Compose profile_id as avitag:account_id
+    const profile_id = `${req.user.avitag}:${req.user.account_id}`;
+    const gist = await GistService.create(
+      req.user.avitag,
+      req.user.account_id,
+      profile_id,
+      req.user.profileType || '',
+      gist_text
+    );
 
     // If files are provided (multipart/form-data), upload and attach as media
     try {
@@ -119,8 +126,39 @@ export const GistController = {
   get: async (req: Request, res: Response) => {
     const id = req.params.gist_id;
     // Fetch regardless of status
-    const gistAny = await GistService.findWithCounts(id);
+    let gistAny = await GistService.findWithCounts(id);
     if (gistAny) {
+      // Populate profile object using avitag and account_id
+      let profile = await ProfileUtils.findByAvitag(gistAny.avitag);
+      if (profile && profile.profile_type) {
+        try {
+          let fullProfile = null;
+          switch (profile.profile_type) {
+            case 'STUDENT':
+              fullProfile = await (await import('../profile/students/repo')).findByAvitag(gistAny.avitag);
+              break;
+            case 'KREATOR':
+              fullProfile = await (await import('../profile/kreators/repo')).findByAvitag(gistAny.avitag);
+              break;
+            case 'KOMPANY':
+              fullProfile = await (await import('../profile/kompanies/repo')).findByAvitag(gistAny.avitag);
+              break;
+            case 'SCHOOL':
+              fullProfile = await (await import('../profile/schools/repo')).findByAvitag(gistAny.avitag);
+              break;
+            case 'IDIOT':
+              fullProfile = await (await import('../profile/idiots/repo')).findByAvitag(gistAny.avitag);
+              break;
+            default:
+              fullProfile = profile;
+          }
+          (gistAny as any).profile = fullProfile || profile;
+        } catch {
+          (gistAny as any).profile = profile;
+        }
+      } else {
+        (gistAny as any).profile = profile;
+      }
       const viewer = req.user?.avitag ?? null;
       await GistService.incrementView(id, viewer);
       WSGateway.broadcast('gist:viewed', { gist_id: id, by: viewer });
@@ -131,8 +169,39 @@ export const GistController = {
       return res.json({ success: true, data: gistAny });
     }
     // If not found among APPROVED, try any status and allow owner/IDIOT access
-    const full = await GistService.findWithCountsAnyStatus?.(id as any);
+    let full = await GistService.findWithCountsAnyStatus?.(id as any);
     if (!full) return res.status(404).json({ success: false, message: 'Gist not found' });
+    // Populate profile object using avitag and account_id
+    let profile = await ProfileUtils.findByAvitag(full.avitag);
+    if (profile && profile.profile_type) {
+      try {
+        let fullProfile = null;
+        switch (profile.profile_type) {
+          case 'STUDENT':
+            fullProfile = await (await import('../profile/students/repo')).findByAvitag(full.avitag);
+            break;
+          case 'KREATOR':
+            fullProfile = await (await import('../profile/kreators/repo')).findByAvitag(full.avitag);
+            break;
+          case 'KOMPANY':
+            fullProfile = await (await import('../profile/kompanies/repo')).findByAvitag(full.avitag);
+            break;
+          case 'SCHOOL':
+            fullProfile = await (await import('../profile/schools/repo')).findByAvitag(full.avitag);
+            break;
+          case 'IDIOT':
+            fullProfile = await (await import('../profile/idiots/repo')).findByAvitag(full.avitag);
+            break;
+          default:
+            fullProfile = profile;
+        }
+        (full as any).profile = fullProfile || profile;
+      } catch {
+        (full as any).profile = profile;
+      }
+    } else {
+      (full as any).profile = profile;
+    }
     const isOwner = req.user?.avitag && req.user.avitag === full.avitag;
     const isAdmin = req.user?.role === 'IDIOT';
     if (isOwner || isAdmin) {
@@ -156,6 +225,39 @@ export const GistController = {
     const campus_tag = typeof req.query.campus_tag === 'string' ? req.query.campus_tag : undefined;
     const major_tag = typeof req.query.major_tag === 'string' ? req.query.major_tag : undefined;
     const data = await GistService.listRecent(limit, cursor, viewerAvitag, { campus_tag: campus_tag ?? null, major_tag: major_tag ?? null });
+    // Populate profile for each gist
+    await Promise.all(data.map(async (g: any) => {
+      let profile = await ProfileUtils.findByAvitag(g.avitag);
+      if (profile && profile.profile_type) {
+        try {
+          let fullProfile = null;
+          switch (profile.profile_type) {
+            case 'STUDENT':
+              fullProfile = await (await import('../profile/students/repo')).findByAvitag(g.avitag);
+              break;
+            case 'KREATOR':
+              fullProfile = await (await import('../profile/kreators/repo')).findByAvitag(g.avitag);
+              break;
+            case 'KOMPANY':
+              fullProfile = await (await import('../profile/kompanies/repo')).findByAvitag(g.avitag);
+              break;
+            case 'SCHOOL':
+              fullProfile = await (await import('../profile/schools/repo')).findByAvitag(g.avitag);
+              break;
+            case 'IDIOT':
+              fullProfile = await (await import('../profile/idiots/repo')).findByAvitag(g.avitag);
+              break;
+            default:
+              fullProfile = profile;
+          }
+          g.profile = fullProfile || profile;
+        } catch {
+          g.profile = profile;
+        }
+      } else {
+        g.profile = profile;
+      }
+    }));
     // Increment views for all returned gists and notify via WS
     const viewer = req.user?.avitag ?? null;
     try {
@@ -240,6 +342,39 @@ export const GistController = {
     const campus_tag = typeof req.query.campus_tag === 'string' ? req.query.campus_tag : undefined;
     const major_tag = typeof req.query.major_tag === 'string' ? req.query.major_tag : undefined;
     const data = await GistService.trending(20, viewerAvitag, { campus_tag: campus_tag ?? null, major_tag: major_tag ?? null });
+    // Populate profile for each gist
+    await Promise.all(data.map(async (g: any) => {
+      let profile = await ProfileUtils.findByAvitag(g.avitag);
+      if (profile && profile.profile_type) {
+        try {
+          let fullProfile = null;
+          switch (profile.profile_type) {
+            case 'STUDENT':
+              fullProfile = await (await import('../profile/students/repo')).findByAvitag(g.avitag);
+              break;
+            case 'KREATOR':
+              fullProfile = await (await import('../profile/kreators/repo')).findByAvitag(g.avitag);
+              break;
+            case 'KOMPANY':
+              fullProfile = await (await import('../profile/kompanies/repo')).findByAvitag(g.avitag);
+              break;
+            case 'SCHOOL':
+              fullProfile = await (await import('../profile/schools/repo')).findByAvitag(g.avitag);
+              break;
+            case 'IDIOT':
+              fullProfile = await (await import('../profile/idiots/repo')).findByAvitag(g.avitag);
+              break;
+            default:
+              fullProfile = profile;
+          }
+          g.profile = fullProfile || profile;
+        } catch {
+          g.profile = profile;
+        }
+      } else {
+        g.profile = profile;
+      }
+    }));
     const viewer = req.user?.avitag ?? null;
     try {
       await Promise.all(data.map((g: any) => GistService.incrementView(g.gist_id, viewer)));

@@ -3,14 +3,17 @@ import { pool } from "../../config/db";
 export interface GistRow {
   gist_id: string;
   avitag: string;
+  account_id: string;
+  profile_id: string;
+  profile_type: string;
   gist_text: string;
+  campus_tag?: string | null;
+  major_tag?: string | null;
   created_at: string;
   edited_at: string | null;
   edit_count: number;
   is_reported: boolean;
   gist_status?: "SUBMITTED" | "APPROVED" | "REJECTED";
-  campus_tag?: string | null;
-  major_tag?: string | null;
 }
 
 export interface GistCounts {
@@ -97,13 +100,16 @@ export async function findWithCountsAnyStatus(
 
 export async function create(
   avitag: string,
+  account_id: string,
+  profile_id: string,
+  profile_type: string,
   gist_text: string,
   campus_tag: string | null,
   major_tag: string | null,
 ): Promise<GistRow> {
   const { rows } = await pool.query<GistRow>(
-    `INSERT INTO gists (avitag, gist_text, campus_tag, major_tag) VALUES ($1, $2, $3, $4) RETURNING *`,
-    [avitag, gist_text, campus_tag, major_tag]
+    `INSERT INTO gists (avitag, account_id, profile_id, profile_type, gist_text, campus_tag, major_tag) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [avitag, account_id, profile_id, profile_type, gist_text, campus_tag, major_tag]
   );
   return rows[0];
 }
