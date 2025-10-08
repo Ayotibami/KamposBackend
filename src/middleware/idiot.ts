@@ -7,8 +7,8 @@ export function isIdiot(req: Request, res: Response, next: NextFunction) {
     // king always passes
     return next();
   }
-  if (user.role !== 'IDIOT') {
-    return res.status(403).json({ success: false, message: 'IDIOT role required' });
+  if (user.profileType === 'IDIOT') {
+    return next();
   }
-  next();
+  return res.status(403).json({ success: false, message: 'IDIOT role required' });
 }
