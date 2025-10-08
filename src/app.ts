@@ -32,6 +32,8 @@ import * as ReactionRepo from './modules/reaction/reaction.repo';
 import { PubSub } from './graphql/pubsub';
 import { fakeAuth } from './middleware/auth';
 import path from 'path';
+import miscRoutes from './modules/misc/misc.routes';
+import { mkdirSync } from 'fs';
 
 // GraphQL schema (queries only; subscriptions can be added later with Apollo)
 export const schema: GraphQLSchema = buildSchema(`
@@ -158,6 +160,7 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 // GraphQL (feeds only)
 app.use('/graphql', fakeAuth as any, graphqlHTTP({ schema, rootValue: root, graphiql: env.NODE_ENV !== 'production' }));
 
+app.use('/api/v1/misc', miscRoutes);
 // REST routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/account', accountRoutes);
