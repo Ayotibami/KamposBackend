@@ -12,10 +12,10 @@ import { env } from '../../config/env';
 // - Password: <your SMTP key> (env.BREVO_PASSWORD)
 const transporter = nodemailer.createTransport({
   host: 'smtp-relay.brevo.com',
-  port: 587,
+  port: 2525,
   secure: false,
   auth: {
-    user: env.BREVO_EMAIL || 'apikey',
+    user: env.BREVO_EMAIL,
     pass: env.BREVO_PASSWORD,
   },
 });
