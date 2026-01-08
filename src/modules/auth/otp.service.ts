@@ -6,16 +6,32 @@ import { env } from '../../config/env';
 
 export const OTPService = {
   async send(email: string, code: string) {
+    console.log('\n📧 ========== SENDING OTP ==========');
+    console.log('📧 Email:', email);
+    console.log('🔢 OTP Code:', code);
+    console.log('====================================\n');
+
     const otp = await otpRepo.createOTP(email, code, 600);
     try {
-      if (env.BREVO_PASSWORD) {
+      if (env.BREVO_PASSWORD && env.BREVO_PASSWORD !== 'mock_key') {
         await sendOTPEmail(email, code, 10);
+        console.log('✅ OTP email sent successfully');
       } else {
         // No email config: log OTP for dev convenience
+        console.log('\n⚠️  EMAIL NOT CONFIGURED - OTP CODE FOR DEVELOPMENT:');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log(`   Email: ${email}`);
+        console.log(`   OTP Code: ${code}`);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         logger.warn({ email, code }, 'OTP (dev): Email config missing, logging code');
       }
     } catch (e) {
       // Email failures should not break the auth flow; also log OTP in dev
+      console.log('\n❌ EMAIL SENDING FAILED - OTP CODE FOR DEVELOPMENT:');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log(`   Email: ${email}`);
+      console.log(`   OTP Code: ${code}`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       logger.warn({ email, code, err: e }, 'OTP email failed; logging code for dev');
     }
     return otp;

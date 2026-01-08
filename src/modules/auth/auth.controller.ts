@@ -6,14 +6,31 @@ import { revokeToken } from './token.service';
 
 export const AuthController = {
   register: async (req: Request, res: Response) => {
+    console.log('\n🔵 [BACKEND] ========== REGISTER REQUEST RECEIVED ==========');
+    console.log('🔵 [BACKEND] Request body:', { ...req.body, password: req.body?.password ? '***' : undefined });
+    console.log('🔵 [BACKEND] Headers:', req.headers);
+
     const { email, password } = req.body || {};
+
     if (!email || !password) {
+      console.log('❌ [BACKEND] Missing email or password');
       return res.status(400).json({ success: false, message: 'email and password are required' });
     }
+
+    console.log('✅ [BACKEND] Email and password present');
+
     try {
+      console.log('🔄 [BACKEND] Calling AuthService.register...');
       const { account, token } = await AuthService.register(email, password);
+      console.log('✅ [BACKEND] Registration successful');
+      console.log('✅ [BACKEND] Account created:', { account_id: account.account_id, email: account.email });
+      console.log('✅ [BACKEND] Token generated:', token ? 'present' : 'missing');
+
       return res.status(201).json({ success: true, data: { account, token } });
     } catch (err: any) {
+      console.log('❌ [BACKEND] Registration error:', err.message);
+      console.log('❌ [BACKEND] Error stack:', err.stack);
+
       const status = err.statusCode || 500;
       return res.status(status).json({ success: false, message: err.message || 'Registration failed' });
     }
@@ -48,7 +65,7 @@ export const AuthController = {
     // if (!profile.is_verified) {
     //   return res.status(403).json({ success: false, message: 'Profile not verified yet' });
     // }
-    
+
 
     const adminIds = (env.ADMIN_ACCOUNT_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
     const role = adminIds.includes(req.user.account_id) ? 'IDIOT' : 'USER';
