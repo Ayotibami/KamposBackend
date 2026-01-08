@@ -50,12 +50,16 @@ export async function getCountsFull(gist_id: string): Promise<{
   return { counts, reactions_by_type };
 }
 
- 
+
 export interface GistWithCounts extends GistRow {
   reactions_count: number;
   comments_count: number;
   views_count: number;
   reports_count: number;
+  display_name: string | null;
+  campus_tag: string | null;
+  major_tag: string | null;
+  image_url: string | null;
   media: Array<{
     media_id: string;
     media_type: "IMAGE" | "VIDEO";
@@ -72,9 +76,11 @@ export async function findWithCountsAnyStatus(
 ): Promise<GistWithCounts | null> {
   const { rows } = await pool.query<GistWithCounts>(
     `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+            sp.display_name, sp.campus_tag, sp.major_tag, sp.image_url,
             COALESCE(m.media, '[]'::json) AS media
      FROM gists g
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
+     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
          'media_id', gm.media_id,
@@ -149,9 +155,11 @@ export async function findWithCounts(
 ): Promise<GistWithCounts | null> {
   const { rows } = await pool.query<GistWithCounts>(
     `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+            sp.display_name, sp.campus_tag, sp.major_tag, sp.image_url,
             COALESCE(m.media, '[]'::json) AS media
      FROM gists g
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
+     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
          'media_id', gm.media_id,
@@ -178,9 +186,11 @@ export async function listRecent(
   if (cursor) {
     const { rows } = await pool.query<GistWithCounts>(
       `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+              sp.display_name, sp.campus_tag, sp.major_tag, sp.image_url,
               COALESCE(m.media, '[]'::json) AS media
        FROM gists g
        LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
+       LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
        LEFT JOIN LATERAL (
          SELECT json_agg(json_build_object(
            'media_id', gm.media_id,
@@ -203,9 +213,11 @@ export async function listRecent(
   }
   const { rows } = await pool.query<GistWithCounts>(
     `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+            sp.display_name, sp.campus_tag, sp.major_tag, sp.image_url,
             COALESCE(m.media, '[]'::json) AS media
      FROM gists g
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
+     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
          'media_id', gm.media_id,
@@ -234,9 +246,11 @@ export async function listByUser(
   if (cursor) {
     const { rows } = await pool.query<GistWithCounts>(
       `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+              sp.display_name, sp.campus_tag, sp.major_tag, sp.image_url,
               COALESCE(m.media, '[]'::json) AS media
        FROM gists g
        LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
+       LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
        LEFT JOIN LATERAL (
          SELECT json_agg(json_build_object(
            'media_id', gm.media_id,
@@ -258,9 +272,11 @@ export async function listByUser(
   }
   const { rows } = await pool.query<GistWithCounts>(
     `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+            sp.display_name, sp.campus_tag, sp.major_tag, sp.image_url,
             COALESCE(m.media, '[]'::json) AS media
      FROM gists g
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
+     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
          'media_id', gm.media_id,
@@ -291,11 +307,13 @@ export async function trending(limit = 20, viewerAvitag?: string): Promise<
 > {
   const { rows } = await pool.query<any>(
     `SELECT g.*, counts.reactions_count, counts.comments_count, counts.views_count, counts.reports_count,
+            sp.display_name, sp.campus_tag, sp.major_tag, sp.image_url,
             t.score, t.reactions_3d, t.comments_3d,
             COALESCE(m.media, '[]'::json) AS media
      FROM v_gist_trending_3d t
      JOIN gists g ON g.gist_id = t.gist_id
      LEFT JOIN v_gist_counts counts ON counts.gist_id = g.gist_id
+     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
          'media_id', gm.media_id,
@@ -325,9 +343,11 @@ export async function search(
   const q = `%${term}%`;
   const { rows } = await pool.query<GistWithCounts>(
     `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+            sp.display_name, sp.campus_tag, sp.major_tag, sp.image_url,
             COALESCE(m.media, '[]'::json) AS media
      FROM gists g
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
+     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
          'media_id', gm.media_id,
