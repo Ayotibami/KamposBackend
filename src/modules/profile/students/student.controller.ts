@@ -32,8 +32,14 @@ export const create = async (req: Request, res: Response) => {
     const file = Array.isArray(filesAny.image) ? filesAny.image[0] : filesAny.image;
     const buffer: Buffer = file?.data;
     if (buffer) {
-      const uploaded: any = await uploadBuffer(buffer, `kampos/profiles/${avitag}`);
-      finalImageUrl = uploaded.secure_url || uploaded.url || null;
+      try {
+        const uploaded: any = await uploadBuffer(buffer, `kampos/profiles/${avitag}`);
+        finalImageUrl = uploaded.secure_url || uploaded.url || null;
+      } catch (uploadErr: any) {
+        // Log the error but don't fail profile creation
+        logger.warn({ err: uploadErr, avitag }, 'Failed to upload profile image to Cloudinary');
+        console.log('⚠️  [PROFILE] Image upload failed, continuing without image');
+      }
     }
   }
   if (!finalImageUrl && image_url) finalImageUrl = image_url;
@@ -47,7 +53,7 @@ export const create = async (req: Request, res: Response) => {
     } else if (typeof hobbies === 'string') {
       const text = hobbies.trim();
       if (text.startsWith('[')) {
-        try { const parsed = JSON.parse(text); if (Array.isArray(parsed)) hobbiesArr = parsed; } catch {}
+        try { const parsed = JSON.parse(text); if (Array.isArray(parsed)) hobbiesArr = parsed; } catch { }
       }
       if (!hobbiesArr) {
         hobbiesArr = text.split(',').map(s => s.trim()).filter(Boolean);
@@ -114,7 +120,7 @@ export const update = async (req: Request, res: Response) => {
       const text = updates.hobbies.trim();
       let arr: string[] | null = null;
       if (text.startsWith('[')) {
-        try { const parsed = JSON.parse(text); if (Array.isArray(parsed)) arr = parsed; } catch {}
+        try { const parsed = JSON.parse(text); if (Array.isArray(parsed)) arr = parsed; } catch { }
       }
       if (!arr) arr = text.split(',').map((s: string) => s.trim()).filter(Boolean);
       updates.hobbies = arr;
@@ -126,8 +132,13 @@ export const update = async (req: Request, res: Response) => {
     const file = Array.isArray(filesAny.image) ? filesAny.image[0] : filesAny.image;
     const buffer: Buffer = file?.data;
     if (buffer) {
-      const uploaded: any = await uploadBuffer(buffer, `kampos/profiles/${avitag}`);
-      updates.image_url = uploaded.secure_url || uploaded.url || null;
+      try {
+        const uploaded: any = await uploadBuffer(buffer, `kampos/profiles/${avitag}`);
+        updates.image_url = uploaded.secure_url || uploaded.url || null;
+      } catch (uploadErr: any) {
+        logger.warn({ err: uploadErr, avitag }, 'Failed to upload profile image to Cloudinary');
+        console.log('⚠️  [PROFILE] Image upload failed during update, keeping existing image');
+      }
     }
   }
 
