@@ -19,6 +19,7 @@ import moderationRoutes from './modules/idiot/moderation.routes';
 import commentRoutes from './modules/comment/comment.routes';
 import reactionRoutes from './modules/reaction/reaction.routes';
 import gistMediaRoutes from './modules/gist/media.routes';
+import miscRoutes from './modules/misc/misc.routes';
 import type { GraphQLSchema } from 'graphql';
 import { graphqlHTTP } from 'express-graphql';
 import { buildSchema } from 'graphql';
@@ -167,6 +168,7 @@ app.use('/api/v1/gists', gistRoutes);
 app.use('/api/v1/gists', gistMediaRoutes);
 app.use('/api/v1/comments', commentRoutes);
 app.use('/api/v1/reactions', reactionRoutes);
+app.use('/api/v1/misc', miscRoutes);
 app.use('/api/v1/idiot/moderation', moderationRoutes);
 
 app.use(notFound);
