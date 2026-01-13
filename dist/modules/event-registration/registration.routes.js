@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_1 = require("../../middleware/auth");
+const registration_controller_1 = require("./registration.controller");
+const router = (0, express_1.Router)();
+router.post('/', auth_1.isAuth, registration_controller_1.RegistrationController.register);
+router.get('/event/:event_id', auth_1.fakeAuth, registration_controller_1.RegistrationController.listByEvent);
+router.get('/student/:avitag', auth_1.fakeAuth, registration_controller_1.RegistrationController.listByStudent);
+router.delete('/:id', auth_1.isAuth, registration_controller_1.RegistrationController.unregister);
+exports.default = router;
