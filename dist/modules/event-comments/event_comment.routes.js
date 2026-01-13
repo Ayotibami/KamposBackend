@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_1 = require("../../middleware/auth");
+const validate_1 = require("../../middleware/validate");
+const event_comment_1 = require("../../schemas/event_comment");
+const event_comment_controller_1 = require("./event_comment.controller");
+const router = (0, express_1.Router)();
+router.post('/', auth_1.isAuth, (0, validate_1.validateBody)(event_comment_1.createEventCommentSchema), event_comment_controller_1.EventCommentController.create);
+router.get('/event/:event_id', auth_1.fakeAuth, event_comment_controller_1.EventCommentController.listByEvent);
+router.get('/:comment_id', auth_1.fakeAuth, event_comment_controller_1.EventCommentController.get);
+router.put('/:comment_id', auth_1.isAuth, (0, validate_1.validateBody)(event_comment_1.updateEventCommentSchema), event_comment_controller_1.EventCommentController.update);
+router.delete('/:comment_id', auth_1.isAuth, event_comment_controller_1.EventCommentController.remove);
+exports.default = router;

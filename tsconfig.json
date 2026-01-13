@@ -1,17 +1,15 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ES2022",
-    "lib": ["ES2022"],
-    "moduleResolution": "bundler",
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "strict": true,
-    "noEmit": false,
-    "outDir": "dist",
-    "resolveJsonModule": true,
-    "types": ["node"],
-    "verbatimModuleSyntax": true
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true
   },
   "include": ["src/**/*", "scripts/**/*"],
   "exclude": ["node_modules", "dist"]
