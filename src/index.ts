@@ -14,7 +14,13 @@ import { verifyToken } from './config/jwt';
 async function main() {
   try {
     await connectDB();
-    await connectRedis();
+    // Not awaited on purpose — Redis connecting can hang indefinitely (a
+    // dead/unreachable host, like a stale hostname, never settles the
+    // connect() promise), and this previously blocked the entire server
+    // from starting, which is what timed out a whole deploy. The server
+    // should come up regardless; auth degrades gracefully without Redis
+    // (see token.service.ts) rather than the API being unreachable.
+    connectRedis();
 
     const server = http.createServer(app);
     // Socket.IO Gateway (standardized for realtime client usage)
