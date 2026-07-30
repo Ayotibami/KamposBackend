@@ -19,11 +19,13 @@ export interface CommentWithReactions extends CommentRow {
   my_reaction: string | null;
   /** Commenter's profile info, joined in for display — null when the
    * avitag doesn't resolve to a student profile (only student_profiles has
-   * campus/major; other profile types just show name-less/major-less). */
+   * campus/major; other profile types just show name-less/tag-less). Raw
+   * tags (e.g. "unilag"), not resolved display names — matches how gists
+   * themselves show campus_tag/major_tag directly, no campus/major join. */
   first_name: string | null;
   last_name: string | null;
-  campus_name: string | null;
-  major_name: string | null;
+  campus_tag: string | null;
+  major_tag: string | null;
 }
 
 // Scalar subqueries (not a LATERAL join) since each only ever needs a single
@@ -34,13 +36,10 @@ const REACTION_COLUMNS = (viewerParamIndex: number) => `
 `;
 
 // Commenter display info — LEFT JOINed so a non-student (or since-deleted)
-// avitag still returns a row, just with these columns null.
-const PROFILE_JOIN = `
-  LEFT JOIN student_profiles sp ON sp.avitag = c.avitag
-  LEFT JOIN campus cm ON cm.campus_tag = sp.campus_tag
-  LEFT JOIN major mj ON mj.major_tag = sp.major_tag
-`;
-const PROFILE_COLUMNS = `sp.first_name, sp.last_name, cm.campus_name, mj.major_name`;
+// avitag still returns a row, just with these columns null. Just
+// student_profiles, no campus/major reference-table join — raw tags only.
+const PROFILE_JOIN = `LEFT JOIN student_profiles sp ON sp.avitag = c.avitag`;
+const PROFILE_COLUMNS = `sp.first_name, sp.last_name, sp.campus_tag, sp.major_tag`;
 
 export async function create(params: { gist_id: string; avitag: string | null; text: string }): Promise<CommentRow> {
   const { rows } = await pool.query<CommentRow>(
