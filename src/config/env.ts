@@ -34,7 +34,11 @@ export const env = cleanEnv(process.env, {
   CLOUDINARY_API_SECRET: str({ default: "" }),
   DEFAULT_PROFILE_PIC_URL: str({ default: "" }),
   ADMIN_ACCOUNT_IDS: str({ default: "" }),
-  UNVERIFIED_GIST_MAX: num({ default: 280 }),
+  // Matches the frontend's own LIMITS.gist (kampos-web/src/lib/brand.ts) —
+  // unverified previously defaulted to 280, which silently rejected any
+  // create/edit past that even though the compose UI capped at (and showed)
+  // 700 the whole time.
+  UNVERIFIED_GIST_MAX: num({ default: 700 }),
   VERIFIED_GIST_MAX: num({ default: 5000 }),
 
   GOOGLE_CLIENT_ID: str({ default: "" }),

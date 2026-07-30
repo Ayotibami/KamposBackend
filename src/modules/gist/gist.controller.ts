@@ -86,7 +86,8 @@ export const GistController = {
         // Upload in sequence to preserve order_index
         let idx = 0;
         for (const f of inputs) {
-          const uploaded: any = await uploadBuffer(f.data);
+          const isVideo = f.mimetype.startsWith('video/');
+          const uploaded: any = await uploadBuffer(f.data, `kampos/gists/${gist.gist_id}`, isVideo);
           const media_type: GistMediaRepo.MediaType = uploaded?.resource_type === 'video' ? 'VIDEO' : 'IMAGE';
           const media_url: string = uploaded?.secure_url || uploaded?.url;
           const thumbnail_url: string | null = uploaded?.thumbnail_url || uploaded?.eager?.[0]?.secure_url || null;
@@ -110,7 +111,7 @@ export const GistController = {
 
     // Fetch the gist with media aggregated so client gets media inline
     try {
-      const full = await GistService.findWithCountsAnyStatus?.(gist.gist_id as any);
+      const full = await GistService.findWithCountsAnyStatus?.(gist.gist_id as any, req.user?.avitag);
       if (full) return res.status(201).json({ success: true, data: full });
     } catch {}
     return res.status(201).json({ success: true, data: { ...gist, media: [] } });
@@ -126,7 +127,7 @@ export const GistController = {
   get: async (req: Request, res: Response) => {
     const id = req.params.gist_id;
     // Fetch regardless of status
-    let gistAny = await GistService.findWithCounts(id);
+    let gistAny = await GistService.findWithCounts(id, req.user?.avitag);
     if (gistAny) {
       // Populate profile object using avitag and account_id
       let profile = await ProfileUtils.findByAvitag(gistAny.avitag);
@@ -169,7 +170,7 @@ export const GistController = {
       return res.json({ success: true, data: gistAny });
     }
     // If not found among APPROVED, try any status and allow owner/IDIOT access
-    let full = await GistService.findWithCountsAnyStatus?.(id as any);
+    let full = await GistService.findWithCountsAnyStatus?.(id as any, req.user?.avitag);
     if (!full) return res.status(404).json({ success: false, message: 'Gist not found' });
     // Populate profile object using avitag and account_id
     let profile = await ProfileUtils.findByAvitag(full.avitag);
@@ -284,6 +285,17 @@ export const GistController = {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     const id = req.params.gist_id;
     const { gist_text } = req.body || {};
+    if (typeof gist_text !== 'string' || gist_text.length < 1) {
+      return res.status(400).json({ success: false, message: 'gist_text is required' });
+    }
+    // Same cap `create` enforces — an edit shouldn't be able to slip past
+    // the limit just because only the create path used to check it.
+    const profile = await ProfileUtils.findByAvitag(req.user.avitag);
+    const isVerified = !!profile?.is_verified;
+    const maxLen = isVerified ? env.VERIFIED_GIST_MAX : env.UNVERIFIED_GIST_MAX;
+    if (gist_text.length > maxLen) {
+      return res.status(400).json({ success: false, message: `gist_text exceeds limit (${maxLen} chars for ${isVerified ? 'verified' : 'unverified'} profiles)` });
+    }
     const updated = await GistService.updateText(
       id,
       req.user.avitag,

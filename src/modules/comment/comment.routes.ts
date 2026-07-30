@@ -11,6 +11,7 @@ router.post('/', isAuth, validateBody(createCommentSchema), CommentController.cr
 
 // Read
 router.get('/gist/:gist_id', fakeAuth, CommentController.listByGist);
+router.get('/batch', fakeAuth, CommentController.listBatch);
 router.get('/user/:avitag', fakeAuth, CommentController.listByUser);
 router.get('/:comment_id', fakeAuth, CommentController.get);
 

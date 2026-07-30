@@ -61,6 +61,11 @@ export interface GistWithCounts extends GistRow {
   comments_count: number;
   views_count: number;
   reports_count: number;
+  /** The viewer's own reaction on this gist, if any — null when there's no
+   * viewer (unauthenticated) or they haven't reacted. Lets the client show
+   * the right reaction as already-selected without a separate per-gist
+   * fetch. */
+  my_reaction: string | null;
   media: Array<{
     media_id: string;
     media_type: "IMAGE" | "VIDEO";
@@ -73,11 +78,12 @@ export interface GistWithCounts extends GistRow {
 }
 
 export async function findWithCountsAnyStatus(
-  gist_id: string
+  gist_id: string,
+  viewerAvitag?: string
 ): Promise<GistWithCounts | null> {
   const { rows } = await pool.query<GistWithCounts>(
     `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
-            COALESCE(m.media, '[]'::json) AS media
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction
      FROM gists g
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
@@ -92,8 +98,13 @@ export async function findWithCountsAnyStatus(
        ) ORDER BY gm.order_index ASC) AS media
        FROM gist_media gm WHERE gm.gist_id = g.gist_id
      ) m ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT type FROM reactions
+       WHERE entity_type = 'GIST' AND entity_id = g.gist_id AND avitag = $2::text
+       LIMIT 1
+     ) mr ON TRUE
      WHERE g.gist_id = $1`,
-    [gist_id]
+    [gist_id, viewerAvitag ?? null]
   );
   return rows[0] ?? null;
 }
@@ -155,11 +166,12 @@ export async function findById(gist_id: string): Promise<GistRow | null> {
 }
 
 export async function findWithCounts(
-  gist_id: string
+  gist_id: string,
+  viewerAvitag?: string
 ): Promise<GistWithCounts | null> {
   const { rows } = await pool.query<GistWithCounts>(
     `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
-            COALESCE(m.media, '[]'::json) AS media
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction
      FROM gists g
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
@@ -174,8 +186,13 @@ export async function findWithCounts(
        ) ORDER BY gm.order_index ASC) AS media
        FROM gist_media gm WHERE gm.gist_id = g.gist_id
      ) m ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT type FROM reactions
+       WHERE entity_type = 'GIST' AND entity_id = g.gist_id AND avitag = $2::text
+       LIMIT 1
+     ) mr ON TRUE
      WHERE g.gist_id = $1 AND g.gist_status = 'APPROVED'`,
-    [gist_id]
+    [gist_id, viewerAvitag ?? null]
   );
   return rows[0] ?? null;
 }
@@ -191,7 +208,7 @@ export async function listRecent(
   if (cursor) {
     const { rows } = await pool.query<GistWithCounts>(
       `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
-              COALESCE(m.media, '[]'::json) AS media
+              COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction
        FROM gists g
        LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
        LEFT JOIN LATERAL (
@@ -206,6 +223,11 @@ export async function listRecent(
          ) ORDER BY gm.order_index ASC) AS media
          FROM gist_media gm WHERE gm.gist_id = g.gist_id
        ) m ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT type FROM reactions
+         WHERE entity_type = 'GIST' AND entity_id = g.gist_id AND avitag = $3::text
+         LIMIT 1
+       ) mr ON TRUE
        WHERE g.created_at < (SELECT created_at FROM gists WHERE gist_id = $1)
         AND (g.gist_status = 'APPROVED' OR ($3::text IS NOT NULL AND g.avitag = $3::text))
         AND ($4::text IS NULL OR g.campus_tag = $4::text)
@@ -218,7 +240,7 @@ export async function listRecent(
   }
   const { rows } = await pool.query<GistWithCounts>(
     `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
-            COALESCE(m.media, '[]'::json) AS media
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction
      FROM gists g
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
@@ -233,6 +255,11 @@ export async function listRecent(
        ) ORDER BY gm.order_index ASC) AS media
        FROM gist_media gm WHERE gm.gist_id = g.gist_id
      ) m ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT type FROM reactions
+       WHERE entity_type = 'GIST' AND entity_id = g.gist_id AND avitag = $1::text
+       LIMIT 1
+     ) mr ON TRUE
      WHERE (g.gist_status = 'APPROVED' OR ($1::text IS NOT NULL AND g.avitag = $1::text))
        AND ($2::text IS NULL OR g.campus_tag = $2::text)
        AND ($3::text IS NULL OR g.major_tag = $3::text)
@@ -251,7 +278,7 @@ export async function listByUser(
   if (cursor) {
     const { rows } = await pool.query<GistWithCounts>(
       `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
-              COALESCE(m.media, '[]'::json) AS media
+              COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction
        FROM gists g
        LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
        LEFT JOIN LATERAL (
@@ -266,6 +293,11 @@ export async function listByUser(
          ) ORDER BY gm.order_index ASC) AS media
          FROM gist_media gm WHERE gm.gist_id = g.gist_id
        ) m ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT type FROM reactions
+         WHERE entity_type = 'GIST' AND entity_id = g.gist_id AND avitag = $4::text
+         LIMIT 1
+       ) mr ON TRUE
        WHERE g.avitag = $1 AND g.created_at < (SELECT created_at FROM gists WHERE gist_id = $2)
          AND (g.gist_status = 'APPROVED' OR ($4::text IS NOT NULL AND g.avitag = $4::text))
        ORDER BY g.created_at DESC LIMIT $3`,
@@ -275,7 +307,7 @@ export async function listByUser(
   }
   const { rows } = await pool.query<GistWithCounts>(
     `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
-            COALESCE(m.media, '[]'::json) AS media
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction
      FROM gists g
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
@@ -290,6 +322,11 @@ export async function listByUser(
        ) ORDER BY gm.order_index ASC) AS media
        FROM gist_media gm WHERE gm.gist_id = g.gist_id
      ) m ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT type FROM reactions
+       WHERE entity_type = 'GIST' AND entity_id = g.gist_id AND avitag = $3::text
+       LIMIT 1
+     ) mr ON TRUE
      WHERE g.avitag = $1 AND (g.gist_status = 'APPROVED' OR ($3::text IS NOT NULL AND g.avitag = $3::text))
      ORDER BY g.created_at DESC LIMIT $2`,
     [avitag, limit, viewerAvitag ?? null]
@@ -311,7 +348,7 @@ export async function trending(limit = 20, viewerAvitag?: string, filters?: { ca
   const { rows } = await pool.query<any>(
     `SELECT g.*, counts.reactions_count, counts.comments_count, counts.views_count, counts.reports_count,
             t.score, t.reactions_3d, t.comments_3d,
-            COALESCE(m.media, '[]'::json) AS media
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction
      FROM v_gist_trending_3d t
      JOIN gists g ON g.gist_id = t.gist_id
      LEFT JOIN v_gist_counts counts ON counts.gist_id = g.gist_id
@@ -327,6 +364,11 @@ export async function trending(limit = 20, viewerAvitag?: string, filters?: { ca
        ) ORDER BY gm.order_index ASC) AS media
        FROM gist_media gm WHERE gm.gist_id = g.gist_id
      ) m ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT type FROM reactions
+       WHERE entity_type = 'GIST' AND entity_id = g.gist_id AND avitag = $1::text
+       LIMIT 1
+     ) mr ON TRUE
      WHERE (g.gist_status = 'APPROVED' OR ($1::text IS NOT NULL AND g.avitag = $1::text))
        AND ($2::text IS NULL OR g.campus_tag = $2::text)
        AND ($3::text IS NULL OR g.major_tag = $3::text)
@@ -349,7 +391,7 @@ export async function search(
   const major = filters?.major_tag ?? null;
   const { rows } = await pool.query<GistWithCounts>(
     `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
-            COALESCE(m.media, '[]'::json) AS media
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction
      FROM gists g
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
@@ -364,6 +406,11 @@ export async function search(
        ) ORDER BY gm.order_index ASC) AS media
        FROM gist_media gm WHERE gm.gist_id = g.gist_id
      ) m ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT type FROM reactions
+       WHERE entity_type = 'GIST' AND entity_id = g.gist_id AND avitag = $6::text
+       LIMIT 1
+     ) mr ON TRUE
      WHERE (g.gist_status = 'APPROVED' OR ($6::text IS NOT NULL AND g.avitag = $6::text))
        AND ($4::text IS NULL OR g.campus_tag = $4::text)
        AND ($5::text IS NULL OR g.major_tag = $5::text)

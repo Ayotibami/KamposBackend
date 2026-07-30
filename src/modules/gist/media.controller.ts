@@ -26,7 +26,7 @@ export const GistMediaController = {
     if (isVideo && size > 100 * 1024 * 1024) {
       return res.status(413).json({ success: false, message: 'Video too large (max 100MB)' });
     }
-    const uploaded: any = await uploadBuffer(buffer, `kampos/gists/${gist_id}`);
+    const uploaded: any = await uploadBuffer(buffer, `kampos/gists/${gist_id}`, isVideo);
     const media_type: mediaRepo.MediaType = (uploaded.resource_type === 'video' ? 'VIDEO' : 'IMAGE');
     const media_url: string = uploaded.secure_url || uploaded.url;
     const thumbnail_url: string | null = uploaded?.thumbnail_url || uploaded?.eager?.[0]?.secure_url || null;

@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import * as repo from './comment.repo';
+import { WSGateway } from '../../ws/gateway';
 
 export const CommentController = {
   create: async (req: Request, res: Response) => {
@@ -7,6 +8,11 @@ export const CommentController = {
     const avitag = req.user?.avitag ?? null;
     if (!gist_id || !text) return res.status(400).json({ success: false, message: 'gist_id and text are required' });
     const created = await repo.create({ gist_id, avitag, text });
+    // The WS `comments:create` message path already broadcasts this — the
+    // REST path (what every current client actually uses) didn't, so
+    // nobody else viewing the same gist ever learned about a new comment
+    // in realtime unless they'd created it themselves over a raw WS message.
+    WSGateway.broadcast('comment:created', { comment: created });
     return res.status(201).json({ success: true, data: created });
   },
 
@@ -20,7 +26,16 @@ export const CommentController = {
     const gist_id = req.params.gist_id;
     const limit = Number(req.query.limit ?? 20);
     const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
-    const data = await repo.listByGist(gist_id, limit, cursor);
+    const data = await repo.listByGist(gist_id, limit, cursor, req.user?.avitag);
+    return res.json({ success: true, data });
+  },
+
+  listBatch: async (req: Request, res: Response) => {
+    const raw = typeof req.query.gist_ids === 'string' ? req.query.gist_ids : '';
+    const gist_ids = raw.split(',').map((s) => s.trim()).filter(Boolean);
+    const limit = Number(req.query.limit ?? 20);
+    if (gist_ids.length === 0) return res.json({ success: true, data: {} });
+    const data = await repo.listBatchByGistIds(gist_ids, limit, req.user?.avitag);
     return res.json({ success: true, data });
   },
 

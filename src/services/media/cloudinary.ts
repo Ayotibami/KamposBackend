@@ -16,10 +16,19 @@ export async function uploadImage(filePath: string, folder = 'kampos/profiles') 
   });
 }
 
-export async function uploadBuffer(buffer: Buffer, folder = 'kampos/profiles') {
+export async function uploadBuffer(buffer: Buffer, folder = 'kampos/profiles', isVideo = false) {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder, resource_type: 'auto', overwrite: true, transformation: [{ quality: 'auto', fetch_format: 'auto' }] },
+      {
+        folder,
+        resource_type: 'auto',
+        overwrite: true,
+        transformation: [{ quality: 'auto', fetch_format: 'auto' }],
+        // Videos don't get a `thumbnail_url` in Cloudinary's default upload
+        // response the way images do — requesting an eager jpg derivative
+        // is what actually produces a poster-frame image, at result.eager[0].
+        ...(isVideo ? { eager: [{ width: 400, crop: 'scale', format: 'jpg' }] } : {}),
+      },
       (error, result) => {
         if (error) return reject(error);
         resolve(result);
