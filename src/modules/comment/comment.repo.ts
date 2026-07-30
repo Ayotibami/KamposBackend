@@ -17,6 +17,13 @@ export interface CommentWithReactions extends CommentRow {
    * breakdown (a comment reaction is a lighter single tap-to-like, not the
    * full 5-emoji picker gists get). */
   my_reaction: string | null;
+  /** Commenter's profile info, joined in for display — null when the
+   * avitag doesn't resolve to a student profile (only student_profiles has
+   * campus/major; other profile types just show name-less/major-less). */
+  first_name: string | null;
+  last_name: string | null;
+  campus_name: string | null;
+  major_name: string | null;
 }
 
 // Scalar subqueries (not a LATERAL join) since each only ever needs a single
@@ -25,6 +32,15 @@ const REACTION_COLUMNS = (viewerParamIndex: number) => `
   (SELECT COUNT(*)::int FROM reactions r WHERE r.entity_type = 'COMMENT' AND r.entity_id = c.comment_id) AS reactions_count,
   (SELECT type FROM reactions r WHERE r.entity_type = 'COMMENT' AND r.entity_id = c.comment_id AND r.avitag = $${viewerParamIndex}::text LIMIT 1) AS my_reaction
 `;
+
+// Commenter display info — LEFT JOINed so a non-student (or since-deleted)
+// avitag still returns a row, just with these columns null.
+const PROFILE_JOIN = `
+  LEFT JOIN student_profiles sp ON sp.avitag = c.avitag
+  LEFT JOIN campus cm ON cm.campus_tag = sp.campus_tag
+  LEFT JOIN major mj ON mj.major_tag = sp.major_tag
+`;
+const PROFILE_COLUMNS = `sp.first_name, sp.last_name, cm.campus_name, mj.major_name`;
 
 export async function create(params: { gist_id: string; avitag: string | null; text: string }): Promise<CommentRow> {
   const { rows } = await pool.query<CommentRow>(
@@ -47,8 +63,9 @@ export async function listByGist(
 ): Promise<CommentWithReactions[]> {
   if (cursor) {
     const { rows } = await pool.query<CommentWithReactions>(
-      `SELECT c.*, ${REACTION_COLUMNS(4)}
+      `SELECT c.*, ${REACTION_COLUMNS(4)}, ${PROFILE_COLUMNS}
        FROM comments c
+       ${PROFILE_JOIN}
        WHERE c.gist_id = $1 AND c.commented_at < (SELECT commented_at FROM comments WHERE comment_id = $2)
        ORDER BY c.commented_at DESC LIMIT $3`,
       [gist_id, cursor, limit, viewerAvitag ?? null]
@@ -56,8 +73,9 @@ export async function listByGist(
     return rows;
   }
   const { rows } = await pool.query<CommentWithReactions>(
-    `SELECT c.*, ${REACTION_COLUMNS(3)}
+    `SELECT c.*, ${REACTION_COLUMNS(3)}, ${PROFILE_COLUMNS}
      FROM comments c
+     ${PROFILE_JOIN}
      WHERE c.gist_id = $1 ORDER BY c.commented_at DESC LIMIT $2`,
     [gist_id, limit, viewerAvitag ?? null]
   );
@@ -78,7 +96,7 @@ export async function listBatchByGistIds(
 ): Promise<Record<string, CommentWithReactions[]>> {
   if (gist_ids.length === 0) return {};
   const { rows } = await pool.query<CommentWithReactions>(
-    `SELECT c.*, ${REACTION_COLUMNS(3)}
+    `SELECT c.*, ${REACTION_COLUMNS(3)}, ${PROFILE_COLUMNS}
      FROM unnest($1::text[]) AS g(gist_id)
      JOIN LATERAL (
        SELECT * FROM comments cm
@@ -86,6 +104,7 @@ export async function listBatchByGistIds(
        ORDER BY cm.commented_at DESC
        LIMIT $2
      ) c ON TRUE
+     ${PROFILE_JOIN}
      ORDER BY c.gist_id, c.commented_at DESC`,
     [gist_ids, limitPerGist, viewerAvitag ?? null]
   );
