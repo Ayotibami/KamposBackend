@@ -4,7 +4,7 @@ import { requireOtpVerified } from '../../middleware/otp';
 import { GistController } from './gist.controller';
 import { validateBody } from '../../middleware/validate';
 import { createGistSchema, updateGistSchema } from '../../schemas/gist';
-import { reorderGistMediaSchema } from '../../schemas/gist_media';
+import { reorderGistMediaSchema, updateGistMediaSchema } from '../../schemas/gist_media';
 import { GistMediaController } from './media.controller';
 
 const router = Router();
@@ -29,7 +29,15 @@ router.delete('/:gist_id', isAuth, GistController.remove);
 router.post('/:gist_id/report', isAuth, requireOtpVerified, GistController.report);
 router.post('/:gist_id/view', GistController.view);
 
-// Media reorder
+// Media — list/upload/attach-by-url/update/reorder/delete. These were
+// previously only defined in media.routes.ts, which was never actually
+// mounted in app.ts (only this file, gist.routes.ts, is) — so every one of
+// these except reorder was a live 404 until now.
+router.get('/:gist_id/media', fakeAuth, GistMediaController.list);
+router.post('/:gist_id/media', isAuth, GistMediaController.upload);
+router.post('/:gist_id/media/url', isAuth, GistMediaController.attachByUrl);
 router.patch('/:gist_id/media/reorder', isAuth, validateBody(reorderGistMediaSchema), GistMediaController.reorder);
+router.patch('/media/:media_id', isAuth, validateBody(updateGistMediaSchema), GistMediaController.update);
+router.delete('/media/:media_id', isAuth, GistMediaController.remove);
 
 export default router;

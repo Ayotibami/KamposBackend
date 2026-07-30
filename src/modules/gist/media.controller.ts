@@ -36,6 +36,30 @@ export const GistMediaController = {
     return res.status(201).json({ success: true, data: saved });
   },
 
+  // POST /gists/:gist_id/media/url — attach a GIF/sticker (or any already-
+  // hosted media) by URL, no file upload. Used by the Tenor picker: Tenor's
+  // own terms expect integrators to hotlink their CDN, not re-host the
+  // content, so this deliberately skips uploadBuffer/Cloudinary entirely —
+  // public_id stays null since there's nothing on our own Cloudinary to
+  // delete later if this media is removed.
+  attachByUrl: async (req: Request, res: Response) => {
+    if (!req.user?.avitag) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const gist_id = req.params.gist_id;
+    const { media_url, thumbnail_url } = req.body || {};
+    if (typeof media_url !== 'string' || !/^https:\/\//.test(media_url)) {
+      return res.status(400).json({ success: false, message: 'A valid https media_url is required' });
+    }
+    const saved = await mediaRepo.addMedia({
+      gist_id,
+      media_type: 'IMAGE',
+      media_url,
+      thumbnail_url: typeof thumbnail_url === 'string' ? thumbnail_url : null,
+      public_id: null,
+    });
+    try { WSGateway.broadcast('gist_media:created', { gist_id, media: saved }); } catch {}
+    return res.status(201).json({ success: true, data: saved });
+  },
+
   list: async (req: Request, res: Response) => {
     const gist_id = req.params.gist_id;
     const media = await mediaRepo.listByGist(gist_id);
