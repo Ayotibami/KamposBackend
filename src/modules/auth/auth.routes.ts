@@ -6,7 +6,13 @@ import { PasswordResetController } from './password-reset.controller';
 import { isAuth } from '../../middleware/auth';
 import { validateBody } from '../../middleware/validate';
 import { OAuthController } from './oauth.controller';
-import { googleOAuthSchema, facebookOAuthSchema, appleOAuthSchema } from '../../schemas/auth';
+import {
+  googleOAuthSchema,
+  facebookOAuthSchema,
+  appleOAuthSchema,
+  registerSchema,
+  resetPasswordSchema,
+} from '../../schemas/auth';
 
 const router = Router();
 
@@ -51,7 +57,7 @@ function makeOtpVerifyLimiter() {
   });
 }
 
-router.post('/register', AuthController.register);
+router.post('/register', validateBody(registerSchema), AuthController.register);
 router.post('/login', AuthController.login);
 router.post('/refresh', AuthController.refresh);
 router.post('/logout', isAuth, AuthController.logout);
@@ -61,7 +67,12 @@ router.post('/switch-profile', isAuth, AuthController.switchProfile);
 router.post('/verify-otp/send', makeOtpSendLimiter(), OTPController.send);
 router.post('/verify-otp', makeOtpVerifyLimiter(), OTPController.verify);
 router.post('/forgot-password', makeOtpSendLimiter(), PasswordResetController.request);
-router.post('/reset-password', makeOtpVerifyLimiter(), PasswordResetController.reset);
+router.post(
+  '/reset-password',
+  makeOtpVerifyLimiter(),
+  validateBody(resetPasswordSchema),
+  PasswordResetController.reset,
+);
 
 // OAuth
 router.post('/oauth/google', validateBody(googleOAuthSchema), OAuthController.google);
