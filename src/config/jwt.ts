@@ -17,8 +17,12 @@ export interface JwtClaims {
 const REFRESH_SECRET = env.REFRESH_TOKEN_SECRET || env.JWT_SECRET;
 
 export function signToken(payload: Omit<JwtClaims, 'iat' | 'exp'>): string {
-  const jti = payload.jti ?? randomUUID();
-  return jwt.sign({ ...payload, jti }, env.JWT_SECRET, { expiresIn: env.ACCESS_TOKEN_EXPIRES, jwtid: jti });
+  // jsonwebtoken rejects the call if `jti` is present both in the payload
+  // and passed as the `jwtid` option — set it via the option only, never
+  // spread into the payload object itself.
+  const { jti: existingJti, ...rest } = payload;
+  const jti = existingJti ?? randomUUID();
+  return jwt.sign(rest, env.JWT_SECRET, { expiresIn: env.ACCESS_TOKEN_EXPIRES, jwtid: jti });
 }
 
 export function verifyToken(token: string): JwtClaims {
@@ -30,8 +34,9 @@ export function verifyToken(token: string): JwtClaims {
 // configured) — a leaked access-token-signing secret alone shouldn't be
 // enough to mint new refresh tokens too.
 export function signRefreshToken(payload: Omit<JwtClaims, 'iat' | 'exp'>): string {
-  const jti = payload.jti ?? randomUUID();
-  return jwt.sign({ ...payload, jti }, REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRES_SECONDS, jwtid: jti });
+  const { jti: existingJti, ...rest } = payload;
+  const jti = existingJti ?? randomUUID();
+  return jwt.sign(rest, REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRES_SECONDS, jwtid: jti });
 }
 
 export function verifyRefreshToken(token: string): JwtClaims {

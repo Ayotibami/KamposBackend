@@ -13,17 +13,43 @@ const router = Router();
 // Keyed by IP + the email in the request body, so one abusive IP can't burn
 // through the limit for every email address, and one targeted email can't
 // be spammed from a single IP either. 3 requests per 10 minutes each.
-const otpSendLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000,
-  max: 3,
-  standardHeaders: true,
-  legacyHeaders: false,
-  // ipKeyGenerator normalizes/truncates IPv6 addresses (a raw req.ip
-  // concatenation is trivially bypassable there — a single client can
-  // cycle through a huge range of IPv6 addresses within the same /64).
-  keyGenerator: (req) => `${ipKeyGenerator(req.ip ?? '')}:${(req.body?.email || '').toLowerCase()}`,
-  message: { success: false, message: 'Too many code requests — abeg wait small before you try again.' },
-});
+//
+// A separate limiter instance per route on purpose — verify-otp/send and
+// forgot-password are unrelated actions (one's for signup verification,
+// the other's a password reset) even though they both ultimately email a
+// code, and they need independent budgets. Sharing one instance meant
+// burning the resend limit also silently blocked password reset for the
+// same user, which isn't the actual abuse case we're guarding against.
+function makeOtpSendLimiter() {
+  return rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 3,
+    standardHeaders: true,
+    legacyHeaders: false,
+    // ipKeyGenerator normalizes/truncates IPv6 addresses (a raw req.ip
+    // concatenation is trivially bypassable there — a single client can
+    // cycle through a huge range of IPv6 addresses within the same /64).
+    keyGenerator: (req) => `${ipKeyGenerator(req.ip ?? '')}:${(req.body?.email || '').toLowerCase()}`,
+    message: { success: false, message: 'Too many code requests — abeg wait small before you try again.' },
+  });
+}
+
+// Separate, much stricter limiter for the endpoints that actually *submit*
+// a guessable 6-digit code — this is the real brute-force surface (send-
+// limiters above only throttle how often a code gets requested, not how
+// many guesses an attacker gets against one that's already been sent). The
+// global api limiter in app.ts (100 req/15min across the whole API) is not
+// remotely tight enough on its own for a 1-in-1,000,000 guessable value.
+function makeOtpVerifyLimiter() {
+  return rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => `${ipKeyGenerator(req.ip ?? '')}:${(req.body?.email || '').toLowerCase()}`,
+    message: { success: false, message: 'Too many attempts — abeg wait small before you try again.' },
+  });
+}
 
 router.post('/register', AuthController.register);
 router.post('/login', AuthController.login);
@@ -32,10 +58,10 @@ router.post('/logout', isAuth, AuthController.logout);
 router.post('/switch-profile', isAuth, AuthController.switchProfile);
 
 // OTP and password reset
-router.post('/verify-otp/send', otpSendLimiter, OTPController.send);
-router.post('/verify-otp', OTPController.verify);
-router.post('/forgot-password', otpSendLimiter, PasswordResetController.request);
-router.post('/reset-password', PasswordResetController.reset);
+router.post('/verify-otp/send', makeOtpSendLimiter(), OTPController.send);
+router.post('/verify-otp', makeOtpVerifyLimiter(), OTPController.verify);
+router.post('/forgot-password', makeOtpSendLimiter(), PasswordResetController.request);
+router.post('/reset-password', makeOtpVerifyLimiter(), PasswordResetController.reset);
 
 // OAuth
 router.post('/oauth/google', validateBody(googleOAuthSchema), OAuthController.google);

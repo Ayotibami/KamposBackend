@@ -85,3 +85,14 @@ export async function linkOauthToAccount(account_id: string, provider: 'GOOGLE'|
 export async function touchUpdatedAt(account_id: string): Promise<void> {
   await pool.query(`UPDATE accounts SET updated_at = NOW() WHERE account_id = $1`, [account_id]);
 }
+
+export type PublicAccount = Omit<Account, 'password_hash'>;
+
+/** Strips password_hash before an Account ever leaves the server in a
+ * response — internal auth logic (login/changePassword) needs the hash and
+ * reads it straight from the repo functions above, but nothing sent back
+ * to a client should ever include it, hashed or not. */
+export function toPublicAccount(account: Account): PublicAccount {
+  const { password_hash: _password_hash, ...rest } = account;
+  return rest;
+}

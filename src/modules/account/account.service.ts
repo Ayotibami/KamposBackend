@@ -7,14 +7,15 @@ export const AccountService = {
     const account = await accountRepo.findAccountById(account_id);
     if (!account) return null;
     const profiles = await ProfileUtils.listByAccount(account_id);
-    return { account, profiles };
+    return { account: accountRepo.toPublicAccount(account), profiles };
   },
 
   update: async (account_id: string, updates: { email?: string | null }) => {
     if (updates.email) {
       await accountRepo.updateEmail(account_id, updates.email);
     }
-    return accountRepo.findAccountById(account_id);
+    const account = await accountRepo.findAccountById(account_id);
+    return account ? accountRepo.toPublicAccount(account) : null;
   },
 
   changePassword: async (account_id: string, currentPassword: string, newPassword: string) => {

@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import * as ProfileUtils from '../profile/utils';
+import { toPublicAccount } from '../account/account.repo';
 import { env } from '../../config/env';
 import { revokeToken, isRevoked } from './token.service';
 import { verifyRefreshToken } from '../../config/jwt';
@@ -15,7 +16,7 @@ export const AuthController = {
     try {
       const { account, accessToken, refreshToken } = await AuthService.register(email, password);
       setAuthCookies(res, accessToken, refreshToken);
-      return res.status(201).json({ success: true, data: { account } });
+      return res.status(201).json({ success: true, data: { account: toPublicAccount(account) } });
     } catch (err: any) {
       const status = err.statusCode || 500;
       return res.status(status).json({ success: false, message: err.message || 'Registration failed' });
@@ -30,7 +31,7 @@ export const AuthController = {
     try {
       const { account, accessToken, refreshToken } = await AuthService.login(email, password);
       setAuthCookies(res, accessToken, refreshToken);
-      return res.json({ success: true, data: { account } });
+      return res.json({ success: true, data: { account: toPublicAccount(account) } });
     } catch (err: any) {
       const status = err.statusCode || 500;
       return res.status(status).json({ success: false, message: err.message || 'Login failed' });
@@ -59,14 +60,27 @@ export const AuthController = {
         const now = Math.floor(Date.now() / 1000);
         await revokeToken(payload.jti, Math.max(1, payload.exp - now));
       }
-      const { account_id, avitag, profileType, role, is_otp_verified } = payload;
+      const { account_id, avitag, profileType, who } = payload;
+      if (!account_id) {
+        clearAuthCookies(res);
+        return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+      }
+      // Re-derive role from the current admin list rather than trusting
+      // whatever was baked into the old refresh token's claims — otherwise
+      // someone removed from ADMIN_ACCOUNT_IDS keeps IDIOT privileges on
+      // every refresh for as long as their existing session lasts (up to
+      // REFRESH_TOKEN_EXPIRES_DAYS), since this endpoint would never
+      // re-check. is_otp_verified is re-derived from the DB too, same
+      // reasoning — issueTokenForProfile already does that part.
+      const adminIds = (env.ADMIN_ACCOUNT_IDS || '').split(',').map((s) => s.trim()).filter(Boolean);
+      const role = who === 'king' ? 'king' : adminIds.includes(account_id) ? 'IDIOT' : 'USER';
       const { accessToken, refreshToken } = await AuthService.issueTokenForProfile({
         account_id,
         avitag,
         profileType,
         role,
-        is_otp_verified,
-      } as any);
+        who,
+      });
       setAuthCookies(res, accessToken, refreshToken);
       return res.json({ success: true, message: 'Refreshed' });
     } catch (err) {
