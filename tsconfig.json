@@ -9,10 +9,11 @@
     "strict": true,
     "noEmit": false,
     "outDir": "dist",
+    "rootDir": "src",
     "resolveJsonModule": true,
     "types": ["node"],
     "verbatimModuleSyntax": true
   },
-  "include": ["src/**/*", "scripts/**/*"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
