@@ -136,19 +136,19 @@ export const GistController = {
           let fullProfile = null;
           switch (profile.profile_type) {
             case 'STUDENT':
-              fullProfile = await (await import('../profile/students/repo')).findByAvitag(gistAny.avitag);
+              fullProfile = await (await import('../profile/students/repo.js')).findByAvitag(gistAny.avitag);
               break;
             case 'KREATOR':
-              fullProfile = await (await import('../profile/kreators/repo')).findByAvitag(gistAny.avitag);
+              fullProfile = await (await import('../profile/kreators/repo.js')).findByAvitag(gistAny.avitag);
               break;
             case 'KOMPANY':
-              fullProfile = await (await import('../profile/kompanies/repo')).findByAvitag(gistAny.avitag);
+              fullProfile = await (await import('../profile/kompanies/repo.js')).findByAvitag(gistAny.avitag);
               break;
             case 'SCHOOL':
-              fullProfile = await (await import('../profile/schools/repo')).findByAvitag(gistAny.avitag);
+              fullProfile = await (await import('../profile/schools/repo.js')).findByAvitag(gistAny.avitag);
               break;
             case 'IDIOT':
-              fullProfile = await (await import('../profile/idiots/repo')).findByAvitag(gistAny.avitag);
+              fullProfile = await (await import('../profile/idiots/repo.js')).findByAvitag(gistAny.avitag);
               break;
             default:
               fullProfile = profile;
@@ -179,19 +179,19 @@ export const GistController = {
         let fullProfile = null;
         switch (profile.profile_type) {
           case 'STUDENT':
-            fullProfile = await (await import('../profile/students/repo')).findByAvitag(full.avitag);
+            fullProfile = await (await import('../profile/students/repo.js')).findByAvitag(full.avitag);
             break;
           case 'KREATOR':
-            fullProfile = await (await import('../profile/kreators/repo')).findByAvitag(full.avitag);
+            fullProfile = await (await import('../profile/kreators/repo.js')).findByAvitag(full.avitag);
             break;
           case 'KOMPANY':
-            fullProfile = await (await import('../profile/kompanies/repo')).findByAvitag(full.avitag);
+            fullProfile = await (await import('../profile/kompanies/repo.js')).findByAvitag(full.avitag);
             break;
           case 'SCHOOL':
-            fullProfile = await (await import('../profile/schools/repo')).findByAvitag(full.avitag);
+            fullProfile = await (await import('../profile/schools/repo.js')).findByAvitag(full.avitag);
             break;
           case 'IDIOT':
-            fullProfile = await (await import('../profile/idiots/repo')).findByAvitag(full.avitag);
+            fullProfile = await (await import('../profile/idiots/repo.js')).findByAvitag(full.avitag);
             break;
           default:
             fullProfile = profile;
@@ -234,19 +234,19 @@ export const GistController = {
           let fullProfile = null;
           switch (profile.profile_type) {
             case 'STUDENT':
-              fullProfile = await (await import('../profile/students/repo')).findByAvitag(g.avitag);
+              fullProfile = await (await import('../profile/students/repo.js')).findByAvitag(g.avitag);
               break;
             case 'KREATOR':
-              fullProfile = await (await import('../profile/kreators/repo')).findByAvitag(g.avitag);
+              fullProfile = await (await import('../profile/kreators/repo.js')).findByAvitag(g.avitag);
               break;
             case 'KOMPANY':
-              fullProfile = await (await import('../profile/kompanies/repo')).findByAvitag(g.avitag);
+              fullProfile = await (await import('../profile/kompanies/repo.js')).findByAvitag(g.avitag);
               break;
             case 'SCHOOL':
-              fullProfile = await (await import('../profile/schools/repo')).findByAvitag(g.avitag);
+              fullProfile = await (await import('../profile/schools/repo.js')).findByAvitag(g.avitag);
               break;
             case 'IDIOT':
-              fullProfile = await (await import('../profile/idiots/repo')).findByAvitag(g.avitag);
+              fullProfile = await (await import('../profile/idiots/repo.js')).findByAvitag(g.avitag);
               break;
             default:
               fullProfile = profile;
@@ -362,19 +362,19 @@ export const GistController = {
           let fullProfile = null;
           switch (profile.profile_type) {
             case 'STUDENT':
-              fullProfile = await (await import('../profile/students/repo')).findByAvitag(g.avitag);
+              fullProfile = await (await import('../profile/students/repo.js')).findByAvitag(g.avitag);
               break;
             case 'KREATOR':
-              fullProfile = await (await import('../profile/kreators/repo')).findByAvitag(g.avitag);
+              fullProfile = await (await import('../profile/kreators/repo.js')).findByAvitag(g.avitag);
               break;
             case 'KOMPANY':
-              fullProfile = await (await import('../profile/kompanies/repo')).findByAvitag(g.avitag);
+              fullProfile = await (await import('../profile/kompanies/repo.js')).findByAvitag(g.avitag);
               break;
             case 'SCHOOL':
-              fullProfile = await (await import('../profile/schools/repo')).findByAvitag(g.avitag);
+              fullProfile = await (await import('../profile/schools/repo.js')).findByAvitag(g.avitag);
               break;
             case 'IDIOT':
-              fullProfile = await (await import('../profile/idiots/repo')).findByAvitag(g.avitag);
+              fullProfile = await (await import('../profile/idiots/repo.js')).findByAvitag(g.avitag);
               break;
             default:
               fullProfile = profile;

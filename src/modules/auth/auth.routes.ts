@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { AuthController } from './auth.controller';
 import { OTPController } from './otp.controller';
 import { PasswordResetController } from './password-reset.controller';
@@ -18,7 +18,10 @@ const otpSendLimiter = rateLimit({
   max: 3,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => `${req.ip}:${(req.body?.email || '').toLowerCase()}`,
+  // ipKeyGenerator normalizes/truncates IPv6 addresses (a raw req.ip
+  // concatenation is trivially bypassable there — a single client can
+  // cycle through a huge range of IPv6 addresses within the same /64).
+  keyGenerator: (req) => `${ipKeyGenerator(req.ip ?? '')}:${(req.body?.email || '').toLowerCase()}`,
   message: { success: false, message: 'Too many code requests — abeg wait small before you try again.' },
 });
 
