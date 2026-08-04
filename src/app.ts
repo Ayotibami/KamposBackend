@@ -1,5 +1,6 @@
 import express, { type Express } from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
@@ -141,7 +142,22 @@ export const root = {
 
 const app: Express = express();
 
-app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+// Cookie-based auth needs a real origin allow-list, not "*" — browsers
+// reject Access-Control-Allow-Origin: * combined with credentials: true.
+// CORS_ORIGIN supports a comma-separated list so both a local dev frontend
+// and a deployed one can be allowed at once.
+const allowedOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean);
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // No Origin header (server-to-server calls, curl, Postman) — allow.
+      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+  }),
+);
+app.use(cookieParser());
 app.use(helmet());
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));

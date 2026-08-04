@@ -11,9 +11,17 @@ export const env = cleanEnv(process.env, {
   POSTGRES_URI: str(),
 
   JWT_SECRET: str(),
-  JWT_EXPIRES: num({ default: 60 * 60 * 24 * 30 }), // 30 days in seconds
+  // Short-lived access token — kept small on purpose now that a refresh
+  // token exists to silently renew it; a stolen access token only stays
+  // useful for 15 minutes instead of 30 days.
+  ACCESS_TOKEN_EXPIRES: num({ default: 60 * 15 }), // 15 minutes in seconds
+  REFRESH_TOKEN_SECRET: str({ default: "" }), // falls back to JWT_SECRET if unset
+  REFRESH_TOKEN_EXPIRES_DAYS: num({ default: 30 }),
 
-  CORS_ORIGIN: str({ default: "*" }),
+  // Comma-separated list of allowed origins for credentialed (cookie)
+  // requests — "*" is incompatible with cookies, browsers reject the
+  // combination of Access-Control-Allow-Origin: * with credentials.
+  CORS_ORIGIN: str({ default: "http://localhost:3000" }),
   SERVER_BASE_URL: str({ default: "" }),
   CLIENT_BASE_URL: str({ default: "" }),
 
@@ -54,3 +62,5 @@ export const env = cleanEnv(process.env, {
   SENTRY_DSN: str({ default: "" }),
   FCM_SERVER_KEY: str({ default: "" }),
 });
+
+export const REFRESH_TOKEN_EXPIRES_SECONDS = env.REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60;

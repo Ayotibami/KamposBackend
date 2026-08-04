@@ -1,10 +1,19 @@
 import * as accountRepo from '../account/account.repo';
 import { hasUnverifiedForAccount as hasUnverifiedIdiotProfile } from '../profile/idiots/repo';
 import argon2 from 'argon2';
-import { signToken, type JwtClaims } from '../../config/jwt';
+import { signToken, signRefreshToken, type JwtClaims } from '../../config/jwt';
 import { OTPService } from './otp.service';
 import { generateOTP } from '../../utils/otp';
 import logger from '../../utils/logger';
+
+// Access + refresh share the same identity claims but are two separate
+// signed tokens (separate jti each, so one can be revoked independently of
+// the other — see token.service.ts).
+function issueTokenPair(claims: Omit<JwtClaims, 'iat' | 'exp' | 'jti'>) {
+  const accessToken = signToken(claims);
+  const refreshToken = signRefreshToken(claims);
+  return { accessToken, refreshToken };
+}
 
 export const AuthService = {
   register: async (email: string, password: string) => {
@@ -17,8 +26,12 @@ export const AuthService = {
     // Send OTP for verification
     const code = generateOTP();
     await OTPService.send(email, code);
-    const token = signToken({ account_id: account.account_id, is_otp_verified: false, role: 'USER' });
-    return { account, token };
+    const { accessToken, refreshToken } = issueTokenPair({
+      account_id: account.account_id,
+      is_otp_verified: false,
+      role: 'USER',
+    });
+    return { account, accessToken, refreshToken };
   },
 
   login: async (email: string, password: string) => {
@@ -41,16 +54,20 @@ export const AuthService = {
       throw Object.assign(new Error('Your IDIOT profile requires superadmin approval before you can login'), { statusCode: 403 });
     }
     const role = account.who === 'king' ? 'king' : 'USER';
-    const token = signToken({ account_id: account.account_id, is_otp_verified: account.is_otp_verified, role });
-    return { account, token };
+    const { accessToken, refreshToken } = issueTokenPair({
+      account_id: account.account_id,
+      is_otp_verified: account.is_otp_verified,
+      role,
+    });
+    return { account, accessToken, refreshToken };
   },
 
-  issueTokenForProfile: async (claims: Omit<JwtClaims, 'iat' | 'exp'>) => {
+  issueTokenForProfile: async (claims: Omit<JwtClaims, 'iat' | 'exp' | 'jti'>) => {
     let isVerified = false;
     if (claims.account_id) {
       const acc = await accountRepo.findAccountById(claims.account_id);
       isVerified = !!acc?.is_otp_verified;
     }
-    return signToken({ ...claims, is_otp_verified: isVerified, role: claims.role ?? 'USER' });
+    return issueTokenPair({ ...claims, is_otp_verified: isVerified, role: claims.role ?? 'USER' });
   },
 };
