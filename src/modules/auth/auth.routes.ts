@@ -12,6 +12,7 @@ import {
   appleOAuthSchema,
   registerSchema,
   resetPasswordSchema,
+  verifyResetCodeSchema,
 } from '../../schemas/auth';
 
 const router = Router();
@@ -67,6 +68,12 @@ router.post('/switch-profile', isAuth, AuthController.switchProfile);
 router.post('/verify-otp/send', makeOtpSendLimiter(), OTPController.send);
 router.post('/verify-otp', makeOtpVerifyLimiter(), OTPController.verify);
 router.post('/forgot-password', makeOtpSendLimiter(), PasswordResetController.request);
+router.post(
+  '/verify-reset-code',
+  makeOtpVerifyLimiter(),
+  validateBody(verifyResetCodeSchema),
+  PasswordResetController.verifyCode,
+);
 router.post(
   '/reset-password',
   makeOtpVerifyLimiter(),

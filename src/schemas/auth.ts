@@ -24,6 +24,11 @@ export const resetPasswordSchema = z.object({
   newPassword: passwordSchema,
 });
 
+export const verifyResetCodeSchema = z.object({
+  email: z.string().email(),
+  code: z.string().min(1),
+});
+
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: passwordSchema,

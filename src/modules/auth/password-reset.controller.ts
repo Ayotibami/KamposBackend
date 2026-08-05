@@ -9,6 +9,17 @@ export const PasswordResetController = {
     return res.json({ success: true, message: 'Password reset token has been sent to your email' });
   },
 
+  verifyCode: async (req: Request, res: Response) => {
+    const { email, code } = req.body || {};
+    try {
+      await PasswordResetService.verifyCode(email, code);
+      return res.json({ success: true, message: 'Code is valid' });
+    } catch (err: any) {
+      const status = err.statusCode || 400;
+      return res.status(status).json({ success: false, message: err.message || 'Invalid or expired code' });
+    }
+  },
+
   reset: async (req: Request, res: Response) => {
     const { email, code, newPassword } = req.body || {};
     if (!email || !code || !newPassword) {

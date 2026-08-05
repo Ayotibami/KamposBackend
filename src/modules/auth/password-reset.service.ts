@@ -25,6 +25,21 @@ export const PasswordResetService = {
     return { requested: true };
   },
 
+  // Checks the code alone, same "is this right" question the reset UI needs
+  // to answer before it swaps the code entry for the new-password fields.
+  // Deliberately does NOT delete the OTP row — reset() below still needs it
+  // there to do its own independent check; this is a preview, not a
+  // consuming action, and reset() re-validates everything from scratch
+  // regardless of whether this was ever called first.
+  async verifyCode(email: string, code: string) {
+    const account = await accountRepo.findAccountByEmail(email);
+    const otp = await otpRepo.findValidOTP(email, code);
+    if (!account || !otp) {
+      throw Object.assign(new Error('Invalid or expired code'), { statusCode: 400 });
+    }
+    return { valid: true };
+  },
+
   async reset(email: string, code: string, newPassword: string) {
     const account = await accountRepo.findAccountByEmail(email);
     const otp = await otpRepo.findValidOTP(email, code);
