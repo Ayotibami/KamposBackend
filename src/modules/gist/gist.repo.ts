@@ -57,6 +57,8 @@ export async function getCountsFull(gist_id: string): Promise<{
 
  
 export interface GistWithCounts extends GistRow {
+  first_name: string | null;
+  image_url: string | null;
   reactions_count: number;
   comments_count: number;
   views_count: number;
@@ -86,9 +88,10 @@ export async function findWithCountsAnyStatus(
   viewerAvitag?: string
 ): Promise<GistWithCounts | null> {
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+    `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, rbt.by_type AS reactions_by_type
      FROM gists g
+     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -182,9 +185,10 @@ export async function findWithCounts(
   viewerAvitag?: string
 ): Promise<GistWithCounts | null> {
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+    `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, rbt.by_type AS reactions_by_type
      FROM gists g
+     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -227,9 +231,10 @@ export async function listRecent(
   const major = filters?.major_tag ?? null;
   if (cursor) {
     const { rows } = await pool.query<GistWithCounts>(
-      `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+      `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
               COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, rbt.by_type AS reactions_by_type
        FROM gists g
+     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
        LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
        LEFT JOIN LATERAL (
          SELECT json_agg(json_build_object(
@@ -267,9 +272,10 @@ export async function listRecent(
     return rows;
   }
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+    `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, rbt.by_type AS reactions_by_type
      FROM gists g
+     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -313,9 +319,10 @@ export async function listByUser(
 ): Promise<GistWithCounts[]> {
   if (cursor) {
     const { rows } = await pool.query<GistWithCounts>(
-      `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+      `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
               COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, rbt.by_type AS reactions_by_type
        FROM gists g
+     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
        LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
        LEFT JOIN LATERAL (
          SELECT json_agg(json_build_object(
@@ -350,9 +357,10 @@ export async function listByUser(
     return rows;
   }
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+    `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, rbt.by_type AS reactions_by_type
      FROM gists g
+     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -398,11 +406,12 @@ export async function trending(limit = 20, viewerAvitag?: string, filters?: { ca
   const campus = filters?.campus_tag ?? null;
   const major = filters?.major_tag ?? null;
   const { rows } = await pool.query<any>(
-    `SELECT g.*, counts.reactions_count, counts.comments_count, counts.views_count, counts.reports_count,
+    `SELECT g.*, sp.first_name, sp.image_url, counts.reactions_count, counts.comments_count, counts.views_count, counts.reports_count,
             t.score, t.reactions_3d, t.comments_3d,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, rbt.by_type AS reactions_by_type
      FROM v_gist_trending_3d t
      JOIN gists g ON g.gist_id = t.gist_id
+     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
      LEFT JOIN v_gist_counts counts ON counts.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -450,9 +459,10 @@ export async function search(
   const campus = filters?.campus_tag ?? null;
   const major = filters?.major_tag ?? null;
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+    `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, rbt.by_type AS reactions_by_type
      FROM gists g
+     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(

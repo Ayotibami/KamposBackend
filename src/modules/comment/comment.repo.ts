@@ -26,6 +26,8 @@ export interface CommentWithReactions extends CommentRow {
   last_name: string | null;
   campus_tag: string | null;
   major_tag: string | null;
+  level: number | null;
+  image_url: string | null;
 }
 
 // Scalar subqueries (not a LATERAL join) since each only ever needs a single
@@ -39,7 +41,7 @@ const REACTION_COLUMNS = (viewerParamIndex: number) => `
 // avitag still returns a row, just with these columns null. Just
 // student_profiles, no campus/major reference-table join — raw tags only.
 const PROFILE_JOIN = `LEFT JOIN student_profiles sp ON sp.avitag = c.avitag`;
-const PROFILE_COLUMNS = `sp.first_name, sp.last_name, sp.campus_tag, sp.major_tag`;
+const PROFILE_COLUMNS = `sp.first_name, sp.last_name, sp.campus_tag, sp.major_tag, sp.level, sp.image_url`;
 
 export async function create(params: { gist_id: string; avitag: string | null; text: string }): Promise<CommentRow> {
   const { rows } = await pool.query<CommentRow>(
