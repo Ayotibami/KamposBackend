@@ -83,38 +83,53 @@ export const GistController = {
           }
         }
 
-        // Upload in sequence to preserve order_index
+        // Upload in sequence to preserve order_index. Each file gets its
+        // own try/catch — previously one big try/catch wrapped the whole
+        // loop, so a single failed upload (network blip, a transient
+        // Cloudinary error) silently killed every file after it too, and
+        // the failure was never reported anywhere: the request still came
+        // back 201 with the gist's text, as if nothing was ever attached.
         let idx = 0;
+        const failed: Array<{ name: string; reason: string }> = [];
         for (const f of inputs) {
-          const isVideo = f.mimetype.startsWith('video/');
-          const uploaded: any = await uploadBuffer(f.data, `kampos/gists/${gist.gist_id}`, isVideo);
-          const media_type: GistMediaRepo.MediaType = uploaded?.resource_type === 'video' ? 'VIDEO' : 'IMAGE';
-          const media_url: string = uploaded?.secure_url || uploaded?.url;
-          const thumbnail_url: string | null = uploaded?.thumbnail_url || uploaded?.eager?.[0]?.secure_url || null;
-          const public_id: string | null = uploaded?.public_id || null;
-          const saved = await GistMediaRepo.addMedia({
-            gist_id: gist.gist_id,
-            media_type,
-            media_url,
-            thumbnail_url,
-            order_index: idx,
-            public_id,
-          });
-          idx += 1;
-          try { WSGateway.broadcast('gist_media:created', { gist_id: gist.gist_id, media: saved }); } catch {}
+          try {
+            const isVideo = f.mimetype.startsWith('video/');
+            const uploaded: any = await uploadBuffer(f.data, `kampos/gists/${gist.gist_id}`, isVideo);
+            const media_type: GistMediaRepo.MediaType = uploaded?.resource_type === 'video' ? 'VIDEO' : 'IMAGE';
+            const media_url: string = uploaded?.secure_url || uploaded?.url;
+            const thumbnail_url: string | null = uploaded?.thumbnail_url || uploaded?.eager?.[0]?.secure_url || null;
+            const public_id: string | null = uploaded?.public_id || null;
+            const saved = await GistMediaRepo.addMedia({
+              gist_id: gist.gist_id,
+              media_type,
+              media_url,
+              thumbnail_url,
+              order_index: idx,
+              public_id,
+            });
+            idx += 1;
+            try { WSGateway.broadcast('gist_media:created', { gist_id: gist.gist_id, media: saved }); } catch {}
+          } catch (fileErr) {
+            failed.push({ name: f.name, reason: fileErr instanceof Error ? fileErr.message : 'Upload failed' });
+          }
+        }
+        if (failed.length) {
+          (req as any)._mediaUploadFailures = failed;
         }
       }
     } catch (e) {
-      // Do not fail the request if media upload fails; return gist data
-      // Optionally, log error here
+      // The file-parsing step above this loop (reading req.files) can still
+      // throw outright — keep the gist itself successful either way, same
+      // as before, just no longer able to silently eat per-file failures.
     }
 
     // Fetch the gist with media aggregated so client gets media inline
+    const failures = (req as any)._mediaUploadFailures as Array<{ name: string; reason: string }> | undefined;
     try {
       const full = await GistService.findWithCountsAnyStatus?.(gist.gist_id as any, req.user?.avitag);
-      if (full) return res.status(201).json({ success: true, data: full });
+      if (full) return res.status(201).json({ success: true, data: full, media_failures: failures });
     } catch {}
-    return res.status(201).json({ success: true, data: { ...gist, media: [] } });
+    return res.status(201).json({ success: true, data: { ...gist, media: [] }, media_failures: failures });
   },
 
   counts: async (req: Request, res: Response) => {
