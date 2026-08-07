@@ -29,6 +29,7 @@ router.delete('/:gist_id', isAuth, GistController.remove);
 // Engagement
 router.post('/:gist_id/report', isAuth, requireOtpVerified, GistController.report);
 router.post('/:gist_id/view', GistController.view);
+router.post('/:gist_id/share', fakeAuth, GistController.share);
 
 // Media — list/upload/attach-by-url/update/reorder/delete. These were
 // previously only defined in media.routes.ts, which was never actually

@@ -31,4 +31,6 @@ export const GistService = {
     gistRepo.report(gist_id, reporter_avitag, reason),
   incrementView: (gist_id: string, avitag: string | null) =>
     gistRepo.incrementView(gist_id, avitag),
+  incrementShare: (gist_id: string, avitag: string | null, platform: string | null) =>
+    gistRepo.incrementShare(gist_id, avitag, platform),
 };

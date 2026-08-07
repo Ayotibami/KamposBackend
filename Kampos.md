@@ -98,18 +98,20 @@ Some endpoints (like viewing the public feed) use a "soft" version of this check
 
 ## 4. Gists — The Core Content Type
 
-**Plain-English:** A "gist" is Kampos's version of a post — a short piece of text, optionally with photos or a video attached. Every gist starts in a "submitted" state and isn't visible to the public feed until an admin approves it. This gives the team a manual content-moderation checkpoint before anything goes live. Users can react to gists (like/love/fire/sad/wow), comment on them, report ones that break the rules, and see view counts.
+**Plain-English:** A "gist" is Kampos's version of a post — a short piece of text, optionally with photos or a video attached. Every gist starts in a "submitted" state and isn't visible to the public feed until an admin approves it. This gives the team a manual content-moderation checkpoint before anything goes live. Users can react to gists (like/love/fire/sad/laugh), comment on them, report ones that break the rules, and see view counts.
 
 **Technical details** (`src/modules/gist/`):
 - **Lifecycle:** `gist_status` is `SUBMITTED` → `APPROVED` or `REJECTED`. Only `APPROVED` gists show in public feeds; the author and admins can still see their own regardless of status.
 - **Text length limits** are enforced in application code (not the database): unverified accounts get a shorter cap (`UNVERIFIED_GIST_MAX`, 700 chars), verified accounts get more room (`VERIFIED_GIST_MAX`, 5000 chars).
 - **Media:** each gist can have multiple images/videos attached (`gist_media` table), ordered by an `order_index`, uploaded to Cloudinary. Videos automatically get a generated thumbnail image.
-- **Reactions:** one reaction per user per gist (`reactions` table has a uniqueness constraint on user+entity), type is one of LIKE/LOVE/FIRE/SAD/WOW. The same reactions table is also reused for comments and events.
-- **Comments:** simple threaded-free comments tied to a gist, with edit tracking (`edit_count`, `edited_at`).
-- **Reports:** users can report a gist with a reason; reports sit in a `PENDING` queue until an admin accepts (which auto-rejects the gist) or dismisses it.
+- **Reactions:** one reaction per user per gist (`reactions` table has a uniqueness constraint on user+entity), type is one of LIKE/LOVE/FIRE/SAD/LAUGH. LAUGH was previously called WOW — migration `0029_rename_wow_reaction_to_laugh.sql` renamed the Postgres enum value in place (`ALTER TYPE ... RENAME VALUE`), so any reaction rows that were already WOW became LAUGH automatically rather than being orphaned. The same reactions table is also reused for comments and events.
+- **Comments:** simple threaded-free comments tied to a gist, with edit tracking (`edit_count`, `edited_at`). List/fetch queries now join in each commenter's live profile data (name, avitag, image) rather than trusting a snapshot stored on the comment row.
+- **Reports:** users can report a gist with a reason; reports sit in a `PENDING` queue until an admin accepts (which auto-rejects the gist) or dismisses it. Enforced as one report per (gist, reporter) at the database level (`gist_reports_gist_reporter_unique`, migration `0030`) — reporting the same gist twice no longer inflates its report count; the endpoint instead replies `"You already reported this"` with `already_reported: true` on a repeat attempt, without erroring.
 - **Views:** every gist view is logged (`gist_views`), which feeds into...
+- **Shares:** every real share is logged (`gist_shares`, migration `0031`) — `POST /:gist_id/share`, called by the frontend once a share actually completes (a platform link opened, or copy-link/native-share succeeded), not just when a share menu is opened. Takes an optional free-form `platform` label (`"whatsapp"`/`"x"`/`"facebook"`/`"copy_link"`/`"native"`, not enforced against a fixed list) for analytics. No dedup — sharing the same gist twice logs two rows, unlike reports. Feeds `shares_count` on `v_gist_counts`, same pattern as views.
 - **Trending:** a SQL view (`v_gist_trending_3d`) computes a trending score directly in Postgres — `reactions + 2×comments` over the last 3 days. There's no separate "trending algorithm" service; it's a live database query.
 - **Requires OTP verification:** creating, editing, and reporting gists all require the account to have completed email verification first.
+- **Shared-link context (`GET /:gist_id/context`):** built for the frontend's public share pages — returns the target gist plus up to 15 (configurable, capped at 30) chronological neighbors before and after it in one call. The target is returned **regardless of its moderation status** (the one deliberate exception in the whole gist system — even a `REJECTED` or still-`SUBMITTED` gist resolves here, so a shared link never 401s or 404s for a stranger), while the sibling gists on either side stay `APPROVED`-only like everywhere else. Uses `fakeAuth` (attaches `req.user` if a session exists, never rejects otherwise) so guests can hit it too. Also logs a view and broadcasts `gist:viewed` on success, same as the normal single-gist view endpoint.
 
 ### Step-by-step: exactly what happens when someone posts a gist
 
@@ -216,7 +218,7 @@ All endpoints are prefixed with `/api/v1` unless noted. "Auth required" means a 
 ### Account (`/account`)
 | Method & Path | Auth | What it does |
 |---|---|---|
-| GET `/profile` | required | Get the logged-in account's info |
+| GET `/profile` | required | Get the logged-in account's info, plus `avitag`/`profileType` for whichever profile is currently active on this session's token (distinct from `profiles`, the full list of profiles the account owns) |
 | PATCH `/update` | required | Change account email |
 | PATCH `/change-password` | required | Change password |
 | DELETE `/delete` | required | Soft-delete the account |
@@ -248,11 +250,13 @@ All endpoints are prefixed with `/api/v1` unless noted. "Auth required" means a 
 | GET `/user/:avitag` | optional | Gists by a specific author |
 | GET `/approved` | optional | Alias for approved gist list |
 | GET `/:gist_id/counts` | none | Reaction/comment/view/report counts |
+| GET `/:gist_id/context` | optional (fakeAuth) | Target gist (any status) + up to 15 chronological gists before/after it — powers shared-link pages |
 | GET `/:gist_id` | optional | View one gist |
 | PATCH `/:gist_id` | required + verified | Edit a gist's text |
 | DELETE `/:gist_id` | required | Delete a gist (owner) |
 | POST `/:gist_id/report` | required + verified | Report a gist |
 | POST `/:gist_id/view` | none | Log a view |
+| POST `/:gist_id/share` | optional (fakeAuth) | Log a real share, optional `{ platform }` body |
 | GET/POST `/:gist_id/media` | varies | List / upload media |
 | POST `/:gist_id/media/url` | required | Attach media by external URL |
 | PATCH `/:gist_id/media/reorder` | required | Reorder media |

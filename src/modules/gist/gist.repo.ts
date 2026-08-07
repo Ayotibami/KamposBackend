@@ -22,11 +22,12 @@ export interface GistCounts {
   comments_count: number;
   views_count: number;
   reports_count: number;
+  shares_count: number;
 }
 
 export async function getCounts(gist_id: string): Promise<GistCounts | null> {
   const { rows } = await pool.query<GistCounts>(
-    `SELECT gist_id, reactions_count, comments_count, views_count, reports_count FROM v_gist_counts WHERE gist_id = $1`,
+    `SELECT gist_id, reactions_count, comments_count, views_count, reports_count, shares_count FROM v_gist_counts WHERE gist_id = $1`,
     [gist_id]
   );
   return rows[0] ?? null;
@@ -63,6 +64,7 @@ export interface GistWithCounts extends GistRow {
   comments_count: number;
   views_count: number;
   reports_count: number;
+  shares_count: number;
   /** The viewer's own reaction on this gist, if any — null when there's no
    * viewer (unauthenticated) or they haven't reacted. Lets the client show
    * the right reaction as already-selected without a separate per-gist
@@ -92,7 +94,7 @@ export async function findWithCountsAnyStatus(
   viewerAvitag?: string
 ): Promise<GistWithCounts | null> {
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+    `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
      FROM gists g
      LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
@@ -154,7 +156,7 @@ export async function getContext(
 
   const [beforeRes, afterRes] = await Promise.all([
     pool.query<GistWithCounts>(
-      `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+      `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
               COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
        FROM gists g
        LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
@@ -196,7 +198,7 @@ export async function getContext(
       [target.created_at, before, viewerAvitag ?? null]
     ),
     pool.query<GistWithCounts>(
-      `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+      `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
               COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
        FROM gists g
        LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
@@ -303,7 +305,7 @@ export async function findWithCounts(
   viewerAvitag?: string
 ): Promise<GistWithCounts | null> {
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+    `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
      FROM gists g
      LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
@@ -355,7 +357,7 @@ export async function listRecent(
   const major = filters?.major_tag ?? null;
   if (cursor) {
     const { rows } = await pool.query<GistWithCounts>(
-      `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+      `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
               COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
        FROM gists g
      LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
@@ -402,7 +404,7 @@ export async function listRecent(
     return rows;
   }
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+    `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
      FROM gists g
      LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
@@ -455,7 +457,7 @@ export async function listByUser(
 ): Promise<GistWithCounts[]> {
   if (cursor) {
     const { rows } = await pool.query<GistWithCounts>(
-      `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+      `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
               COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
        FROM gists g
      LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
@@ -499,7 +501,7 @@ export async function listByUser(
     return rows;
   }
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+    `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
      FROM gists g
      LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
@@ -554,7 +556,7 @@ export async function trending(limit = 20, viewerAvitag?: string, filters?: { ca
   const campus = filters?.campus_tag ?? null;
   const major = filters?.major_tag ?? null;
   const { rows } = await pool.query<any>(
-    `SELECT g.*, sp.first_name, sp.image_url, counts.reactions_count, counts.comments_count, counts.views_count, counts.reports_count,
+    `SELECT g.*, sp.first_name, sp.image_url, counts.reactions_count, counts.comments_count, counts.views_count, counts.reports_count, counts.shares_count,
             t.score, t.reactions_3d, t.comments_3d,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
      FROM v_gist_trending_3d t
@@ -613,7 +615,7 @@ export async function search(
   const campus = filters?.campus_tag ?? null;
   const major = filters?.major_tag ?? null;
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count,
+    `SELECT g.*, sp.first_name, sp.image_url, c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
      FROM gists g
      LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
@@ -689,6 +691,21 @@ export async function incrementView(
     gist_id,
     avitag,
   ]);
+}
+
+/** Logs one share event — every call is a real, separate share (no dedup,
+ * unlike reports); `platform` is a free-form label from the client
+ * ("whatsapp"/"x"/"facebook"/"copy_link"/"native") purely for analytics,
+ * not enforced against a fixed list here. */
+export async function incrementShare(
+  gist_id: string,
+  avitag: string | null,
+  platform: string | null
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO gist_shares (gist_id, avitag, platform) VALUES ($1, $2, $3)`,
+    [gist_id, avitag, platform]
+  );
 }
 
 // Moderation helpers (used by idiot routes)

@@ -464,4 +464,18 @@ export const GistController = {
     await GistService.incrementView(id, avitag);
     return res.json({ success: true });
   },
+
+  // Fired by the frontend the moment a share actually goes out (a share
+  // target link is opened, or the copy-link/native-share action completes)
+  // — not just when the share sheet is opened, so this reflects real
+  // shares, not attempts. `platform` is optional/free-form, purely logged
+  // for later analytics.
+  share: async (req: Request, res: Response) => {
+    const id = req.params.gist_id;
+    const avitag = req.user?.avitag ?? null;
+    const platformRaw = req.body?.platform;
+    const platform = typeof platformRaw === "string" && platformRaw.trim() ? platformRaw.trim().slice(0, 40) : null;
+    await GistService.incrementShare(id, avitag, platform);
+    return res.json({ success: true });
+  },
 };
