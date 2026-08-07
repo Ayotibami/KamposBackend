@@ -43,9 +43,21 @@ const REACTION_COLUMNS = (viewerParamIndex: number) => `
 const PROFILE_JOIN = `LEFT JOIN student_profiles sp ON sp.avitag = c.avitag`;
 const PROFILE_COLUMNS = `sp.first_name, sp.last_name, sp.campus_tag, sp.major_tag, sp.level, sp.image_url`;
 
-export async function create(params: { gist_id: string; avitag: string | null; text: string }): Promise<CommentRow> {
-  const { rows } = await pool.query<CommentRow>(
-    `INSERT INTO comments (gist_id, avitag, text) VALUES ($1, $2, $3) RETURNING *`,
+// Profile fields joined in via a CTE (not a separate follow-up query) so a
+// freshly-posted comment already carries the poster's first_name/level/
+// image_url etc. on the very response that created it — without this, the
+// UI only had avitag to show until the next full list refetch happened to
+// bring the joined data along.
+export async function create(
+  params: { gist_id: string; avitag: string; text: string }
+): Promise<CommentRow & { first_name: string | null; last_name: string | null; campus_tag: string | null; major_tag: string | null; level: number | null; image_url: string | null }> {
+  const { rows } = await pool.query(
+    `WITH inserted AS (
+       INSERT INTO comments (gist_id, avitag, text) VALUES ($1, $2, $3) RETURNING *
+     )
+     SELECT inserted.*, ${PROFILE_COLUMNS}
+     FROM inserted
+     ${PROFILE_JOIN.replace('c.avitag', 'inserted.avitag')}`,
     [params.gist_id, params.avitag, params.text]
   );
   return rows[0];

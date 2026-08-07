@@ -14,6 +14,8 @@ export const GistService = {
   findById: (gist_id: string) => gistRepo.findById(gist_id),
   findWithCounts: (gist_id: string, viewerAvitag?: string) => gistRepo.findWithCounts(gist_id, viewerAvitag),
   findWithCountsAnyStatus: (gist_id: string, viewerAvitag?: string) => gistRepo.findWithCountsAnyStatus(gist_id, viewerAvitag),
+  getContext: (gist_id: string, before: number, after: number, viewerAvitag?: string) =>
+    gistRepo.getContext(gist_id, before, after, viewerAvitag),
   listRecent: (limit?: number, cursor?: string, viewerAvitag?: string, filters?: { campus_tag?: string | null; major_tag?: string | null }) =>
     gistRepo.listRecent(limit, cursor, viewerAvitag, filters),
   listByUser: (avitag: string, limit?: number, cursor?: string, viewerAvitag?: string) =>

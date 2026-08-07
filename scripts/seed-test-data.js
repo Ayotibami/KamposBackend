@@ -85,7 +85,7 @@ const COMMENT_BANK = [
   "Story story, but you no lie sha",
 ];
 
-const REACTION_TYPES = ["LIKE", "LOVE", "FIRE", "SAD", "WOW"];
+const REACTION_TYPES = ["LIKE", "LOVE", "FIRE", "SAD", "LAUGH"];
 const REPORT_REASONS = ["This one no chill abeg", "Dis one dey too much", "Not cool for this platform"];
 
 function randInt(min, max) {

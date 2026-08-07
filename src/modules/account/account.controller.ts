@@ -6,7 +6,15 @@ export const AccountController = {
     if (!req.user?.account_id) return res.status(401).json({ success: false, message: 'Unauthorized' });
     const data = await AccountService.me(req.user.account_id);
     if (!data) return res.status(404).json({ success: false, message: 'Account not found' });
-    return res.json({ success: true, data });
+    // The session's currently-active profile (set via /auth/switch-profile,
+    // baked into the JWT) — distinct from `profiles`, which is every
+    // profile the account owns regardless of which one (if any) is active
+    // right now. Lets the client tell "has a profile" apart from "has an
+    // active one", instead of assuming the two always match.
+    return res.json({
+      success: true,
+      data: { ...data, avitag: req.user.avitag ?? null, profileType: req.user.profileType ?? null },
+    });
   },
 
   update: async (req: Request, res: Response) => {

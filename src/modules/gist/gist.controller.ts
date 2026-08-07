@@ -218,6 +218,28 @@ export const GistController = {
     return res.status(404).json({ success: false, message: 'Gist not found' });
   },
 
+  // The shared-link experience: the exact gist someone shared, regardless
+  // of moderation status (that's the deliberate exception — everything
+  // else here still only shows APPROVED siblings), plus chronological
+  // neighbors on each side to browse into. No ownership/admin check on
+  // the target, unlike plain `get` above — this route is meant to work
+  // for a stranger who just clicked a link, not just the poster.
+  context: async (req: Request, res: Response) => {
+    const id = req.params.gist_id;
+    const before = Math.min(Math.max(Number(req.query.before ?? 15), 0), 30);
+    const after = Math.min(Math.max(Number(req.query.after ?? 15), 0), 30);
+    const result = await GistService.getContext(id, before, after, req.user?.avitag);
+    if (!result) return res.status(404).json({ success: false, message: 'Gist not found' });
+
+    const viewer = req.user?.avitag ?? null;
+    await GistService.incrementView(id, viewer);
+    try {
+      WSGateway.broadcast('gist:viewed', { gist_id: id, by: viewer });
+    } catch {}
+
+    return res.json({ success: true, data: result });
+  },
+
   list: async (req: Request, res: Response) => {
     const limit = Number(req.query.limit ?? 20);
     const cursor =
@@ -428,8 +450,12 @@ export const GistController = {
           success: false,
           message: "Owners cannot report their own gist",
         });
-    await GistService.report(id, req.user.avitag, reason ?? null);
-    return res.json({ success: true, message: "Reported" });
+    const isNew = await GistService.report(id, req.user.avitag, reason ?? null);
+    return res.json({
+      success: true,
+      message: isNew ? "Reported" : "You already reported this",
+      data: { already_reported: !isNew },
+    });
   },
 
   view: async (req: Request, res: Response) => {

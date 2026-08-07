@@ -6,6 +6,11 @@ export const CommentController = {
   create: async (req: Request, res: Response) => {
     const { gist_id, text } = req.body || {};
     const avitag = req.user?.avitag ?? null;
+    if (!avitag)
+      return res.status(400).json({
+        success: false,
+        message: 'Active profile (avitag) is required. Switch profile and retry.',
+      });
     if (!gist_id || !text) return res.status(400).json({ success: false, message: 'gist_id and text are required' });
     const created = await repo.create({ gist_id, avitag, text });
     // The WS `comments:create` message path already broadcasts this — the

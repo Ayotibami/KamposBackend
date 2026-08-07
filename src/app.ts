@@ -39,7 +39,7 @@ import { mkdirSync } from 'fs';
 // GraphQL schema (queries only; subscriptions can be added later with Apollo)
 export const schema: GraphQLSchema = buildSchema(`
   enum ReactionEntity { GIST COMMENT }
-  enum ReactionType { LIKE LOVE FIRE SAD WOW }
+  enum ReactionType { LIKE LOVE FIRE SAD LAUGH }
 
   type GistMedia { 
     media_id: ID!
