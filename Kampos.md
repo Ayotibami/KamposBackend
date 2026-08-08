@@ -185,6 +185,13 @@ All three are fed from one central function, `WSGateway.broadcast(topic, payload
 - Each uploaded asset's Cloudinary `public_id` is stored (added specifically for gist media in migration 0019) so the file can be properly deleted from Cloudinary later, not just unlinked from the database.
 - There's a special `avatar-preupload` endpoint for uploading a profile picture *before* the profile itself exists yet — useful during a multi-step signup wizard where the user picks their picture before finishing the rest of their profile.
 
+**Gist media specifically now uploads a different way** (`media.controller.ts`'s `signature`/`finalize`, added after the note above was originally written): the file's actual bytes never touch this server or the frontend's own proxy at all — the browser uploads **directly to Cloudinary**. This exists because routing large files (especially video) through a serverless-hosted proxy hits hard platform request-size ceilings (e.g. Vercel's ~4.5MB serverless function body limit) that have nothing to do with any limit this backend configures — a real, previously-silent failure mode for anything but small images.
+  - `GET /:gist_id/media/signature?resource_type=video|image` — signs a Cloudinary upload request server-side (using `CLOUDINARY_API_SECRET`, which never leaves the server), scoping the upload to this gist's own folder and, for video, requesting an eager thumbnail transformation. The browser can't redirect the upload elsewhere or skip the thumbnail — Cloudinary rejects any request whose actual params don't exactly match what was signed.
+  - The browser then POSTs the file straight to Cloudinary's own API using that signature.
+  - `POST /:gist_id/media/finalize` — called after the direct upload succeeds, with Cloudinary's own result (URL, `public_id`, `bytes`, `duration`). Re-validates against real policy using what Cloudinary reported — not anything the client claims — and deletes the just-uploaded asset from Cloudinary immediately if it's over the cap, rather than silently accepting it.
+  - **Caps:** images 10MB; video 150MB **and** 120 seconds (both enforced — a short but huge file, or a long but small one, can each independently fail). Kampos gists are quick, in-the-moment posts, not a video platform — 2 minutes was chosen to comfortably cover a real phone-recorded clip while roughly matching Twitter/X's own *default*, non-Premium upload cap (140s), not the outlier multi-hour allowance some of their premium tiers get.
+  - The older `POST /:gist_id/media` (multipart straight to this server, `GistMediaController.upload`) still exists and still works — the web frontend no longer calls it for real uploads, but it's left in place as-is (e.g. for the mobile app or any other direct API client).
+
 ---
 
 ## 9. Email
@@ -257,8 +264,10 @@ All endpoints are prefixed with `/api/v1` unless noted. "Auth required" means a 
 | POST `/:gist_id/report` | required + verified | Report a gist |
 | POST `/:gist_id/view` | none | Log a view |
 | POST `/:gist_id/share` | optional (fakeAuth) | Log a real share, optional `{ platform }` body |
-| GET/POST `/:gist_id/media` | varies | List / upload media |
-| POST `/:gist_id/media/url` | required | Attach media by external URL |
+| GET/POST `/:gist_id/media` | varies | List media / upload directly through this server (legacy path, still works) |
+| GET `/:gist_id/media/signature` | required | Sign a direct browser→Cloudinary upload |
+| POST `/:gist_id/media/finalize` | required | Record a completed direct upload against the gist |
+| POST `/:gist_id/media/url` | required | Attach media by external URL (e.g. GIF) |
 | PATCH `/:gist_id/media/reorder` | required | Reorder media |
 | PATCH/DELETE `/media/:media_id` | required | Edit / delete one media item |
 

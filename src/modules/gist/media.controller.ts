@@ -1,9 +1,108 @@
 import type { Request, Response } from 'express';
 import * as mediaRepo from './media.repo';
-import { uploadBuffer, deleteByPublicId } from '../../services/media/cloudinary';
+import { uploadBuffer, deleteByPublicId, deleteByPublicIdWithType, signUpload } from '../../services/media/cloudinary';
 import { WSGateway } from '../../ws/gateway';
+import { env } from '../../config/env';
+
+// Kampos gists are quick, in-the-moment posts, not a video platform —
+// 2 minutes covers a real phone-recorded clip comfortably (Twitter/X's own
+// *default*, non-Premium upload cap is 140s, for the same reason) without
+// the storage/bandwidth/moderation cost of open-ended video length.
+const MAX_VIDEO_DURATION_SECONDS = 120;
+const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export const GistMediaController = {
+  // Step 1 of the direct-to-Cloudinary upload flow: hands the browser a
+  // short-lived signed params set so it can upload straight to Cloudinary
+  // itself, bypassing this server (and the Next.js frontend's own proxy)
+  // entirely for the actual file bytes — see cloudinary.ts's signUpload
+  // for why that's the whole point. `resource_type` is client-declared
+  // (image vs video) purely to decide whether to also sign an `eager`
+  // thumbnail transformation; it isn't trusted for anything security-
+  // relevant, `finalize` below re-derives the real type from what
+  // Cloudinary itself reports.
+  signature: async (req: Request, res: Response) => {
+    if (!req.user?.avitag) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const gist_id = req.params.gist_id;
+    const isVideo = req.query.resource_type === 'video';
+    const folder = `kampos/gists/${gist_id}`;
+    const paramsToSign: Record<string, string | number> = {
+      folder,
+      ...(isVideo ? { eager: 'w_400,c_scale,f_jpg' } : {}),
+    };
+    const { signature, timestamp } = signUpload(paramsToSign);
+    return res.json({
+      success: true,
+      data: {
+        signature,
+        timestamp,
+        api_key: env.CLOUDINARY_API_KEY,
+        cloud_name: env.CLOUDINARY_NAME,
+        folder,
+        eager: isVideo ? 'w_400,c_scale,f_jpg' : undefined,
+        upload_url: `https://api.cloudinary.com/v1_1/${env.CLOUDINARY_NAME}/auto/upload`,
+      },
+    });
+  },
+
+  // Step 2: the browser already uploaded directly to Cloudinary by this
+  // point (see above) — this just records the result against the gist,
+  // after re-validating it against real policy using what Cloudinary
+  // itself reported (bytes/duration), not anything the client claims.
+  // A file that slipped past client-side checks (a modified/replayed
+  // request, a bug, whatever) gets deleted from Cloudinary immediately
+  // rather than silently accepted.
+  finalize: async (req: Request, res: Response) => {
+    if (!req.user?.avitag) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const gist_id = req.params.gist_id;
+    const { media_url, public_id, resource_type, bytes, duration } = req.body || {};
+
+    if (typeof media_url !== 'string' || typeof public_id !== 'string' || !public_id) {
+      return res.status(400).json({ success: false, message: 'media_url and public_id are required' });
+    }
+    // Only ever trust a URL actually hosted on this account's own
+    // Cloudinary cloud — otherwise `finalize` becomes a way to attach any
+    // arbitrary external URL and claim ownership of it (with a public_id
+    // we'd later try to delete on Cloudinary's account, which isn't ours).
+    const expectedHost = `res.cloudinary.com/${env.CLOUDINARY_NAME}/`;
+    if (!media_url.startsWith('https://') || !media_url.includes(expectedHost)) {
+      return res.status(400).json({ success: false, message: 'media_url must be a Kampos-hosted Cloudinary URL' });
+    }
+
+    const isVideo = resource_type === 'video';
+    const media_type: mediaRepo.MediaType = isVideo ? 'VIDEO' : 'IMAGE';
+    const sizeBytes = typeof bytes === 'number' ? bytes : 0;
+    const durationSeconds = typeof duration === 'number' ? duration : 0;
+
+    const overLimit = isVideo
+      ? sizeBytes > MAX_VIDEO_BYTES || durationSeconds > MAX_VIDEO_DURATION_SECONDS
+      : sizeBytes > MAX_IMAGE_BYTES;
+
+    if (overLimit) {
+      try {
+        await deleteByPublicIdWithType(public_id, isVideo ? 'video' : 'image');
+      } catch {
+        /* best-effort cleanup — the DB row is what actually matters not existing */
+      }
+      const reason = isVideo
+        ? `Video too large or too long (max ${MAX_VIDEO_BYTES / 1024 / 1024}MB, ${MAX_VIDEO_DURATION_SECONDS}s)`
+        : `Image too large (max ${MAX_IMAGE_BYTES / 1024 / 1024}MB)`;
+      return res.status(413).json({ success: false, message: reason });
+    }
+
+    const thumbnail_url = req.body?.thumbnail_url;
+    const saved = await mediaRepo.addMedia({
+      gist_id,
+      media_type,
+      media_url,
+      thumbnail_url: typeof thumbnail_url === 'string' ? thumbnail_url : null,
+      public_id,
+    });
+    try { WSGateway.broadcast('gist_media:created', { gist_id, media: saved }); } catch {}
+    return res.status(201).json({ success: true, data: saved });
+  },
+
   upload: async (req: Request, res: Response) => {
     if (!req.user?.avitag) return res.status(401).json({ success: false, message: 'Unauthorized' });
     const gist_id = req.params.gist_id;

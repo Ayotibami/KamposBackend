@@ -38,6 +38,21 @@ export async function uploadBuffer(buffer: Buffer, folder = 'kampos/profiles', i
   });
 }
 
+// Powers direct browser-to-Cloudinary uploads (see gist media.controller's
+// `signature`/`finalize`) — the whole point being that the actual file
+// bytes never touch this server or the Next.js frontend's own proxy at
+// all, only this tiny signed-params handshake does. Signing `folder` and
+// (for video) `eager` server-side means the browser can't redirect the
+// upload somewhere else or skip thumbnail generation — Cloudinary rejects
+// the request if the client's actual upload params don't exactly match
+// what was signed.
+export function signUpload(params: Record<string, string | number>): { signature: string; timestamp: number } {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const toSign = { ...params, timestamp };
+  const signature = cloudinary.utils.api_sign_request(toSign, env.CLOUDINARY_API_SECRET);
+  return { signature, timestamp };
+}
+
 export async function deleteByPublicId(public_id: string) {
   return cloudinary.uploader.destroy(public_id, { invalidate: true, resource_type: 'image' });
 }

@@ -37,6 +37,8 @@ router.post('/:gist_id/share', fakeAuth, GistController.share);
 // these except reorder was a live 404 until now.
 router.get('/:gist_id/media', fakeAuth, GistMediaController.list);
 router.post('/:gist_id/media', isAuth, GistMediaController.upload);
+router.get('/:gist_id/media/signature', isAuth, GistMediaController.signature);
+router.post('/:gist_id/media/finalize', isAuth, GistMediaController.finalize);
 router.post('/:gist_id/media/url', isAuth, GistMediaController.attachByUrl);
 router.patch('/:gist_id/media/reorder', isAuth, validateBody(reorderGistMediaSchema), GistMediaController.reorder);
 router.patch('/media/:media_id', isAuth, validateBody(updateGistMediaSchema), GistMediaController.update);
