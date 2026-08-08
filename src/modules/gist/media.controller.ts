@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import * as mediaRepo from './media.repo';
+import { GistService } from './gist.service';
 import { uploadBuffer, deleteByPublicId, deleteByPublicIdWithType, signUpload } from '../../services/media/cloudinary';
 import { WSGateway } from '../../ws/gateway';
 import { env } from '../../config/env';
@@ -12,6 +13,34 @@ const MAX_VIDEO_DURATION_SECONDS = 120;
 const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
+/** Every media-mutating endpoint below takes a `gist_id` straight from the
+ * URL with no check that the caller actually owns that gist — previously
+ * true of every one of them (attach/upload/reorder), not just the new
+ * direct-upload pair. Any logged-in user could attach, replace, or reorder
+ * media on *anyone's* gist. This is the one shared gate all of them now
+ * run through first: the gist's actual owner, or an IDIOT (admin) profile
+ * — same bypass convention `GistController.remove` already uses — get
+ * through; anyone else gets a 403 without ever reaching Cloudinary or the
+ * database write. Returns `null` (having already sent the response) when
+ * the caller isn't allowed, so call sites can just `if (!ok) return;`. */
+async function assertCanEditGist(req: Request, res: Response, gist_id: string): Promise<boolean> {
+  if (!req.user?.avitag) {
+    res.status(401).json({ success: false, message: 'Unauthorized' });
+    return false;
+  }
+  if (req.user.role === 'IDIOT') return true;
+  const gist = await GistService.findById(gist_id);
+  if (!gist) {
+    res.status(404).json({ success: false, message: 'Gist not found' });
+    return false;
+  }
+  if (gist.avitag !== req.user.avitag) {
+    res.status(403).json({ success: false, message: 'You can only manage media on your own gist' });
+    return false;
+  }
+  return true;
+}
+
 export const GistMediaController = {
   // Step 1 of the direct-to-Cloudinary upload flow: hands the browser a
   // short-lived signed params set so it can upload straight to Cloudinary
@@ -23,8 +52,8 @@ export const GistMediaController = {
   // relevant, `finalize` below re-derives the real type from what
   // Cloudinary itself reports.
   signature: async (req: Request, res: Response) => {
-    if (!req.user?.avitag) return res.status(401).json({ success: false, message: 'Unauthorized' });
     const gist_id = req.params.gist_id;
+    if (!(await assertCanEditGist(req, res, gist_id))) return;
     const isVideo = req.query.resource_type === 'video';
     const folder = `kampos/gists/${gist_id}`;
     const paramsToSign: Record<string, string | number> = {
@@ -54,8 +83,8 @@ export const GistMediaController = {
   // request, a bug, whatever) gets deleted from Cloudinary immediately
   // rather than silently accepted.
   finalize: async (req: Request, res: Response) => {
-    if (!req.user?.avitag) return res.status(401).json({ success: false, message: 'Unauthorized' });
     const gist_id = req.params.gist_id;
+    if (!(await assertCanEditGist(req, res, gist_id))) return;
     const { media_url, public_id, resource_type, bytes, duration } = req.body || {};
 
     if (typeof media_url !== 'string' || typeof public_id !== 'string' || !public_id) {
@@ -104,8 +133,8 @@ export const GistMediaController = {
   },
 
   upload: async (req: Request, res: Response) => {
-    if (!req.user?.avitag) return res.status(401).json({ success: false, message: 'Unauthorized' });
     const gist_id = req.params.gist_id;
+    if (!(await assertCanEditGist(req, res, gist_id))) return;
     // Accept single file field 'file'
     const filesAny = req.files as any;
     const f = filesAny?.file ? (Array.isArray(filesAny.file) ? filesAny.file[0] : filesAny.file) : null;
@@ -142,8 +171,8 @@ export const GistMediaController = {
   // public_id stays null since there's nothing on our own Cloudinary to
   // delete later if this media is removed.
   attachByUrl: async (req: Request, res: Response) => {
-    if (!req.user?.avitag) return res.status(401).json({ success: false, message: 'Unauthorized' });
     const gist_id = req.params.gist_id;
+    if (!(await assertCanEditGist(req, res, gist_id))) return;
     const { media_url, thumbnail_url } = req.body || {};
     if (typeof media_url !== 'string' || !/^https:\/\//.test(media_url)) {
       return res.status(400).json({ success: false, message: 'A valid https media_url is required' });
@@ -167,6 +196,9 @@ export const GistMediaController = {
 
   update: async (req: Request, res: Response) => {
     const media_id = req.params.media_id;
+    const existing = await mediaRepo.get(media_id);
+    if (!existing) return res.status(404).json({ success: false, message: 'Not found' });
+    if (!(await assertCanEditGist(req, res, existing.gist_id))) return;
     const updated = await mediaRepo.updateMedia(media_id, req.body || {});
     if (!updated) return res.status(404).json({ success: false, message: 'Not found' });
     try { WSGateway.broadcast('gist_media:updated', { gist_id: updated.gist_id, media: updated }); } catch {}
@@ -177,6 +209,7 @@ export const GistMediaController = {
     const media_id = req.params.media_id;
     const existing = await mediaRepo.get(media_id);
     if (!existing) return res.status(404).json({ success: false, message: 'Not found' });
+    if (!(await assertCanEditGist(req, res, existing.gist_id))) return;
     if (existing.public_id) {
       try { await deleteByPublicId(existing.public_id); } catch { /* ignore delete errors */ }
     }
@@ -187,8 +220,8 @@ export const GistMediaController = {
   },
 
   reorder: async (req: Request, res: Response) => {
-    if (!req.user?.avitag) return res.status(401).json({ success: false, message: 'Unauthorized' });
     const gist_id = req.params.gist_id;
+    if (!(await assertCanEditGist(req, res, gist_id))) return;
     const { media_ids } = req.body || {};
     if (!Array.isArray(media_ids) || media_ids.length === 0) {
       return res.status(400).json({ success: false, message: 'media_ids array required' });
