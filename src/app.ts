@@ -166,7 +166,11 @@ app.use(morgan('dev'));
 // Static assets
 app.use(express.static(path.join(process.cwd(), 'public')));
 
-const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
+// 100 req/15min was shared across the *entire* API by one IP-keyed bucket —
+// tight enough that a normal feed session (polling, media signatures,
+// reactions) could burn through it and start 429ing unrelated things like
+// login, which has no rate limiter of its own and rides this same bucket.
+const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 600 });
 app.use('/api/v1', apiLimiter);
 
 // Health
