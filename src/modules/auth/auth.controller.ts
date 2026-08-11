@@ -7,6 +7,11 @@ import { revokeToken, isRevoked } from './token.service';
 import { verifyRefreshToken } from '../../config/jwt';
 import { setAuthCookies, clearAuthCookies, REFRESH_COOKIE } from '../../utils/authCookies';
 
+// See token.service.ts's revokeToken doc — covers concurrent refresh races
+// (link-prefetch + real navigation, etc.) without meaningfully widening the
+// window a genuinely stolen refresh token stays usable.
+const REFRESH_ROTATION_GRACE_SECONDS = 10;
+
 export const AuthController = {
   register: async (req: Request, res: Response) => {
     const { email, password } = req.body || {};
@@ -58,7 +63,7 @@ export const AuthController = {
       }
       if (payload.jti && payload.exp) {
         const now = Math.floor(Date.now() / 1000);
-        await revokeToken(payload.jti, Math.max(1, payload.exp - now));
+        await revokeToken(payload.jti, Math.max(1, payload.exp - now), REFRESH_ROTATION_GRACE_SECONDS);
       }
       const { account_id, avitag, profileType, who } = payload;
       if (!account_id) {

@@ -3,7 +3,7 @@ import logger from '../../utils/logger';
 
 const key = (jti: string) => `jwt:blacklist:${jti}`;
 
-export async function revokeToken(jti: string, ttlSeconds: number) {
+async function writeRevocation(jti: string, ttlSeconds: number) {
   try {
     // Store a marker for jti with expiration equal to remaining token lifetime
     await redis.set(key(jti), 'revoked', { EX: Math.max(1, Math.floor(ttlSeconds)) });
@@ -13,6 +13,28 @@ export async function revokeToken(jti: string, ttlSeconds: number) {
     // until it naturally expires instead of being revoked immediately).
     logger.error({ err }, 'revokeToken failed — Redis unavailable');
   }
+}
+
+/**
+ * `graceSeconds` delays the blacklist write itself (not just the token's
+ * own natural expiry) — used by refresh-token rotation, where a handful of
+ * requests sharing the same still-valid old token can legitimately race
+ * each other (Next.js link-prefetch + the real navigation, both hitting
+ * the SSR refresh middleware around the same access-token expiry). Without
+ * a grace window, the first one to land "wins" and every other one gets
+ * treated as reuse of an already-revoked token — a real user getting
+ * bounced to /login for a session that's still perfectly valid. Explicit
+ * logout (the other caller of this function) never passes a grace period:
+ * that one has to kill the token immediately.
+ */
+export async function revokeToken(jti: string, ttlSeconds: number, graceSeconds = 0) {
+  if (graceSeconds > 0) {
+    setTimeout(() => {
+      void writeRevocation(jti, ttlSeconds);
+    }, graceSeconds * 1000);
+    return;
+  }
+  await writeRevocation(jti, ttlSeconds);
 }
 
 export async function isRevoked(jti?: string | null): Promise<boolean> {
