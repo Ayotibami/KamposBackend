@@ -3,6 +3,5 @@
 // within this backend (schema validation + controller whitelist both import
 // this) so it's at least not triplicated here too.
 export const GIST_COLOR_KEYS = [
-  'red', 'orange', 'yellow', 'lime', 'green', 'teal',
-  'cyan', 'blue', 'indigo', 'purple', 'pink', 'neutral',
+  'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink',
 ] as const;
