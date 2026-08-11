@@ -2,9 +2,9 @@ import * as gistRepo from "./gist.repo";
 import { getCampusMajor } from "../profile/utils";
 
 export const GistService = {
-  create: async (avitag: string, account_id: string, profile_id: string, profile_type: string, gist_text: string) => {
+  create: async (avitag: string, account_id: string, profile_id: string, profile_type: string, gist_text: string, color_key: string | null = null) => {
     const { campus_tag, major_tag } = await getCampusMajor(avitag);
-    return gistRepo.create(avitag, account_id, profile_id, profile_type, gist_text, campus_tag, major_tag);
+    return gistRepo.create(avitag, account_id, profile_id, profile_type, gist_text, campus_tag, major_tag, color_key);
   },
   updateText: (gist_id: string, avitag: string, gist_text: string) =>
     gistRepo.updateText(gist_id, avitag, gist_text),

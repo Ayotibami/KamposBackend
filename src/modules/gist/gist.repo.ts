@@ -9,6 +9,10 @@ export interface GistRow {
   gist_text: string;
   campus_tag?: string | null;
   major_tag?: string | null;
+  /** Poster's own pick for the short-text hero color, one of GIST_COLOR_KEYS
+   * — null when they didn't choose one, in which case the frontend falls
+   * back to its existing gist_id-hash-based color. */
+  color_key?: string | null;
   created_at: string;
   edited_at: string | null;
   edit_count: number;
@@ -252,10 +256,11 @@ export async function create(
   gist_text: string,
   campus_tag: string | null,
   major_tag: string | null,
+  color_key: string | null,
 ): Promise<GistRow> {
   const { rows } = await pool.query<GistRow>(
-    `INSERT INTO gists (avitag, account_id, profile_id, profile_type, gist_text, campus_tag, major_tag) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [avitag, account_id, profile_id, profile_type, gist_text, campus_tag, major_tag]
+    `INSERT INTO gists (avitag, account_id, profile_id, profile_type, gist_text, campus_tag, major_tag, color_key) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    [avitag, account_id, profile_id, profile_type, gist_text, campus_tag, major_tag, color_key]
   );
   return rows[0];
 }

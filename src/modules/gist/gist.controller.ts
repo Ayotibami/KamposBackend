@@ -5,6 +5,13 @@ import { env } from '../../config/env';
 import * as ProfileUtils from '../profile/utils';
 import * as GistMediaRepo from './media.repo';
 import { uploadBuffer } from '../../services/media/cloudinary';
+import { GIST_COLOR_KEYS } from './gist.constants';
+
+// Whitelisted rather than trusted as-is so `color_key` can never become a
+// stored-XSS-style free text field via a crafted request — belt-and-braces
+// alongside the schema-level z.enum in schemas/gist.ts, which already
+// rejects anything outside this set before the request even reaches here.
+const VALID_GIST_COLOR_KEYS = new Set<string>(GIST_COLOR_KEYS);
 
 export const GistController = {
   create: async (req: Request, res: Response) => {
@@ -17,7 +24,7 @@ export const GistController = {
             "Active profile (avitag) is required. Switch profile and retry.",
         });
     }
-    const { gist_text } = req.body || {};
+    const { gist_text, color_key } = req.body || {};
     const profile = await ProfileUtils.findByAvitag(req.user.avitag);
     const isVerified = !!profile?.is_verified;
     const maxLen = isVerified ? env.VERIFIED_GIST_MAX : env.UNVERIFIED_GIST_MAX;
@@ -27,6 +34,7 @@ export const GistController = {
     if (gist_text.length > maxLen) {
       return res.status(400).json({ success: false, message: `gist_text exceeds limit (${maxLen} chars for ${isVerified ? 'verified' : 'unverified'} profiles)` });
     }
+    const safeColorKey = typeof color_key === 'string' && VALID_GIST_COLOR_KEYS.has(color_key) ? color_key : null;
     // Compose profile_id as avitag:account_id
     const profile_id = `${req.user.avitag}:${req.user.account_id}`;
     const gist = await GistService.create(
@@ -34,7 +42,8 @@ export const GistController = {
       req.user.account_id,
       profile_id,
       req.user.profileType || '',
-      gist_text
+      gist_text,
+      safeColorKey
     );
 
     // If files are provided (multipart/form-data), upload and attach as media
