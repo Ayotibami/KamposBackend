@@ -20,6 +20,11 @@ export interface StudentProfile {
   profile_status: ProfileStatus;
   created_at: string;
   updated_at: string;
+  /** Only present on findByAvitag's joined query — full names alongside the
+   * tags, so callers (Profile Settings) don't need a separate campus/major
+   * list fetch just to display "University of Lagos" instead of "unilag". */
+  campus_name?: string | null;
+  major_name?: string | null;
 }
 
 export async function create(p: {
@@ -62,7 +67,11 @@ export async function create(p: {
 
 export async function findByAvitag(avitag: string): Promise<StudentProfile | null> {
   const { rows } = await pool.query<StudentProfile>(
-    `SELECT * FROM student_profiles WHERE avitag = $1`,
+    `SELECT sp.*, c.campus_name, m.major_name
+     FROM student_profiles sp
+     LEFT JOIN campus c ON c.campus_tag = sp.campus_tag
+     LEFT JOIN major m ON m.major_tag = sp.major_tag
+     WHERE sp.avitag = $1`,
     [avitag]
   );
   return rows[0] ?? null;
