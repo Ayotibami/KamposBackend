@@ -87,6 +87,8 @@ export interface GistWithCounts extends GistRow {
     media_type: "IMAGE" | "VIDEO";
     media_url: string;
     thumbnail_url: string | null;
+    width: number | null;
+    height: number | null;
     order_index: number;
     uploaded_at: string;
     edited_at: string | null;
@@ -109,6 +111,8 @@ export async function findWithCountsAnyStatus(
          'media_type', gm.media_type,
          'media_url', gm.media_url,
          'thumbnail_url', gm.thumbnail_url,
+         'width', gm.width,
+         'height', gm.height,
          'order_index', gm.order_index,
          'uploaded_at', gm.uploaded_at,
          'edited_at', gm.edited_at
@@ -171,6 +175,8 @@ export async function getContext(
            'media_type', gm.media_type,
            'media_url', gm.media_url,
            'thumbnail_url', gm.thumbnail_url,
+           'width', gm.width,
+           'height', gm.height,
            'order_index', gm.order_index,
            'uploaded_at', gm.uploaded_at,
            'edited_at', gm.edited_at
@@ -213,6 +219,8 @@ export async function getContext(
            'media_type', gm.media_type,
            'media_url', gm.media_url,
            'thumbnail_url', gm.thumbnail_url,
+           'width', gm.width,
+           'height', gm.height,
            'order_index', gm.order_index,
            'uploaded_at', gm.uploaded_at,
            'edited_at', gm.edited_at
@@ -321,6 +329,8 @@ export async function findWithCounts(
          'media_type', gm.media_type,
          'media_url', gm.media_url,
          'thumbnail_url', gm.thumbnail_url,
+         'width', gm.width,
+         'height', gm.height,
          'order_index', gm.order_index,
          'uploaded_at', gm.uploaded_at,
          'edited_at', gm.edited_at
@@ -373,6 +383,8 @@ export async function listRecent(
            'media_type', gm.media_type,
            'media_url', gm.media_url,
            'thumbnail_url', gm.thumbnail_url,
+           'width', gm.width,
+           'height', gm.height,
            'order_index', gm.order_index,
            'uploaded_at', gm.uploaded_at,
            'edited_at', gm.edited_at
@@ -420,6 +432,8 @@ export async function listRecent(
          'media_type', gm.media_type,
          'media_url', gm.media_url,
          'thumbnail_url', gm.thumbnail_url,
+         'width', gm.width,
+         'height', gm.height,
          'order_index', gm.order_index,
          'uploaded_at', gm.uploaded_at,
          'edited_at', gm.edited_at
@@ -454,6 +468,13 @@ export async function listRecent(
   return rows;
 }
 
+/**
+ * A profile page's gist list — deliberately more permissive than the main
+ * feed's listRecent()/trending() (APPROVED-only for everyone but the
+ * poster): here, anyone gets SUBMITTED (not yet reviewed) and APPROVED, and
+ * only REJECTED is hidden from a viewer who isn't the poster. The poster
+ * themselves still sees all three regardless, same as everywhere else.
+ */
 export async function listByUser(
   avitag: string,
   limit = 20,
@@ -473,6 +494,8 @@ export async function listByUser(
            'media_type', gm.media_type,
            'media_url', gm.media_url,
            'thumbnail_url', gm.thumbnail_url,
+           'width', gm.width,
+           'height', gm.height,
            'order_index', gm.order_index,
            'uploaded_at', gm.uploaded_at,
            'edited_at', gm.edited_at
@@ -499,7 +522,7 @@ export async function listByUser(
          ) rt
        ) rbt ON TRUE
        WHERE g.avitag = $1 AND g.created_at < (SELECT created_at FROM gists WHERE gist_id = $2)
-         AND (g.gist_status = 'APPROVED' OR ($4::text IS NOT NULL AND g.avitag = $4::text))
+         AND (g.gist_status != 'REJECTED' OR ($4::text IS NOT NULL AND g.avitag = $4::text))
        ORDER BY g.created_at DESC LIMIT $3`,
       [avitag, cursor, limit, viewerAvitag ?? null]
     );
@@ -517,6 +540,8 @@ export async function listByUser(
          'media_type', gm.media_type,
          'media_url', gm.media_url,
          'thumbnail_url', gm.thumbnail_url,
+         'width', gm.width,
+         'height', gm.height,
          'order_index', gm.order_index,
          'uploaded_at', gm.uploaded_at,
          'edited_at', gm.edited_at
@@ -542,7 +567,7 @@ export async function listByUser(
          GROUP BY type
        ) rt
      ) rbt ON TRUE
-     WHERE g.avitag = $1 AND (g.gist_status = 'APPROVED' OR ($3::text IS NOT NULL AND g.avitag = $3::text))
+     WHERE g.avitag = $1 AND (g.gist_status != 'REJECTED' OR ($3::text IS NOT NULL AND g.avitag = $3::text))
      ORDER BY g.created_at DESC LIMIT $2`,
     [avitag, limit, viewerAvitag ?? null]
   );
@@ -574,6 +599,8 @@ export async function trending(limit = 20, viewerAvitag?: string, filters?: { ca
          'media_type', gm.media_type,
          'media_url', gm.media_url,
          'thumbnail_url', gm.thumbnail_url,
+         'width', gm.width,
+         'height', gm.height,
          'order_index', gm.order_index,
          'uploaded_at', gm.uploaded_at,
          'edited_at', gm.edited_at
@@ -631,6 +658,8 @@ export async function search(
          'media_type', gm.media_type,
          'media_url', gm.media_url,
          'thumbnail_url', gm.thumbnail_url,
+         'width', gm.width,
+         'height', gm.height,
          'order_index', gm.order_index,
          'uploaded_at', gm.uploaded_at,
          'edited_at', gm.edited_at

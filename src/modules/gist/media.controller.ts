@@ -85,7 +85,7 @@ export const GistMediaController = {
   finalize: async (req: Request, res: Response) => {
     const gist_id = req.params.gist_id;
     if (!(await assertCanEditGist(req, res, gist_id))) return;
-    const { media_url, public_id, resource_type, bytes, duration } = req.body || {};
+    const { media_url, public_id, resource_type, bytes, duration, width, height } = req.body || {};
 
     if (typeof media_url !== 'string' || typeof public_id !== 'string' || !public_id) {
       return res.status(400).json({ success: false, message: 'media_url and public_id are required' });
@@ -126,6 +126,12 @@ export const GistMediaController = {
       media_type,
       media_url,
       thumbnail_url: typeof thumbnail_url === 'string' ? thumbnail_url : null,
+      // Reported by Cloudinary's own direct-upload response — the browser
+      // already has it from step 1, same trust level as bytes/duration
+      // above (both already came from that same response, not the client
+      // itself claiming anything).
+      width: typeof width === 'number' ? width : null,
+      height: typeof height === 'number' ? height : null,
       public_id,
     });
     try { WSGateway.broadcast('gist_media:created', { gist_id, media: saved }); } catch {}
@@ -159,7 +165,9 @@ export const GistMediaController = {
     const media_url: string = uploaded.secure_url || uploaded.url;
     const thumbnail_url: string | null = uploaded?.thumbnail_url || uploaded?.eager?.[0]?.secure_url || null;
     const public_id: string | null = uploaded?.public_id || null;
-    const saved = await mediaRepo.addMedia({ gist_id, media_type, media_url, thumbnail_url, public_id });
+    const width: number | null = typeof uploaded?.width === 'number' ? uploaded.width : null;
+    const height: number | null = typeof uploaded?.height === 'number' ? uploaded.height : null;
+    const saved = await mediaRepo.addMedia({ gist_id, media_type, media_url, thumbnail_url, width, height, public_id });
     try { WSGateway.broadcast('gist_media:created', { gist_id, media: saved }); } catch {}
     return res.status(201).json({ success: true, data: saved });
   },

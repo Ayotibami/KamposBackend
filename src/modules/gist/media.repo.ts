@@ -9,6 +9,8 @@ export interface GistMediaRow {
   media_type: MediaType;
   media_url: string;
   thumbnail_url: string | null;
+  width: number | null;
+  height: number | null;
   public_id: string | null;
   uploaded_at: string;
   edited_at: string | null;
@@ -19,16 +21,32 @@ export async function addMedia(params: {
   media_type: MediaType;
   media_url: string;
   thumbnail_url?: string | null;
+  /** Cloudinary reports these on every successful upload (both images and
+   * videos) — passed straight through so the frontend can size a tile
+   * correctly on first paint instead of guessing/measuring client-side.
+   * Null for media that never went through Cloudinary (e.g. a GIF/sticker
+   * attached by URL) — the frontend falls back to its own measurement. */
+  width?: number | null;
+  height?: number | null;
   order_index?: number;
   public_id?: string | null;
 }): Promise<GistMediaRow> {
   const { rows } = await pool.query<GistMediaRow>(
-    `INSERT INTO gist_media (gist_id, media_type, media_url, thumbnail_url, order_index, public_id)
-     VALUES ($1,$2,$3,$4, COALESCE($5, (
+    `INSERT INTO gist_media (gist_id, media_type, media_url, thumbnail_url, width, height, order_index, public_id)
+     VALUES ($1,$2,$3,$4,$5,$6, COALESCE($7, (
        SELECT COALESCE(MAX(order_index)+1, 0) FROM gist_media WHERE gist_id = $1
-     )), $6)
+     )), $8)
      RETURNING *`,
-    [params.gist_id, params.media_type, params.media_url, params.thumbnail_url ?? null, params.order_index ?? null, params.public_id ?? null]
+    [
+      params.gist_id,
+      params.media_type,
+      params.media_url,
+      params.thumbnail_url ?? null,
+      params.width ?? null,
+      params.height ?? null,
+      params.order_index ?? null,
+      params.public_id ?? null,
+    ]
   );
   return rows[0];
 }

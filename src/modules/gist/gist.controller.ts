@@ -108,11 +108,15 @@ export const GistController = {
             const media_url: string = uploaded?.secure_url || uploaded?.url;
             const thumbnail_url: string | null = uploaded?.thumbnail_url || uploaded?.eager?.[0]?.secure_url || null;
             const public_id: string | null = uploaded?.public_id || null;
+            const width: number | null = typeof uploaded?.width === "number" ? uploaded.width : null;
+            const height: number | null = typeof uploaded?.height === "number" ? uploaded.height : null;
             const saved = await GistMediaRepo.addMedia({
               gist_id: gist.gist_id,
               media_type,
               media_url,
               thumbnail_url,
+              width,
+              height,
               order_index: idx,
               public_id,
             });

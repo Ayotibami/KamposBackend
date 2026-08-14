@@ -13,6 +13,28 @@ const HAS_LETTER_RE = /[a-z]/;
 // Zero-width characters stripped before validating (U+200B–U+200D, U+FEFF).
 const ZERO_WIDTH_RE = new RegExp('[\\u200B-\\u200D\\uFEFF]', 'g');
 
+// kampos-web serves a profile at the root — /avitag, no /profile prefix —
+// so an avitag matching one of that app's own top-level route segments
+// would make that profile permanently unreachable (its router always
+// matches a static route over the dynamic [avitag] catch-all). Mirrored by
+// hand in kampos-web's lib/validation.ts since that's a separate repo —
+// keep both in sync if either list changes. This is the real enforcement
+// point; the frontend copy is just early UX.
+const RESERVED_AVITAGS = new Set([
+  'login',
+  'signup',
+  'feed',
+  'settings',
+  'gist',
+  'api',
+  'profile',
+  'kampos',
+  'kappy',
+  'ceo',
+  'admin',
+  'test',
+]);
+
 function normalizeAvitag(raw: string): string {
   return raw.trim().toLowerCase().replace(ZERO_WIDTH_RE, '').normalize('NFC');
 }
@@ -31,7 +53,8 @@ export const avitagSchema = z
   })
   .refine((v) => !v.startsWith('_'), { message: 'Avitag cannot start with an underscore.' })
   .refine((v) => !v.endsWith('_'), { message: 'Avitag cannot end with an underscore.' })
-  .refine((v) => !v.includes('__'), { message: 'Avitag cannot contain two underscores in a row.' });
+  .refine((v) => !v.includes('__'), { message: 'Avitag cannot contain two underscores in a row.' })
+  .refine((v) => !RESERVED_AVITAGS.has(v), { message: 'That avitag is reserved, please pick another.' });
 
 export const studentCreateSchema = z.object({
   avitag: avitagSchema,
