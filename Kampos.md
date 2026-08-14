@@ -20,6 +20,7 @@ Kampos is a campus-focused social app. Students (and a few other account types �
 - **Email:** Brevo (formerly Sendinblue), sent via SMTP.
 - **Validation:** Zod schemas check incoming request data before it touches the database.
 - **Auth:** JSON Web Tokens (JWTs) + Argon2 password hashing.
+- **Rate limiting:** one global limiter (`express-rate-limit`) on the whole `/api/v1` prefix, 600 requests per 15 minutes per IP (raised from an original 100 — that was tight enough that a normal feed session alone, between polling, media signatures, and reactions, could burn through it and start 429ing unrelated things like login, which rides this same shared bucket and has no limiter of its own).
 
 ---
 
@@ -37,8 +38,9 @@ This is the single most important concept to understand before anything else mak
   - `kompany_profiles` — businesses/brands. Has website, social links, contact info.
   - `school_profiles` — official school/campus accounts.
   - `idiot_profiles` — this is the **admin/moderator** role (an internal codename, not a public-facing label). Anyone with an "idiot" profile can review reported content and approve/reject gists and profiles.
-- Every profile is identified by an `avitag` — a unique handle (like a username), validated by strict rules: 4-15 characters, lowercase letters/numbers/underscores, must contain a letter, no leading/trailing/double underscores.
+- Every profile is identified by an `avitag` — a unique handle (like a username), validated by strict rules: 4-15 characters, lowercase letters/numbers/underscores, must contain a letter, no leading/trailing/double underscores, and — as of a later addition — **can't be one of a reserved list** (`login`/`signup`/`feed`/`settings`/`gist`/`api`/`profile`/`kampos`/`kappy`/`ceo`/`admin`/`test`, `schemas/profile.ts`'s `avitagSchema`). This exists because the companion web frontend (`kampos-web`) serves a student's profile at `/avitag` with no prefix — a colliding avitag would be permanently unreachable behind that app's own static routes. Mirrors an identical client-side list in `kampos-web/src/lib/validation.ts`, kept in sync by hand; this backend check is the real enforcement point.
 - Profiles link back to their account via `account_id`, but posts/comments/reactions reference profiles by `avitag` directly rather than through a formal database foreign key — the app code, not the database, is responsible for making sure an avitag is real.
+- **Fetching a student profile** (`GET /profiles/students/:avitag`) now also joins in `campus_name`/`major_name` (`students/repo.ts`'s `findByAvitag`, `LEFT JOIN` on the `campus`/`major` reference tables) alongside the existing short `campus_tag`/`major_tag` — added so the frontend can show "University of Lagos" instead of the raw `unilag` tag without a separate reference-list fetch plus client-side matching.
 - A JWT is minted for a specific profile at a time (see `switch-profile` endpoint) — so "who am I acting as right now" is baked into the login token.
 
 ### Step-by-step: exactly what happens when someone creates a student profile
@@ -65,6 +67,7 @@ This is the single most important concept to understand before anything else mak
 - **Login:** verifies the password; if the account isn't OTP-verified yet, it automatically resends a fresh OTP. Login is blocked if the user's `idiot` (admin) profile hasn't been verified by another admin yet.
 - **Tokens:** access token expires in 15 minutes (`ACCESS_TOKEN_EXPIRES`), refresh token in 30 days (`REFRESH_TOKEN_EXPIRES_DAYS`). Each token carries a unique `jti` ID so it can be individually revoked.
 - **Logout / revocation:** logging out adds the token's `jti` to a Redis-backed blacklist (`token.service.ts`). If Redis is unreachable, the system "fails open" (treats tokens as still valid) rather than locking everyone out.
+- **Refresh-token rotation has a 10-second grace window** before the just-rotated old token actually gets blacklisted (`revokeToken`'s `graceSeconds` param, `token.service.ts` — only the `/auth/refresh` call site passes it; an explicit logout still revokes immediately, no grace). Fixes a real race: several requests can legitimately share the same still-valid refresh token near its access-token's 15-minute expiry (e.g. a Next.js link-prefetch and the real navigation both hitting the frontend's SSR refresh middleware around the same moment) — without the grace window, whichever one landed first would rotate+revoke the shared token, and every other one got treated as reuse of an already-revoked token and hard-logged-out, even though it belonged to the same legitimate session.
 - **OTP:** 10-minute-lived codes stored in `otp_codes`, emailed via Brevo. If email isn't configured (e.g. local dev), the code is just logged to the console instead of failing.
 - **Password reset:** same OTP pattern — request a code, then submit code + new password.
 - **OTP mechanics, precisely:** every code is valid for exactly 10 minutes and can only be used once — the moment it's successfully verified, it's deleted from the database, so replaying the same code again fails even within the 10-minute window. If someone tries to use an expired or wrong code, they get a clear "invalid or expired code" error.
@@ -103,7 +106,8 @@ Some endpoints (like viewing the public feed) use a "soft" version of this check
 **Technical details** (`src/modules/gist/`):
 - **Lifecycle:** `gist_status` is `SUBMITTED` → `APPROVED` or `REJECTED`. Only `APPROVED` gists show in public feeds; the author and admins can still see their own regardless of status.
 - **Text length limits** are enforced in application code (not the database): unverified accounts get a shorter cap (`UNVERIFIED_GIST_MAX`, 700 chars), verified accounts get more room (`VERIFIED_GIST_MAX`, 5000 chars).
-- **Media:** each gist can have multiple images/videos attached (`gist_media` table), ordered by an `order_index`, uploaded to Cloudinary. Videos automatically get a generated thumbnail image.
+- **`color_key`:** an optional, nullable field on `gists` letting a poster pick their own hero color for a short text-only gist, instead of always getting one deterministically hashed from the gist's id. Whitelisted against `GIST_COLOR_KEYS` (`gist.constants.ts`, currently `red`/`orange`/`yellow`/`green`/`teal`/`blue`/`purple`/`pink` — trimmed down from an original 12, mirrored by hand in `kampos-web/src/lib/brand.ts`) at **both** the Zod schema (`schemas/gist.ts`) and the controller (`gist.controller.ts`'s own `VALID_GIST_COLOR_KEYS` set) — belt-and-braces so it can never become a free-text field via a crafted request. Worth knowing for anyone touching `createGistSchema`: Zod's `z.object()` silently **strips** any key not explicitly declared in the schema before the controller ever sees it — this field being missing from the schema originally was the actual bug that first broke it, not the controller-side check.
+- **Media:** each gist can have multiple images/videos attached (`gist_media` table), ordered by an `order_index`, uploaded to Cloudinary. Videos automatically get a generated thumbnail image, and — as of migration `0033` — the row also stores real `width`/`height` (Section 8).
 - **Reactions:** one reaction per user per gist (`reactions` table has a uniqueness constraint on user+entity), type is one of LIKE/LOVE/FIRE/SAD/LAUGH. LAUGH was previously called WOW — migration `0029_rename_wow_reaction_to_laugh.sql` renamed the Postgres enum value in place (`ALTER TYPE ... RENAME VALUE`), so any reaction rows that were already WOW became LAUGH automatically rather than being orphaned. The same reactions table is also reused for comments and events.
 - **Comments:** simple threaded-free comments tied to a gist, with edit tracking (`edit_count`, `edited_at`). List/fetch queries now join in each commenter's live profile data (name, avitag, image) rather than trusting a snapshot stored on the comment row.
 - **Reports:** users can report a gist with a reason; reports sit in a `PENDING` queue until an admin accepts (which auto-rejects the gist) or dismisses it. Enforced as one report per (gist, reporter) at the database level (`gist_reports_gist_reporter_unique`, migration `0030`) — reporting the same gist twice no longer inflates its report count; the endpoint instead replies `"You already reported this"` with `already_reported: true` on a repeat attempt, without erroring.
@@ -193,6 +197,8 @@ All three are fed from one central function, `WSGateway.broadcast(topic, payload
   - The older `POST /:gist_id/media` (multipart straight to this server, `GistMediaController.upload`) still exists and still works — the web frontend no longer calls it for real uploads, but it's left in place as-is (e.g. for the mobile app or any other direct API client).
   - **Ownership check (added after a real gap was caught):** every media-mutating endpoint in this controller (`signature`, `finalize`, `upload`, `attachByUrl`, `reorder`, and the media-id-scoped `update`/`remove`) now runs through one shared `assertCanEditGist()` gate first — the gist's actual owner, or an `IDIOT` (admin) profile (same bypass convention `GistController.remove` already uses), or a `403`. Previously **none** of these checked ownership at all — any logged-in user could attach, replace, reorder, or delete media on *anyone's* gist, not just their own. Live-verified: a second test account was correctly blocked (`403 "You can only manage media on your own gist"`) from a gist it didn't own, while the real owner's own requests kept working normally.
 
+**Real media dimensions, stored and returned (migration `0033`):** `gist_media` gained nullable `width`/`height` integer columns, plumbed through every media-creation path — attached-at-gist-create, the legacy direct-upload (`GistMediaController.upload`), the `finalize` step of the direct-to-Cloudinary flow above, and now `attachByUrl` (GIF/sticker attach by URL) too, which accepts an optional `width`/`height` in the request body (same `typeof === 'number'` guard as everywhere else — GIPHY reports its own dimensions the same way Cloudinary does, so the frontend's GIF/sticker picker now sends them along). Every query that returns gist media (all ten `json_build_object(...)` call sites across `gist.repo.ts` — the main feed, trending, search, a single gist, the shared-link context, and a user's own gist list) includes them consistently. The point: a `<video>` element doesn't resolve its real dimensions until playback actually starts on most browsers, so a media tile with no known size used to visibly resize the moment someone hit play — with real dimensions available up front, the frontend can reserve the correct space before the media even loads. Nullable and backward-compatible: existing rows and anything attached without dimensions (an older GIF, pre-migration media) just fall back to the frontend's own client-side measurement, same as before this existed.
+
 ---
 
 ## 9. Email
@@ -236,7 +242,7 @@ All endpoints are prefixed with `/api/v1` unless noted. "Auth required" means a 
 |---|---|---|
 | POST `/` | required | Create a profile of this type |
 | GET `/` | none | List profiles of this type |
-| GET `/:avitag` | none | View one profile |
+| GET `/:avitag` | none | View one profile (students: also joins `campus_name`/`major_name` — Section 2) |
 | PUT `/:avitag` | required | Update a profile |
 | PATCH `/:avitag/verify` | admin only | Verify a profile |
 | DELETE `/:avitag/delete` | admin only | Remove a profile |
@@ -251,7 +257,7 @@ All endpoints are prefixed with `/api/v1` unless noted. "Auth required" means a 
 ### Gists (`/gists`)
 | Method & Path | Auth | What it does |
 |---|---|---|
-| POST `/` | required + verified | Create a gist |
+| POST `/` | required + verified | Create a gist (optional `color_key`, whitelisted — Section 4) |
 | GET `/` | optional | List gists |
 | GET `/trending` | optional | 3-day trending gists |
 | GET `/search` | optional | Search gists, filter by campus/major |
@@ -268,7 +274,7 @@ All endpoints are prefixed with `/api/v1` unless noted. "Auth required" means a 
 | GET/POST `/:gist_id/media` | varies | List media / upload directly through this server (legacy path, still works) |
 | GET `/:gist_id/media/signature` | required | Sign a direct browser→Cloudinary upload |
 | POST `/:gist_id/media/finalize` | required | Record a completed direct upload against the gist |
-| POST `/:gist_id/media/url` | required | Attach media by external URL (e.g. GIF) |
+| POST `/:gist_id/media/url` | required | Attach media by external URL (e.g. GIF) — optional `width`/`height` (Section 8) |
 | PATCH `/:gist_id/media/reorder` | required | Reorder media |
 | PATCH/DELETE `/media/:media_id` | required | Edit / delete one media item |
 
