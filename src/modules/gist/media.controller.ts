@@ -173,7 +173,7 @@ export const GistMediaController = {
   },
 
   // POST /gists/:gist_id/media/url — attach a GIF/sticker (or any already-
-  // hosted media) by URL, no file upload. Used by the Tenor picker: Tenor's
+  // hosted media) by URL, no file upload. Used by the GIPHY picker: GIPHY's
   // own terms expect integrators to hotlink their CDN, not re-host the
   // content, so this deliberately skips uploadBuffer/Cloudinary entirely —
   // public_id stays null since there's nothing on our own Cloudinary to
@@ -181,7 +181,7 @@ export const GistMediaController = {
   attachByUrl: async (req: Request, res: Response) => {
     const gist_id = req.params.gist_id;
     if (!(await assertCanEditGist(req, res, gist_id))) return;
-    const { media_url, thumbnail_url } = req.body || {};
+    const { media_url, thumbnail_url, width, height } = req.body || {};
     if (typeof media_url !== 'string' || !/^https:\/\//.test(media_url)) {
       return res.status(400).json({ success: false, message: 'A valid https media_url is required' });
     }
@@ -190,6 +190,10 @@ export const GistMediaController = {
       media_type: 'IMAGE',
       media_url,
       thumbnail_url: typeof thumbnail_url === 'string' ? thumbnail_url : null,
+      // Reported by GIPHY's own API for this exact URL — same trust level
+      // as the width/height `finalize` accepts from Cloudinary's response.
+      width: typeof width === 'number' ? width : null,
+      height: typeof height === 'number' ? height : null,
       public_id: null,
     });
     try { WSGateway.broadcast('gist_media:created', { gist_id, media: saved }); } catch {}
