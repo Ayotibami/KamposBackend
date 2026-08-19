@@ -16,7 +16,11 @@ export const env = cleanEnv(process.env, {
   // useful for 15 minutes instead of 30 days.
   ACCESS_TOKEN_EXPIRES: num({ default: 60 * 15 }), // 15 minutes in seconds
   REFRESH_TOKEN_SECRET: str({ default: "" }), // falls back to JWT_SECRET if unset
-  REFRESH_TOKEN_EXPIRES_DAYS: num({ default: 30 }),
+  // Refresh token lifetime — kept long so users stay logged in for weeks
+  // without needing to re-authenticate (like real social media apps).
+  // The short-lived access token (15 min) is silently renewed from this
+  // refresh token on every request, so the user never notices.
+  REFRESH_TOKEN_EXPIRES_DAYS: num({ default: 90 }),
 
   // Comma-separated list of allowed origins for credentialed (cookie)
   // requests — "*" is incompatible with cookies, browsers reject the
@@ -63,4 +67,5 @@ export const env = cleanEnv(process.env, {
   FCM_SERVER_KEY: str({ default: "" }),
 });
 
-export const REFRESH_TOKEN_EXPIRES_SECONDS = env.REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60;
+export const REFRESH_TOKEN_EXPIRES_SECONDS =
+  env.REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60;
