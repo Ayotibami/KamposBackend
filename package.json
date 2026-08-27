@@ -18,6 +18,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "migrate": "tsx scripts/migrate.ts",
+    "seed": "tsx scripts/seed-dev-data.ts",
     "test": "vitest --run",
     "test:watch": "vitest"
   },

@@ -15,6 +15,7 @@ router.post('/', isAuth, requireOtpVerified, validateBody(createGistSchema), Gis
 // List & discovery
 router.get('/', fakeAuth, GistController.list);
 router.get('/trending', fakeAuth, GistController.trending);
+router.get('/trending-schools', fakeAuth, GistController.trendingSchools);
 router.get('/search', fakeAuth, GistController.search);
 router.get('/user/:avitag', fakeAuth, GistController.byUser);
 router.get('/approved', fakeAuth, GistController.list);

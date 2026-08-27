@@ -10,6 +10,7 @@ import {
   clearAuthCookies,
   REFRESH_COOKIE,
 } from "../../utils/authCookies";
+import { safeErrorMessage, safeErrorStatus } from "../../utils/errors";
 
 export const AuthController = {
   register: async (req: Request, res: Response) => {
@@ -29,10 +30,9 @@ export const AuthController = {
         .status(201)
         .json({ success: true, data: { account: toPublicAccount(account) } });
     } catch (err: any) {
-      const status = err.statusCode || 500;
-      return res.status(status).json({
+      return res.status(safeErrorStatus(err)).json({
         success: false,
-        message: err.message || "Registration failed",
+        message: safeErrorMessage(err, "Registration failed"),
       });
     }
   },
@@ -55,10 +55,9 @@ export const AuthController = {
         data: { account: toPublicAccount(account) },
       });
     } catch (err: any) {
-      const status = err.statusCode || 500;
       return res
-        .status(status)
-        .json({ success: false, message: err.message || "Login failed" });
+        .status(safeErrorStatus(err))
+        .json({ success: false, message: safeErrorMessage(err, "Login failed") });
     }
   },
 

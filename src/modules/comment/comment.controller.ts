@@ -1,6 +1,18 @@
 import type { Request, Response } from 'express';
 import * as repo from './comment.repo';
 import { WSGateway } from '../../ws/gateway';
+import { GistService } from '../gist/gist.service';
+
+// Same reasoning as comment:created below — the WS message path already
+// broadcasts counts:updated on create/delete, but the REST path (what
+// every current client actually uses) didn't, so a gist's comment_count
+// never live-updated for anyone but the commenter's own optimistic UI.
+async function broadcastGistCounts(gist_id: string) {
+  try {
+    const countsFull = await GistService.getCountsFull(gist_id);
+    WSGateway.broadcast('counts:updated', { gist_id, ...countsFull });
+  } catch {}
+}
 
 export const CommentController = {
   create: async (req: Request, res: Response) => {
@@ -18,6 +30,7 @@ export const CommentController = {
     // nobody else viewing the same gist ever learned about a new comment
     // in realtime unless they'd created it themselves over a raw WS message.
     WSGateway.broadcast('comment:created', { comment: created });
+    void broadcastGistCounts(gist_id);
     return res.status(201).json({ success: true, data: created });
   },
 
@@ -62,14 +75,20 @@ export const CommentController = {
 
   remove: async (req: Request, res: Response) => {
     const role = req.user?.role;
+    // Need the comment's gist_id for the counts broadcast below, but the
+    // DELETE itself only returns a boolean — so look it up first, before
+    // it's gone.
+    const existing = await repo.get(req.params.comment_id);
     if (role === 'IDIOT') {
       const ok = await repo.removeAsAdmin(req.params.comment_id);
       if (!ok) return res.status(404).json({ success: false, message: 'Comment not found' });
+      if (existing) void broadcastGistCounts(existing.gist_id);
       return res.json({ success: true, message: 'Deleted' });
     }
     if (!req.user?.avitag) return res.status(401).json({ success: false, message: 'Unauthorized' });
     const ok = await repo.remove(req.params.comment_id, req.user.avitag);
     if (!ok) return res.status(404).json({ success: false, message: 'Comment not found or forbidden' });
+    if (existing) void broadcastGistCounts(existing.gist_id);
     return res.json({ success: true, message: 'Deleted' });
   },
 };

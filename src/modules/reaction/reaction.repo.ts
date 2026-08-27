@@ -45,6 +45,14 @@ export async function listByUser(avitag: string): Promise<ReactionRow[]> {
   return rows;
 }
 
+export async function getById(reaction_id: string): Promise<ReactionRow | null> {
+  const { rows } = await pool.query<ReactionRow>(
+    `SELECT * FROM reactions WHERE reaction_id = $1`,
+    [reaction_id]
+  );
+  return rows[0] ?? null;
+}
+
 export async function removeById(reaction_id: string): Promise<boolean> {
   const { rowCount } = await pool.query(`DELETE FROM reactions WHERE reaction_id = $1`, [reaction_id]);
   return (rowCount || 0) > 0;

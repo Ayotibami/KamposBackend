@@ -4,6 +4,7 @@ import { uploadBuffer } from '../../services/media/cloudinary';
 import { pool } from '../../config/db';
 import { avitagSchema } from '../../schemas/profile';
 import { findByAvitag } from './utils';
+import { safeErrorMessage } from '../../utils/errors';
 
 const router = Router();
 
@@ -52,7 +53,7 @@ router.post('/upload-picture', isAuth, async (req, res) => {
     await pool.query(`UPDATE ${table} SET ${column} = $1, updated_at = NOW() WHERE avitag = $2`, [url, avitag]);
     return res.json({ success: true, url });
   } catch (e: any) {
-    return res.status(500).json({ success: false, message: e?.message || 'Upload failed' });
+    return res.status(500).json({ success: false, message: safeErrorMessage(e, 'Upload failed') });
   }
 });
 
@@ -87,7 +88,7 @@ router.post('/avatar-preupload', isAuth, async (req, res) => {
     const url: string = uploaded.secure_url || uploaded.url;
     return res.json({ success: true, url });
   } catch (e: any) {
-    return res.status(500).json({ success: false, message: e?.message || 'Upload failed' });
+    return res.status(500).json({ success: false, message: safeErrorMessage(e, 'Upload failed') });
   }
 });
 

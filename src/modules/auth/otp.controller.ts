@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { OTPService } from './otp.service';
 import { generateOTP } from '../../utils/otp';
 import * as accountRepo from '../account/account.repo';
+import { safeErrorMessage, safeErrorStatus } from '../../utils/errors';
 
 export const OTPController = {
   send: async (req: Request, res: Response) => {
@@ -24,8 +25,7 @@ export const OTPController = {
       const result = await OTPService.verify(email, code);
       return res.json({ success: true, data: result });
     } catch (err: any) {
-      const status = err.statusCode || 400;
-      return res.status(status).json({ success: false, message: err.message || 'Invalid code' });
+      return res.status(safeErrorStatus(err, 400)).json({ success: false, message: safeErrorMessage(err, 'Invalid code') });
     }
   },
 };

@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { OAuthService } from './oauth.service';
 import { toPublicAccount } from '../account/account.repo';
+import { safeErrorMessage, safeErrorStatus } from '../../utils/errors';
 
 export const OAuthController = {
   google: async (req: Request, res: Response) => {
@@ -9,8 +10,7 @@ export const OAuthController = {
       const { account, token } = await OAuthService.googleLogin({ id_token, refresh_token, refresh_expires_at });
       return res.status(201).json({ success: true, data: { account: toPublicAccount(account), token } });
     } catch (err: any) {
-      const status = err.statusCode || 400;
-      return res.status(status).json({ success: false, message: err.message || 'Google login failed' });
+      return res.status(safeErrorStatus(err, 400)).json({ success: false, message: safeErrorMessage(err, 'Google login failed') });
     }
   },
 
@@ -20,8 +20,7 @@ export const OAuthController = {
       const { account, token } = await OAuthService.facebookLogin({ access_token, refresh_token, refresh_expires_at });
       return res.status(201).json({ success: true, data: { account: toPublicAccount(account), token } });
     } catch (err: any) {
-      const status = err.statusCode || 400;
-      return res.status(status).json({ success: false, message: err.message || 'Facebook login failed' });
+      return res.status(safeErrorStatus(err, 400)).json({ success: false, message: safeErrorMessage(err, 'Facebook login failed') });
     }
   },
 
@@ -31,8 +30,7 @@ export const OAuthController = {
       const { account, token } = await OAuthService.appleLogin({ identity_token, refresh_token, refresh_expires_at });
       return res.status(201).json({ success: true, data: { account: toPublicAccount(account), token } });
     } catch (err: any) {
-      const status = err.statusCode || 400;
-      return res.status(status).json({ success: false, message: err.message || 'Apple login failed' });
+      return res.status(safeErrorStatus(err, 400)).json({ success: false, message: safeErrorMessage(err, 'Apple login failed') });
     }
   },
 };

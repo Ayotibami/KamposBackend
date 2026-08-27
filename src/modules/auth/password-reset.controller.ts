@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { PasswordResetService } from './password-reset.service';
+import { safeErrorMessage, safeErrorStatus } from '../../utils/errors';
 
 export const PasswordResetController = {
   request: async (req: Request, res: Response) => {
@@ -15,8 +16,7 @@ export const PasswordResetController = {
       await PasswordResetService.verifyCode(email, code);
       return res.json({ success: true, message: 'Code is valid' });
     } catch (err: any) {
-      const status = err.statusCode || 400;
-      return res.status(status).json({ success: false, message: err.message || 'Invalid or expired code' });
+      return res.status(safeErrorStatus(err, 400)).json({ success: false, message: safeErrorMessage(err, 'Invalid or expired code') });
     }
   },
 
@@ -29,8 +29,7 @@ export const PasswordResetController = {
       await PasswordResetService.reset(email, code, newPassword);
       return res.json({ success: true, message: 'Password reset successful' });
     } catch (err: any) {
-      const status = err.statusCode || 400;
-      return res.status(status).json({ success: false, message: err.message || 'Reset failed' });
+      return res.status(safeErrorStatus(err, 400)).json({ success: false, message: safeErrorMessage(err, 'Reset failed') });
     }
   },
 };

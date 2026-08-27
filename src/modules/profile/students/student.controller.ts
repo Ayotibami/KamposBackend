@@ -4,6 +4,7 @@ import { uploadBuffer } from '../../../services/media/cloudinary';
 import { env } from '../../../config/env';
 import { sendWelcomeEmail } from '../../../services/email/profile';
 import logger from '../../../utils/logger';
+import { safeErrorMessage } from '../../../utils/errors';
 
 export const create = async (req: Request, res: Response) => {
   if (!req.user?.account_id) return res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -74,7 +75,7 @@ export const create = async (req: Request, res: Response) => {
     if (err?.code === '23503') {
       return res.status(400).json({ success: false, message: 'Invalid campus_tag or major_tag reference' });
     }
-    return res.status(400).json({ success: false, message: err?.message || 'Unable to create student profile' });
+    return res.status(400).json({ success: false, message: safeErrorMessage(err, 'Unable to create student profile') });
   }
 };
 

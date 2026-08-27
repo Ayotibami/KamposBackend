@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { ModerationService } from './moderation.service';
+import { safeErrorMessage, safeErrorStatus } from '../../utils/errors';
 
 export const ModerationController = {
   listPendingGists: async (req: Request, res: Response) => {
@@ -73,8 +74,7 @@ export const ModerationController = {
       const report = await ModerationService.acceptReport(report_id, req.user.avitag);
       return res.json({ success: true, data: report });
     } catch (err: any) {
-      const status = err.statusCode || 400;
-      return res.status(status).json({ success: false, message: err.message || 'Unable to accept report' });
+      return res.status(safeErrorStatus(err, 400)).json({ success: false, message: safeErrorMessage(err, 'Unable to accept report') });
     }
   },
 

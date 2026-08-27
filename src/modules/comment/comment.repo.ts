@@ -110,7 +110,7 @@ export async function listBatchByGistIds(
   if (gist_ids.length === 0) return {};
   const { rows } = await pool.query<CommentWithReactions>(
     `SELECT c.*, ${REACTION_COLUMNS(3)}, ${PROFILE_COLUMNS}
-     FROM unnest($1::text[]) AS g(gist_id)
+     FROM unnest($1::uuid[]) AS g(gist_id)
      JOIN LATERAL (
        SELECT * FROM comments cm
        WHERE cm.gist_id = g.gist_id

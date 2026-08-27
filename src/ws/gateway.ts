@@ -14,7 +14,15 @@ export class WSGateway {
 
   static init(server: Server) {
     if (this.wss) return this.wss;
-    this.wss = new WebSocketServer({ server, path: '/ws', perMessageDeflate: true });
+    // perMessageDeflate was on, but it's corrupting frames in practice —
+    // every real connection (browser and a plain `ws` client alike) failed
+    // with "Invalid frame header"/"FIN must be set" the moment the server
+    // sent its first message, confirmed by the exact same connection
+    // working cleanly with compression disabled. Every message this
+    // gateway sends is small JSON (gist/comment/reaction payloads) —
+    // compression buys nothing meaningful here anyway, so it's not worth
+    // chasing the underlying negotiation bug further.
+    this.wss = new WebSocketServer({ server, path: '/ws', perMessageDeflate: false });
 
     this.wss.on('connection', (ws: WebSocket, req) => {
       try {
@@ -270,7 +278,17 @@ export class WSGateway {
     if (this.wss) {
       this.wss.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
-          client.send(message);
+          // Explicit compress:false, not just relying on the server-level
+          // perMessageDeflate:false — a real, reproduced bug: even with
+          // compression never negotiated for a connection (confirmed clean
+          // in the handshake response), THIS specific send path still set
+          // the RSV1 (compressed) bit on the frame, which every compliant
+          // client (a plain `ws` script, and real browsers) correctly
+          // rejects as a protocol violation the moment a second broadcast
+          // arrives — the first "welcome" message next door never showed
+          // it, only this one, which is what made it look connection-wide
+          // rather than send-site-specific.
+          client.send(message, { compress: false });
         }
       });
     }

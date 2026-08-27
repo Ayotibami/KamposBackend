@@ -6,6 +6,7 @@ import * as ProfileUtils from '../profile/utils';
 import * as GistMediaRepo from './media.repo';
 import { uploadBuffer } from '../../services/media/cloudinary';
 import { GIST_COLOR_KEYS } from './gist.constants';
+import logger from '../../utils/logger';
 
 // Whitelisted rather than trusted as-is so `color_key` can never become a
 // stored-XSS-style free text field via a crafted request — belt-and-braces
@@ -123,7 +124,13 @@ export const GistController = {
             idx += 1;
             try { WSGateway.broadcast('gist_media:created', { gist_id: gist.gist_id, media: saved }); } catch {}
           } catch (fileErr) {
-            failed.push({ name: f.name, reason: fileErr instanceof Error ? fileErr.message : 'Upload failed' });
+            // The real reason (a raw Cloudinary SDK/network exception) is
+            // logged here, not sent to the client — same reasoning as
+            // errorHandler's GENERIC_MESSAGE: a client-facing field is not
+            // the place for driver/SDK error text, even on an otherwise-
+            // successful 201 response like this one.
+            logger.error({ err: fileErr, gist_id: gist.gist_id, file: f.name }, 'Gist media upload failed');
+            failed.push({ name: f.name, reason: "Couldn't upload this one — please try again." });
           }
         }
         if (failed.length) {
@@ -273,9 +280,49 @@ export const GistController = {
     const cursor =
       typeof req.query.cursor === "string" ? req.query.cursor : undefined;
     const viewerAvitag = req.user?.avitag;
-    const campus_tag = typeof req.query.campus_tag === 'string' ? req.query.campus_tag : undefined;
     const major_tag = typeof req.query.major_tag === 'string' ? req.query.major_tag : undefined;
-    const data = await GistService.listRecent(limit, cursor, viewerAvitag, { campus_tag: campus_tag ?? null, major_tag: major_tag ?? null });
+
+    // Gist = your own school's students + every non-student poster,
+    // unconditionally. Amebo = no campus filtering at all. School = one
+    // specific OTHER campus's students, requested via ?school=<tag> (the
+    // trending-school pills), PLUS — same as Gist — every non-student
+    // poster unconditionally; a KREATOR/KOMPANY/SCHOOL/IDIOT post shows on
+    // every filter regardless, since campus filtering only ever applies to
+    // students. The viewer's own campus for Gist mode is always derived
+    // server-side from their session, never trusted from the client — a
+    // spoofed campus_tag query param used to be able to filter the feed to
+    // any school at all. Two cases fall back to Amebo's unfiltered behavior
+    // even when 'gist' was requested: a guest (nothing to filter by) and a
+    // logged-in non-student viewer (KREATOR/KOMPANY/SCHOOL/IDIOT — no
+    // campus of their own either), so neither ends up with an emptier Gist
+    // tab than a guest would get. Same graceful-degrade applies to 'school'
+    // with a missing/empty ?school= — falls back to unfiltered rather than
+    // an empty result.
+    const feedModeRaw = req.query.feed_mode;
+    const feedMode = feedModeRaw === 'gist' ? 'gist' : feedModeRaw === 'school' ? 'school' : 'amebo';
+    let scopeMode: 'home' | 'school' | 'none' = 'none';
+    let campusTag: string | null = null;
+    if (feedMode === 'gist' && viewerAvitag) {
+      const viewerCampus = await ProfileUtils.getCampusMajor(viewerAvitag);
+      if (viewerCampus.campus_tag) {
+        scopeMode = 'home';
+        campusTag = viewerCampus.campus_tag;
+      }
+    } else if (feedMode === 'school') {
+      const school = typeof req.query.school === 'string' ? req.query.school.trim().toLowerCase() : '';
+      if (school) {
+        scopeMode = 'school';
+        campusTag = school;
+      }
+    }
+
+    const data = await GistService.listRecent(
+      limit,
+      cursor,
+      viewerAvitag,
+      { major_tag: major_tag ?? null },
+      { mode: scopeMode, campusTag }
+    );
     // Populate profile for each gist
     await Promise.all(data.map(async (g: any) => {
       let profile = await ProfileUtils.findByAvitag(g.avitag);
@@ -384,7 +431,14 @@ export const GistController = {
     const cursor =
       typeof req.query.cursor === "string" ? req.query.cursor : undefined;
     const viewerAvitag = req.user?.avitag;
-    const data = await GistService.listByUser(avitag, limit, cursor, viewerAvitag);
+    // total is the same true count no matter which page is being fetched,
+    // so it's only actually computed on the first page (no cursor) — the
+    // frontend only needs to capture it once, and every later page would
+    // otherwise pay for a redundant COUNT(*) it throws away.
+    const [data, total] = await Promise.all([
+      GistService.listByUser(avitag, limit, cursor, viewerAvitag),
+      cursor ? Promise.resolve(undefined) : GistService.countByUser(avitag, viewerAvitag),
+    ]);
     const viewer = req.user?.avitag ?? null;
     try {
       await Promise.all(data.map((g: any) => GistService.incrementView(g.gist_id, viewer)));
@@ -396,6 +450,17 @@ export const GistController = {
         WSGateway.broadcast('counts:updated', { gist_id: g.gist_id, ...countsAll[idx] })
       );
     } catch {}
+    return res.json({ success: true, data, ...(total !== undefined ? { total } : {}) });
+  },
+
+  // The three (or fewer) school-filter pills beside Amebo — "which other
+  // schools are trending right now", always excluding the viewer's own
+  // campus (a school never gets suggested as a pill to its own students —
+  // that's just Gist). A guest gets the plain top-N with nothing excluded.
+  trendingSchools: async (req: Request, res: Response) => {
+    const viewerAvitag = req.user?.avitag;
+    const viewerCampus = viewerAvitag ? (await ProfileUtils.getCampusMajor(viewerAvitag)).campus_tag : null;
+    const data = await GistService.trendingSchools(viewerCampus);
     return res.json({ success: true, data });
   },
 
@@ -490,6 +555,10 @@ export const GistController = {
     const id = req.params.gist_id;
     const avitag = req.user?.avitag ?? null;
     await GistService.incrementView(id, avitag);
+    try {
+      const countsFull = await GistService.getCountsFull(id);
+      WSGateway.broadcast('counts:updated', { gist_id: id, ...countsFull });
+    } catch {}
     return res.json({ success: true });
   },
 
@@ -504,6 +573,10 @@ export const GistController = {
     const platformRaw = req.body?.platform;
     const platform = typeof platformRaw === "string" && platformRaw.trim() ? platformRaw.trim().slice(0, 40) : null;
     await GistService.incrementShare(id, avitag, platform);
+    try {
+      const countsFull = await GistService.getCountsFull(id);
+      WSGateway.broadcast('counts:updated', { gist_id: id, ...countsFull });
+    } catch {}
     return res.json({ success: true });
   },
 };
