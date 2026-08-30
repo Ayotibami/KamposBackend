@@ -38,20 +38,31 @@ export async function isAuth(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-export async function fakeAuth(req: Request, _res: Response, next: NextFunction) {
+export async function fakeAuth(req: Request, res: Response, next: NextFunction) {
   const token = extractToken(req);
   if (!token) {
-    // no token, proceed as anonymous
+    // No token at all — a genuine guest. Proceed anonymous.
     return next();
   }
   try {
     const payload = verifyToken(token);
     const revoked = await isRevoked(payload.jti);
-    if (!revoked) {
-      req.user = payload;
+    if (revoked) {
+      return res.status(401).json({ success: false, message: 'Token revoked' });
     }
-  } catch (_e) {
-    // ignore invalid token
+    req.user = payload;
+    return next();
+  } catch (e) {
+    // A token WAS sent but failed verification (expired/malformed) — this is
+    // a real, logged-in session that just needs a refresh, not a guest.
+    // Silently falling through to anonymous here (the old behavior) meant
+    // viewer-scoped endpoints like the gist feed would quietly serve the
+    // unscoped/guest-visible result with no viewer identity attached, and
+    // the frontend's axios interceptor — which only refreshes+retries on a
+    // 401 — never got a signal that anything was wrong. Returning 401 here
+    // routes this through that same self-healing refresh-and-retry path
+    // every isAuth-protected endpoint already gets, instead of silently
+    // downgrading a real session to a guest one for this one request.
+    return res.status(401).json({ success: false, message: 'Invalid token' });
   }
-  return next();
 }
