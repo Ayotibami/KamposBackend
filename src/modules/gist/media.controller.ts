@@ -46,21 +46,27 @@ export const GistMediaController = {
   // short-lived signed params set so it can upload straight to Cloudinary
   // itself, bypassing this server (and the Next.js frontend's own proxy)
   // entirely for the actual file bytes — see cloudinary.ts's signUpload
-  // for why that's the whole point. `resource_type` is client-declared
-  // (image vs video) purely to decide whether to also sign an `eager`
-  // thumbnail transformation; it isn't trusted for anything security-
-  // relevant, `finalize` below re-derives the real type from what
-  // Cloudinary itself reports.
+  // for why that's the whole point.
+  //
+  // This used to also sign an `eager: 'w_400,c_scale,f_jpg'` poster-frame
+  // transform for video. Cloudinary generates an `eager` derivative
+  // synchronously, as part of the SAME upload request, before it sends back
+  // any response at all — for a real phone video that can take a long time
+  // (real transcoding compute, not just a file copy). The browser's XHR
+  // progress event only tracks bytes *sent*, which finishes fast on any
+  // decent connection; once it hits 100% the per-item progress ring
+  // disappears (see CreateGistSheet.tsx), while the request itself sits
+  // open for however long that synchronous transform takes — reading to
+  // the user as "the upload just stopped," not as still-in-progress, since
+  // nothing on screen indicates a wait is still happening. `finalize` below
+  // derives the poster frame as a lazy delivery-URL transform instead (see
+  // there) — same visual result, computed on Cloudinary's CDN on first
+  // request instead of blocking this upload on it.
   signature: async (req: Request, res: Response) => {
     const gist_id = req.params.gist_id;
     if (!(await assertCanEditGist(req, res, gist_id))) return;
-    const isVideo = req.query.resource_type === 'video';
     const folder = `kampos/gists/${gist_id}`;
-    const paramsToSign: Record<string, string | number> = {
-      folder,
-      ...(isVideo ? { eager: 'w_400,c_scale,f_jpg' } : {}),
-    };
-    const { signature, timestamp } = signUpload(paramsToSign);
+    const { signature, timestamp } = signUpload({ folder });
     return res.json({
       success: true,
       data: {
@@ -69,7 +75,6 @@ export const GistMediaController = {
         api_key: env.CLOUDINARY_API_KEY,
         cloud_name: env.CLOUDINARY_NAME,
         folder,
-        eager: isVideo ? 'w_400,c_scale,f_jpg' : undefined,
         upload_url: `https://api.cloudinary.com/v1_1/${env.CLOUDINARY_NAME}/auto/upload`,
       },
     });
@@ -120,12 +125,22 @@ export const GistMediaController = {
       return res.status(413).json({ success: false, message: reason });
     }
 
-    const thumbnail_url = req.body?.thumbnail_url;
+    // Derived, not client-supplied — same trust boundary as the rest of
+    // this handler re-deriving everything from what Cloudinary itself
+    // reports. `so_0` picks the first frame; format+size match what the
+    // old synchronous `eager` transform used to bake in at upload time
+    // (see the comment on `signature` above for why that moved here).
+    // Cloudinary renders and caches this the first time anything actually
+    // requests the URL — nothing generates it eagerly, so there's no wait
+    // to attach it here, video or not.
+    const thumbnail_url = isVideo
+      ? `https://res.cloudinary.com/${env.CLOUDINARY_NAME}/video/upload/so_0,w_400,c_scale,f_jpg/${public_id}.jpg`
+      : null;
     const saved = await mediaRepo.addMedia({
       gist_id,
       media_type,
       media_url,
-      thumbnail_url: typeof thumbnail_url === 'string' ? thumbnail_url : null,
+      thumbnail_url,
       // Reported by Cloudinary's own direct-upload response — the browser
       // already has it from step 1, same trust level as bytes/duration
       // above (both already came from that same response, not the client
