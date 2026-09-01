@@ -106,6 +106,21 @@ export const AuthController = {
           .status(401)
           .json({ success: false, message: "Invalid refresh token" });
       }
+      // Both undefined (never once set, distinct from a genuine student
+      // whose lookup already resolved to explicit nulls) only happens for
+      // a refresh token issued before campus_tag/major_tag existed as
+      // claims at all — a one-time backfill query here self-heals every
+      // still-logged-in session onto the new shape the next time it
+      // refreshes (every ~15 min in practice), without needing an explicit
+      // re-login or profile switch. Costs one query per session, once,
+      // ever — after this, campus_tag/major_tag carry forward from the
+      // token on every later refresh with no query at all.
+      let { campus_tag, major_tag } = payload;
+      if (campus_tag === undefined && major_tag === undefined && avitag) {
+        const resolved = await ProfileUtils.getCampusMajor(avitag);
+        campus_tag = resolved.campus_tag;
+        major_tag = resolved.major_tag;
+      }
       // Re-derive role from the current admin list rather than trusting
       // whatever was baked into the old refresh token's claims — otherwise
       // someone removed from ADMIN_ACCOUNT_IDS keeps IDIOT privileges on
@@ -126,7 +141,11 @@ export const AuthController = {
       // Issue a NEW access + refresh token pair. The new refresh token
       // resets the 90-day clock (sliding session). The old refresh token is
       // NOT revoked — it simply expires on its own. This is what avoids the
-      // race condition that caused random logouts.
+      // race condition that caused random logouts. campus_tag/major_tag
+      // carried straight through from the old token, not re-queried — same
+      // reasoning as avitag/profileType above, and see JwtClaims' own docs
+      // for why that's safe (they're one-time/immutable once a student
+      // sets them).
       const { accessToken, refreshToken } =
         await AuthService.issueTokenForProfile({
           account_id,
@@ -134,6 +153,8 @@ export const AuthController = {
           profileType,
           role,
           who,
+          campus_tag,
+          major_tag,
         });
       setAuthCookies(res, accessToken, refreshToken);
       return res.json({ success: true, message: "Refreshed" });
@@ -173,6 +194,12 @@ export const AuthController = {
       .map((s) => s.trim())
       .filter(Boolean);
     const role = adminIds.includes(req.user.account_id) ? "IDIOT" : "USER";
+    // Resolved once, here, at the moment the active profile is actually
+    // chosen — not on every later feed request. No-op (both come back
+    // null) for a non-student profile, which is exactly what a campus-less
+    // profile type should carry. See JwtClaims' own docs for why this is
+    // safe to bake into the token instead of re-querying it every time.
+    const { campus_tag, major_tag } = await ProfileUtils.getCampusMajor(profile.avitag);
     // Issue a new access token with the updated profile claims. Also issue
     // a new refresh token so the refresh token's avitag/profileType claims
     // stay in sync (the refresh endpoint uses the refresh token's claims to
@@ -186,6 +213,8 @@ export const AuthController = {
         avitag: profile.avitag,
         profileType: profile.profile_type,
         role,
+        campus_tag,
+        major_tag,
       });
     setAuthCookies(res, accessToken, refreshToken);
 

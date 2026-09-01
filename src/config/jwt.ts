@@ -9,6 +9,15 @@ export interface JwtClaims {
   role?: 'IDIOT' | 'USER' | 'king';
   who?: string;
   is_otp_verified?: boolean;
+  // Set once, at whichever moment the active profile is chosen (switch-
+  // profile) or a token is refreshed — never looked up again per-request
+  // after that. School/major are one-time/immutable once a student sets
+  // them (see student profile settings — there's no edit flow for either),
+  // so there's no staleness risk in carrying them here the same way
+  // avitag/profileType already are. Both null/absent for a non-student
+  // profile (KREATOR/KOMPANY/SCHOOL/IDIOT don't have a campus at all).
+  campus_tag?: string | null;
+  major_tag?: string | null;
   jti?: string;
   iat?: number;
   exp?: number;

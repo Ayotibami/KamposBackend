@@ -38,7 +38,16 @@ export const EventController = {
       thumbnail_url = uploaded?.secure_url || uploaded?.url || null;
     }
 
-    const { campus_tag, major_tag } = await getCampusMajor(req.user.avitag);
+    // Off the session token, not a fresh lookup — see JwtClaims' own docs.
+    // Both undefined only for a token issued before this claim existed;
+    // one query covers both in that case, only for that transition window.
+    let campus_tag = req.user.campus_tag;
+    let major_tag = req.user.major_tag;
+    if (campus_tag === undefined && major_tag === undefined) {
+      const resolved = await getCampusMajor(req.user.avitag);
+      campus_tag = resolved.campus_tag;
+      major_tag = resolved.major_tag;
+    }
     const ev = await EventRepo.create({
       title,
       host_avi_tags,

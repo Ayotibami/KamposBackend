@@ -1,5 +1,4 @@
 import * as gistRepo from "./gist.repo";
-import { getCampusMajor } from "../profile/utils";
 
 // In-process cache for getTrendingSchools — that query scans every gist
 // from the last 72h, and "which 3 schools are popular right now" doesn't
@@ -23,8 +22,21 @@ async function getCachedTrendingSchools(): Promise<gistRepo.TrendingSchool[]> {
 }
 
 export const GistService = {
-  create: async (avitag: string, account_id: string, profile_id: string, profile_type: string, gist_text: string, color_key: string | null = null) => {
-    const { campus_tag, major_tag } = await getCampusMajor(avitag);
+  // campus_tag/major_tag come from the caller now (the controller's own
+  // req.user, off the session token) rather than a fresh lookup here — see
+  // JwtClaims' own docs on why that's safe. Kept as explicit params rather
+  // than re-adding the lookup internally so this stays a pure pass-through
+  // to the repo, with no DB dependency of its own.
+  create: async (
+    avitag: string,
+    account_id: string,
+    profile_id: string,
+    profile_type: string,
+    gist_text: string,
+    campus_tag: string | null,
+    major_tag: string | null,
+    color_key: string | null = null
+  ) => {
     return gistRepo.create(avitag, account_id, profile_id, profile_type, gist_text, campus_tag, major_tag, color_key);
   },
   updateText: (gist_id: string, avitag: string, gist_text: string) =>

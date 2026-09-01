@@ -38,12 +38,25 @@ export const GistController = {
     const safeColorKey = typeof color_key === 'string' && VALID_GIST_COLOR_KEYS.has(color_key) ? color_key : null;
     // Compose profile_id as avitag:account_id
     const profile_id = `${req.user.avitag}:${req.user.account_id}`;
+    // Off the session token, not a fresh lookup — same reasoning as the
+    // feed's own scoping (see JwtClaims' own docs). Both undefined only
+    // for a token issued before this claim existed; one query covers both
+    // in that case, not two, and only for that narrow transition window.
+    let campusTagForGist = req.user.campus_tag;
+    let majorTagForGist = req.user.major_tag;
+    if (campusTagForGist === undefined && majorTagForGist === undefined) {
+      const resolved = await ProfileUtils.getCampusMajor(req.user.avitag);
+      campusTagForGist = resolved.campus_tag;
+      majorTagForGist = resolved.major_tag;
+    }
     const gist = await GistService.create(
       req.user.avitag,
       req.user.account_id,
       profile_id,
       req.user.profileType || '',
       gist_text,
+      campusTagForGist ?? null,
+      majorTagForGist ?? null,
       safeColorKey
     );
 
@@ -303,10 +316,26 @@ export const GistController = {
     let scopeMode: 'home' | 'school' | 'none' = 'none';
     let campusTag: string | null = null;
     if (feedMode === 'gist' && viewerAvitag) {
-      const viewerCampus = await ProfileUtils.getCampusMajor(viewerAvitag);
-      if (viewerCampus.campus_tag) {
+      // Read straight off the verified session — no database round trip on
+      // the hottest read path in the app (this fires on every scroll, not
+      // just every login). campus_tag lives in the token now (see
+      // JwtClaims' own docs), refreshed automatically every ~15 minutes
+      // along with the access token itself, so there's no staleness risk
+      // and — just as importantly — nothing here to silently fail and
+      // fall back to "show every school" the way a live lookup could.
+      // req.user.campus_tag === undefined only for a token issued before
+      // this claim existed at all — self-heals on this session's next
+      // refresh (see the /auth/refresh handler's own one-time backfill);
+      // falling back to the same live lookup here too, just for that
+      // narrow transition window, rather than degrading to unfiltered.
+      const tokenCampusTag = req.user?.campus_tag;
+      const resolvedCampusTag =
+        tokenCampusTag !== undefined
+          ? tokenCampusTag
+          : (await ProfileUtils.getCampusMajor(viewerAvitag)).campus_tag;
+      if (resolvedCampusTag) {
         scopeMode = 'home';
-        campusTag = viewerCampus.campus_tag;
+        campusTag = resolvedCampusTag;
       }
     } else if (feedMode === 'school') {
       const school = typeof req.query.school === 'string' ? req.query.school.trim().toLowerCase() : '';
@@ -458,8 +487,17 @@ export const GistController = {
   // campus (a school never gets suggested as a pill to its own students —
   // that's just Gist). A guest gets the plain top-N with nothing excluded.
   trendingSchools: async (req: Request, res: Response) => {
+    // Off the session token — see JwtClaims' own docs. undefined only for
+    // a token issued before this claim existed; falls back to the live
+    // lookup just for that narrow transition window.
     const viewerAvitag = req.user?.avitag;
-    const viewerCampus = viewerAvitag ? (await ProfileUtils.getCampusMajor(viewerAvitag)).campus_tag : null;
+    const tokenCampusTag = req.user?.campus_tag;
+    const viewerCampus =
+      tokenCampusTag !== undefined
+        ? tokenCampusTag
+        : viewerAvitag
+          ? (await ProfileUtils.getCampusMajor(viewerAvitag)).campus_tag
+          : null;
     const data = await GistService.trendingSchools(viewerCampus);
     return res.json({ success: true, data });
   },
