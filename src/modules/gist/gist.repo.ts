@@ -479,7 +479,18 @@ export async function listRecent(
   let campusClause = "";
   if ((scopeMode === "home" || scopeMode === "school") && campusTag) {
     params.push(campusTag);
-    campusClause = `AND (sp.campus_tag = $${params.length}::text OR sp.campus_tag IS NULL)`;
+    // sp.avitag IS NULL (not sp.campus_tag IS NULL) is what actually means
+    // "no student_profiles row at all" — a genuine non-student poster
+    // (KREATOR/KOMPANY/SCHOOL/IDIOT), the case this OR is meant to exempt
+    // from campus filtering entirely (see this function's own docstring).
+    // sp.campus_tag IS NULL is a DIFFERENT thing: a real student whose
+    // profile row exists but has no campus_tag value set on it — that's
+    // still a student, and their posts still need to be filtered by
+    // campus like anyone else's. Checking the wrong column let any
+    // student with an incomplete profile leak into EVERY campus's Gist
+    // tab, regardless of the viewer's own campus — not a viewer-side
+    // lookup failure, a structural hole in this exact filter.
+    campusClause = `AND (sp.campus_tag = $${params.length}::text OR sp.avitag IS NULL)`;
   }
 
   params.push(major);
