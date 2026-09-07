@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../config/jwt';
-import { isRevoked } from '../modules/auth/token.service';
+import { isRevoked, isAccountRevoked } from '../modules/auth/token.service';
 import { ACCESS_COOKIE } from '../utils/authCookies';
 
 // Cookie first (the real path now — httpOnly, set by the server) — the
@@ -26,10 +26,13 @@ export async function isAuth(req: Request, res: Response, next: NextFunction) {
     if (revoked) {
       return res.status(401).json({ success: false, message: 'Token revoked' });
     }
-    // King bypass: always pass
-    if (payload.who === 'king') {
-      req.user = { ...payload, who: 'king', avitag: 'king', profileType: 'king' };
-      return next();
+    // Bulk per-account revocation — catches a token that was perfectly
+    // valid when issued but whose account got suspended/deactivated/
+    // deleted since (see token.service.ts's own doc comment). This is
+    // what makes that kind of action bite on the very next request
+    // instead of waiting for the access token to naturally expire.
+    if (await isAccountRevoked(payload.account_id, payload.iat)) {
+      return res.status(401).json({ success: false, message: 'Session revoked' });
     }
     req.user = payload;
     return next();
@@ -49,6 +52,9 @@ export async function fakeAuth(req: Request, res: Response, next: NextFunction) 
     const revoked = await isRevoked(payload.jti);
     if (revoked) {
       return res.status(401).json({ success: false, message: 'Token revoked' });
+    }
+    if (await isAccountRevoked(payload.account_id, payload.iat)) {
+      return res.status(401).json({ success: false, message: 'Session revoked' });
     }
     req.user = payload;
     return next();

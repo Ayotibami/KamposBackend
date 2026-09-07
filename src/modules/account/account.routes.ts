@@ -10,5 +10,6 @@ router.get('/profile', isAuth, AccountController.me);
 router.patch('/update', isAuth, AccountController.update);
 router.patch('/change-password', isAuth, validateBody(changePasswordSchema), AccountController.changePassword);
 router.delete('/delete', isAuth, AccountController.delete);
+router.post('/deactivate', isAuth, AccountController.deactivate);
 
 export default router;

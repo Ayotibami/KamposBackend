@@ -1,8 +1,8 @@
-import { logAudit } from './audit.repo';
+import { logAudit, type AuditAction } from './audit.repo';
 
 export async function safeAudit(params: {
-  action: 'PROFILE_VERIFY' | 'PROFILE_REJECT' | 'GIST_APPROVE' | 'GIST_REJECT' | 'REPORT_ACCEPT' | 'REPORT_REJECT';
-  target_type: 'PROFILE' | 'GIST';
+  action: AuditAction;
+  target_type: 'PROFILE' | 'GIST' | 'ACCOUNT' | 'COMMENT' | 'CAMPUS' | 'MAJOR';
   target_id: string;
   idiot_avitag: string;
   reason?: string | null;

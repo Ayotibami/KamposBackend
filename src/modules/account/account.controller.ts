@@ -39,4 +39,10 @@ export const AccountController = {
     await AccountService.softDelete(req.user.account_id);
     return res.json({ success: true, message: 'Account deleted' });
   },
+
+  deactivate: async (req: Request, res: Response) => {
+    if (!req.user?.account_id) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    await AccountService.deactivate(req.user.account_id);
+    return res.json({ success: true, message: 'Account deactivated' });
+  },
 };

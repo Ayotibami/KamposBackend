@@ -2,6 +2,8 @@ import type { Request, Response } from 'express';
 import * as repo from './comment.repo';
 import { WSGateway } from '../../ws/gateway';
 import { GistService } from '../gist/gist.service';
+import { isAdminRole } from '../../middleware/idiot';
+import { safeAudit } from '../audit/audit.util';
 
 // Same reasoning as comment:created below — the WS message path already
 // broadcasts counts:updated on create/delete, but the REST path (what
@@ -79,9 +81,10 @@ export const CommentController = {
     // DELETE itself only returns a boolean — so look it up first, before
     // it's gone.
     const existing = await repo.get(req.params.comment_id);
-    if (role === 'IDIOT') {
+    if (isAdminRole(role)) {
       const ok = await repo.removeAsAdmin(req.params.comment_id);
       if (!ok) return res.status(404).json({ success: false, message: 'Comment not found' });
+      await safeAudit({ action: 'COMMENT_DELETE', target_type: 'COMMENT', target_id: req.params.comment_id, idiot_avitag: req.user!.avitag ?? req.user!.account_id });
       if (existing) void broadcastGistCounts(existing.gist_id);
       return res.json({ success: true, message: 'Deleted' });
     }

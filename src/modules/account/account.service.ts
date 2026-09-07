@@ -1,6 +1,7 @@
 import * as accountRepo from './account.repo';
 import * as ProfileUtils from '../profile/utils';
 import argon2 from 'argon2';
+import { revokeAllForAccount } from '../auth/token.service';
 
 export const AccountService = {
   me: async (account_id: string) => {
@@ -28,8 +29,27 @@ export const AccountService = {
     return { changed: true };
   },
 
+  // Self-service delete — soft (account_status = 'DELETED', row/content
+  // retained). Terminal: nothing in the app ever transitions an account
+  // back out of DELETED. Also kills every other session this account might
+  // have open elsewhere — previously this only happened for the CURRENT
+  // session, via the frontend's own best-effort /auth/logout call after
+  // this resolves, which never reached a second device/browser.
   softDelete: async (account_id: string) => {
-    await accountRepo.softDeleteAccount(account_id);
+    await accountRepo.setAccountStatus(account_id, 'DELETED', null);
+    await revokeAllForAccount(account_id);
     return { deleted: true };
+  },
+
+  // Self-service deactivate — soft, and unlike delete, meant to be turned
+  // back on: see AuthService.reactivate for the other half of this. Kills
+  // every open session immediately, same reasoning as softDelete above —
+  // the point of deactivating is "I'm stepping away," which should apply
+  // everywhere this account is logged in, not just the device the request
+  // came from.
+  deactivate: async (account_id: string) => {
+    await accountRepo.setAccountStatus(account_id, 'DEACTIVATED', null);
+    await revokeAllForAccount(account_id);
+    return { deactivated: true };
   },
 };

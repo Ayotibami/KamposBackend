@@ -1,5 +1,52 @@
 import { pool } from "../../config/db";
 
+// Every profile type a gist's author might be, keyed by avitag — LEFT
+// JOINed so a still-current avitag always resolves to exactly one of
+// these tables, same "COALESCE across all 5" pattern already used by
+// listPendingGistsWithDetails/idiot/gists.repo.ts's admin queries, just
+// applied to the consumer-facing endpoints below for the first time.
+// `accounts` is joined off account_id, preferring the gist's own
+// g.account_id (present on every gist since migration 0028) and falling
+// back to whichever profile table matched, for the small number of
+// pre-migration gists where g.account_id might still be null.
+const AUTHOR_JOIN = `
+  LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
+  LEFT JOIN kreator_profiles kp ON kp.avitag = g.avitag
+  LEFT JOIN kompany_profiles kmp ON kmp.avitag = g.avitag
+  LEFT JOIN school_profiles scp ON scp.avitag = g.avitag
+  LEFT JOIN idiot_profiles idp ON idp.avitag = g.avitag
+  LEFT JOIN accounts acc ON acc.account_id = COALESCE(g.account_id, sp.account_id, kp.account_id, kmp.account_id, scp.account_id, idp.account_id)
+`;
+
+// first_name/image_url stay the SAME column names (not renamed/added) —
+// every consumer-facing frontend read site (GistCard.tsx, the OG image
+// route, GistPreviewMarquee) already falls back through
+// `first_name || name || avitag`, so COALESCING a non-student's
+// display_name into this same `first_name` column fixes what was a
+// silent "shows the avitag instead of a name" degradation for every
+// non-student poster, with zero frontend changes needed.
+const AUTHOR_COLUMNS = `
+  COALESCE(sp.first_name, kp.display_name, kmp.display_name, scp.display_name, idp.display_name) AS first_name,
+  COALESCE(sp.image_url, kp.image_url, kmp.image_url, scp.image_url, idp.image_url) AS image_url
+`;
+
+// The AND-gate (see student.controller.ts's get()): a profile is only
+// live if BOTH its own profile_status AND its owning account's
+// account_status are ACTIVE. IS NULL is a deliberate escape hatch, not a
+// loophole — it only fires when neither side actually resolved a row (an
+// avitag with no matching profile table at all, or an account_id with no
+// matching accounts row), a data-integrity edge case that should stay
+// visible rather than silently vanish from every feed. Uses a literal
+// 'ACTIVE', not a bind parameter, specifically so appending
+// `AND ${AUTHOR_LIVE_GATE}` to any WHERE clause below never renumbers an
+// existing $N placeholder — several of these queries (listRecent above
+// all) have hand-built, order-sensitive parameter lists.
+const AUTHOR_LIVE_GATE = `(
+  (COALESCE(sp.profile_status, kp.profile_status, kmp.profile_status, scp.profile_status, idp.profile_status) IS NULL
+    OR COALESCE(sp.profile_status, kp.profile_status, kmp.profile_status, scp.profile_status, idp.profile_status) = 'ACTIVE')
+  AND (acc.account_status IS NULL OR acc.account_status = 'ACTIVE')
+)`;
+
 export interface GistRow {
   gist_id: string;
   avitag: string;
@@ -117,10 +164,10 @@ export async function findWithCountsAnyStatus(
   viewerAvitag?: string
 ): Promise<GistWithCounts | null> {
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, sp.first_name, sp.image_url, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
+    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
      FROM gists g
-     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
+     ${AUTHOR_JOIN}
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -155,7 +202,7 @@ export async function findWithCountsAnyStatus(
          GROUP BY type
        ) rt
      ) rbt ON TRUE
-     WHERE g.gist_id = $1`,
+     WHERE g.gist_id = $1 AND ${AUTHOR_LIVE_GATE}`,
     [gist_id, viewerAvitag ?? null]
   );
   return rows[0] ?? null;
@@ -181,10 +228,10 @@ export async function getContext(
 
   const [beforeRes, afterRes] = await Promise.all([
     pool.query<GistWithCounts>(
-      `SELECT g.*, sp.first_name, sp.image_url, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
+      `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
               COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
        FROM gists g
-       LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
+       ${AUTHOR_JOIN}
        LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
        LEFT JOIN LATERAL (
          SELECT json_agg(json_build_object(
@@ -219,16 +266,16 @@ export async function getContext(
            GROUP BY type
          ) rt
        ) rbt ON TRUE
-       WHERE g.gist_status = 'APPROVED' AND g.created_at < $1
+       WHERE g.gist_status = 'APPROVED' AND g.created_at < $1 AND ${AUTHOR_LIVE_GATE}
        ORDER BY g.created_at DESC
        LIMIT $2`,
       [target.created_at, before, viewerAvitag ?? null]
     ),
     pool.query<GistWithCounts>(
-      `SELECT g.*, sp.first_name, sp.image_url, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
+      `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
               COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
        FROM gists g
-       LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
+       ${AUTHOR_JOIN}
        LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
        LEFT JOIN LATERAL (
          SELECT json_agg(json_build_object(
@@ -263,7 +310,7 @@ export async function getContext(
            GROUP BY type
          ) rt
        ) rbt ON TRUE
-       WHERE g.gist_status = 'APPROVED' AND g.created_at > $1
+       WHERE g.gist_status = 'APPROVED' AND g.created_at > $1 AND ${AUTHOR_LIVE_GATE}
        ORDER BY g.created_at ASC
        LIMIT $2`,
       [target.created_at, after, viewerAvitag ?? null]
@@ -335,10 +382,10 @@ export async function findWithCounts(
   viewerAvitag?: string
 ): Promise<GistWithCounts | null> {
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, sp.first_name, sp.image_url, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
+    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
      FROM gists g
-     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
+     ${AUTHOR_JOIN}
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -373,7 +420,7 @@ export async function findWithCounts(
          GROUP BY type
        ) rt
      ) rbt ON TRUE
-     WHERE g.gist_id = $1 AND g.gist_status = 'APPROVED'`,
+     WHERE g.gist_id = $1 AND g.gist_status = 'APPROVED' AND ${AUTHOR_LIVE_GATE}`,
     [gist_id, viewerAvitag ?? null]
   );
   return rows[0] ?? null;
@@ -507,11 +554,11 @@ export async function listRecent(
   }
 
   const { rows } = await pool.query<GistWithCounts & { _feed_score: number }>(
-    `SELECT g.*, sp.first_name, sp.image_url, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
+    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type,
             feed.seen AS _feed_seen, feed.score AS _feed_score
      FROM gists g
-     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
+     ${AUTHOR_JOIN}
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -559,6 +606,7 @@ export async function listRecent(
        AND g.created_at <= $${asOfIdx}::timestamptz
        ${campusClause}
        AND ($${majorIdx}::text IS NULL OR sp.major_tag = $${majorIdx}::text)
+       AND ${AUTHOR_LIVE_GATE}
        ${cursorClause}
      ORDER BY feed.seen ASC, feed.score DESC, g.created_at DESC, g.gist_id DESC
      LIMIT $2`,
@@ -595,10 +643,10 @@ export async function listByUser(
 ): Promise<GistWithCounts[]> {
   if (cursor) {
     const { rows } = await pool.query<GistWithCounts>(
-      `SELECT g.*, sp.first_name, sp.image_url, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
+      `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
               COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
        FROM gists g
-     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
+     ${AUTHOR_JOIN}
        LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
        LEFT JOIN LATERAL (
          SELECT json_agg(json_build_object(
@@ -635,16 +683,17 @@ export async function listByUser(
        ) rbt ON TRUE
        WHERE g.avitag = $1 AND g.created_at < (SELECT created_at FROM gists WHERE gist_id = $2)
          AND (g.gist_status != 'REJECTED' OR ($4::text IS NOT NULL AND g.avitag = $4::text))
+         AND ${AUTHOR_LIVE_GATE}
        ORDER BY g.created_at DESC LIMIT $3`,
       [avitag, cursor, limit, viewerAvitag ?? null]
     );
     return rows;
   }
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, sp.first_name, sp.image_url, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
+    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
      FROM gists g
-     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
+     ${AUTHOR_JOIN}
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -680,6 +729,7 @@ export async function listByUser(
        ) rt
      ) rbt ON TRUE
      WHERE g.avitag = $1 AND (g.gist_status != 'REJECTED' OR ($3::text IS NOT NULL AND g.avitag = $3::text))
+       AND ${AUTHOR_LIVE_GATE}
      ORDER BY g.created_at DESC LIMIT $2`,
     [avitag, limit, viewerAvitag ?? null]
   );
@@ -715,12 +765,12 @@ export async function trending(limit = 20, viewerAvitag?: string, filters?: { ca
   const campus = filters?.campus_tag ?? null;
   const major = filters?.major_tag ?? null;
   const { rows } = await pool.query<any>(
-    `SELECT g.*, sp.first_name, sp.image_url, sp.campus_tag, sp.major_tag, sp.level,counts.reactions_count, counts.comments_count, counts.views_count, counts.reports_count, counts.shares_count,
+    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,counts.reactions_count, counts.comments_count, counts.views_count, counts.reports_count, counts.shares_count,
             t.score, t.reactions_3d, t.comments_3d,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
      FROM v_gist_trending_3d t
      JOIN gists g ON g.gist_id = t.gist_id
-     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
+     ${AUTHOR_JOIN}
      LEFT JOIN v_gist_counts counts ON counts.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -758,6 +808,7 @@ export async function trending(limit = 20, viewerAvitag?: string, filters?: { ca
      WHERE (g.gist_status = 'APPROVED' OR ($1::text IS NOT NULL AND g.avitag = $1::text))
        AND ($2::text IS NULL OR sp.campus_tag = $2::text)
        AND ($3::text IS NULL OR sp.major_tag = $3::text)
+       AND ${AUTHOR_LIVE_GATE}
      ORDER BY t.score DESC
      LIMIT $4`,
     [viewerAvitag ?? null, campus, major, limit]
@@ -776,10 +827,10 @@ export async function search(
   const campus = filters?.campus_tag ?? null;
   const major = filters?.major_tag ?? null;
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, sp.first_name, sp.image_url, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
+    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
      FROM gists g
-     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
+     ${AUTHOR_JOIN}
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -818,6 +869,7 @@ export async function search(
        AND ($4::text IS NULL OR sp.campus_tag = $4::text)
        AND ($5::text IS NULL OR sp.major_tag = $5::text)
        AND g.gist_text ILIKE $1
+       AND ${AUTHOR_LIVE_GATE}
      ORDER BY g.created_at DESC
      LIMIT $2 OFFSET $3`,
     [q, limit, offset, campus, major, viewerAvitag ?? null]
@@ -899,6 +951,72 @@ export async function listPendingGists(
   return rows;
 }
 
+/**
+ * Admin moderation queue for pending gists — same base as listPendingGists()
+ * (nothing else calls that one, so this stays a separate function rather
+ * than replacing it in place) but enriched so an admin panel can render a
+ * full review card in one round trip: the poster's display name/photo
+ * (unlike findWithCounts()'s student_profiles-only join, this COALESCEs
+ * across all 5 profile tables — a moderation queue needs to identify a
+ * KREATOR/KOMPANY/SCHOOL/IDIOT poster too, not just students), the gist's
+ * media (same LATERAL gist_media JSON-array pattern as findWithCounts()),
+ * and its report count (almost always 0 for a freshly-SUBMITTED gist, but
+ * included anyway to keep this row shape consistent with the reports
+ * queue below).
+ */
+export interface PendingGistWithDetails extends GistRow {
+  display_name: string | null;
+  image_url: string | null;
+  reports_count: number;
+  media: GistWithCounts["media"];
+}
+
+export async function listPendingGistsWithDetails(
+  limit = 20,
+  offset = 0
+): Promise<PendingGistWithDetails[]> {
+  const { rows } = await pool.query<PendingGistWithDetails>(
+    `SELECT g.*,
+            COALESCE(sp.display_name, sp.first_name || ' ' || sp.last_name, kp.display_name, kmp.display_name, scp.display_name, idp.display_name) AS display_name,
+            COALESCE(sp.image_url, kp.image_url, kmp.image_url, scp.image_url, idp.image_url) AS image_url,
+            COALESCE(rc.reports_count, 0)::int AS reports_count,
+            COALESCE(m.media, '[]'::json) AS media
+     FROM gists g
+     LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
+     LEFT JOIN kreator_profiles kp ON kp.avitag = g.avitag
+     LEFT JOIN kompany_profiles kmp ON kmp.avitag = g.avitag
+     LEFT JOIN school_profiles scp ON scp.avitag = g.avitag
+     LEFT JOIN idiot_profiles idp ON idp.avitag = g.avitag
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS reports_count FROM gist_reports WHERE gist_id = g.gist_id
+     ) rc ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT json_agg(json_build_object(
+         'media_id', gm.media_id,
+         'media_type', gm.media_type,
+         'media_url', gm.media_url,
+         'thumbnail_url', gm.thumbnail_url,
+         'width', gm.width,
+         'height', gm.height,
+         'order_index', gm.order_index,
+         'uploaded_at', gm.uploaded_at,
+         'edited_at', gm.edited_at
+       ) ORDER BY gm.order_index ASC) AS media
+       FROM gist_media gm WHERE gm.gist_id = g.gist_id
+     ) m ON TRUE
+     WHERE g.gist_status = 'SUBMITTED'
+     -- Newest first — this queue now gets live push events (see
+     -- ws/socketio.ts's admin room), and a freshly-arrived item has to be
+     -- the very first thing an admin sees, not something they scroll down
+     -- to find. Older, still-unhandled items don't get lost — they're
+     -- still here, just reached via "Load more" instead of being at top.
+     ORDER BY g.created_at DESC
+     LIMIT $1 OFFSET $2`,
+    [limit, offset]
+  );
+  return rows;
+}
+
 export interface TrendingSchool {
   campus_tag: string;
   score: number;
@@ -926,10 +1044,13 @@ export async function getTrendingSchools(limit: number): Promise<TrendingSchool[
      ) AS score
      FROM gists g
      JOIN student_profiles sp ON sp.avitag = g.avitag
+     LEFT JOIN accounts acc ON acc.account_id = sp.account_id
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      WHERE g.gist_status = 'APPROVED'
        AND g.created_at >= NOW() - INTERVAL '72 hours'
        AND sp.campus_tag IS NOT NULL
+       AND sp.profile_status = 'ACTIVE'
+       AND (acc.account_status IS NULL OR acc.account_status = 'ACTIVE')
      GROUP BY sp.campus_tag
      ORDER BY score DESC
      LIMIT $1`,

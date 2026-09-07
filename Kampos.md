@@ -42,6 +42,10 @@ This is the single most important concept to understand before anything else mak
 - Profiles link back to their account via `account_id`, but posts/comments/reactions reference profiles by `avitag` directly rather than through a formal database foreign key — the app code, not the database, is responsible for making sure an avitag is real.
 - **Fetching a student profile** (`GET /profiles/students/:avitag`) now also joins in `campus_name`/`major_name` (`students/repo.ts`'s `findByAvitag`, `LEFT JOIN` on the `campus`/`major` reference tables) alongside the existing short `campus_tag`/`major_tag` — added so the frontend can show "University of Lagos" instead of the raw `unilag` tag without a separate reference-list fetch plus client-side matching.
 - A JWT is minted for a specific profile at a time (see `switch-profile` endpoint) — so "who am I acting as right now" is baked into the login token.
+- **`campus_tag`/`major_tag` are also baked into that same JWT** (`src/config/jwt.ts`'s
+  `JwtClaims`, alongside `avitag`/`profileType`) — resolved once, at whichever moment the
+  active profile is chosen, and never looked up again per-request after that. See Section 3
+  for the full story of why that's safe and what problem it fixed.
 
 ### Step-by-step: exactly what happens when someone creates a student profile
 
@@ -66,6 +70,38 @@ This is the single most important concept to understand before anything else mak
 - **Register:** hashes password with Argon2id, creates the account, sends an OTP email, and issues an access+refresh token pair.
 - **Login:** verifies the password; if the account isn't OTP-verified yet, it automatically resends a fresh OTP. Login is blocked if the user's `idiot` (admin) profile hasn't been verified by another admin yet.
 - **Tokens:** access token expires in 15 minutes (`ACCESS_TOKEN_EXPIRES`), refresh token in 30 days (`REFRESH_TOKEN_EXPIRES_DAYS`). Each token carries a unique `jti` ID so it can be individually revoked.
+- **`campus_tag`/`major_tag` live in the token, not just `avitag`/`profileType`** (`src/config/jwt.ts`'s
+  `JwtClaims`, lines 12–20). Before this, the feed's campus-scoping (Section 4) ran a live
+  `student_profiles` lookup on *every single feed request* to find the viewer's own campus —
+  by far the hottest read path in the app, hit on every scroll, not just every login. Worse,
+  if that lookup ever came back empty (a stale identity, any transient DB hiccup), the code
+  silently fell back to showing every school's gists unfiltered instead of erroring — a real
+  leak vector, not just a performance one. Campus and major are one-time/immutable once a
+  student sets them (there's no edit flow for either in student profile settings), so there's
+  no staleness risk in carrying them the same way `avitag`/`profileType` already are:
+  - Resolved once, in `AuthController.switchProfile` (`src/modules/auth/auth.controller.ts`,
+    around line 202) via `ProfileUtils.getCampusMajor(profile.avitag)`, and stamped onto the
+    freshly-issued access+refresh pair. `null`/`null` for a non-student profile (KREATOR/
+    KOMPANY/SCHOOL/IDIOT have no campus at all) — not an error case, just what a campus-less
+    profile type should carry.
+  - Carried forward untouched on every `/auth/refresh` after that (same file, the `refresh`
+    handler) — no query, just copied from the old token's payload onto the new one.
+  - `GistController.list` (the main feed), `GistController.trendingSchools`, and
+    `GistController.create` (`src/modules/gist/gist.controller.ts`) all now read
+    `req.user.campus_tag`/`req.user.major_tag` straight off the verified session instead of
+    querying — as does `EventController.create` (`src/modules/event/event.controller.ts`,
+    around line 44). This doesn't just handle the empty-lookup failure mode better, it
+    eliminates it: there's no query left on this path to fail.
+  - **One-time backfill for pre-existing sessions:** a refresh token minted before this claim
+    existed carries `campus_tag`/`major_tag` as `undefined` (not `null` — `null` means "a real
+    student profile with no campus set," `undefined` means "this token predates the claim
+    entirely"). `/auth/refresh` (`auth.controller.ts`, lines 109–123) detects exactly that
+    case and runs the old per-request lookup exactly once to backfill it onto the new token —
+    every *already logged-in* session self-heals onto the new token shape the next time it
+    refreshes (roughly every 15 minutes in practice), with no re-login or profile-switch
+    required. `gist.controller.ts`'s feed/create/trendingSchools handlers carry the same
+    narrow fallback inline, for the same transition window, rather than degrading to
+    unfiltered the way the old code did on any empty lookup.
 - **Logout / revocation:** logging out adds the token's `jti` to a Redis-backed blacklist (`token.service.ts`). If Redis is unreachable, the system "fails open" (treats tokens as still valid) rather than locking everyone out.
 - **Refresh-token rotation has a 10-second grace window** before the just-rotated old token actually gets blacklisted (`revokeToken`'s `graceSeconds` param, `token.service.ts` — only the `/auth/refresh` call site passes it; an explicit logout still revokes immediately, no grace). Fixes a real race: several requests can legitimately share the same still-valid refresh token near its access-token's 15-minute expiry (e.g. a Next.js link-prefetch and the real navigation both hitting the frontend's SSR refresh middleware around the same moment) — without the grace window, whichever one landed first would rotate+revoke the shared token, and every other one got treated as reuse of an already-revoked token and hard-logged-out, even though it belonged to the same legitimate session.
 - **OTP:** 10-minute-lived codes stored in `otp_codes`, emailed via Brevo. If email isn't configured (e.g. local dev), the code is just logged to the console instead of failing.
@@ -73,7 +109,7 @@ This is the single most important concept to understand before anything else mak
 - **OTP mechanics, precisely:** every code is valid for exactly 10 minutes and can only be used once — the moment it's successfully verified, it's deleted from the database, so replaying the same code again fails even within the 10-minute window. If someone tries to use an expired or wrong code, they get a clear "invalid or expired code" error.
 - **What happens when a protected action is blocked by verification:** actions like posting a gist require a verified email. If someone tries one of these while unverified, the server doesn't just say "no" — it automatically sends them a brand-new OTP code right then and there, and replies with "OTP verification required, a new code has been sent to your email." This is convenient, but it does mean that repeatedly hitting a protected action while unverified will repeatedly trigger new emails — worth knowing if verification emails ever seem to be "spamming" someone during testing.
 - **OAuth (Google/Facebook/Apple):** each provider is verified independently — Google via `google-auth-library`, Facebook via a call to their Graph API, Apple via a hand-written JWKS/JWT verification (no SDK exists for this, so it's built manually). Successful OAuth either links to an existing account (matched by email) or creates a new one, and optionally encrypts the provider's refresh token before storing it (`oauth_sessions` table).
-- **The "king" bypass:** there's a hardcoded superuser escape hatch in `src/middleware/auth.ts` — a JWT marked with `who: 'king'` is treated as a super-admin regardless of what's in the database. This is intentional but worth flagging in any security review, since it isn't a normal database-checked role.
+- **King/idiot permissions:** `role` (`'user'` / `'idiot'` / `'king'`) lives directly on the `accounts` table and is the single thing every admin-permission check in the codebase looks at (`isAdminRole()` in `src/middleware/idiot.ts`, used everywhere from the moderation routes down to individual comment/reaction/media ownership checks). King and idiot otherwise behave like completely normal logged-in profiles — no identity override, no bypass of email verification or anything else — `role` only ever gates *admin-specific* actions, nothing about ordinary requests.
 
 ### Step-by-step: exactly what happens when you log in
 
@@ -82,20 +118,35 @@ Walking through the real code path, in order:
 1. You send your email and password to `POST /auth/login`.
 2. The server looks up the account by email and checks the password against the stored Argon2 hash.
 3. If the account hasn't verified its email yet, the server automatically fires off a fresh OTP code and tells you verification is required — you don't get logged all the way in yet.
-4. If you have an admin ("idiot") profile that hasn't itself been approved by another admin, login is blocked.
-5. Otherwise, the server checks one internal database field on the account called `who`. For virtually everyone this is just `'user'`. If — and only if — someone has manually set `who = 'king'` directly in the database (there is no button or endpoint that does this; it has to be done by hand, e.g. by an engineer with database access), the login response is stamped with a special `role: 'king'`.
-6. Two tokens come back: a 15-minute access token and a 30-day refresh token, each with a unique ID so it can be individually revoked later.
+4. The server reads one field directly off the account row: `role`, which is `'user'`, `'idiot'` (moderator), or `'king'` (superadmin). This is the *only* thing that determines admin access anywhere in the app — there is no separate admin allowlist and no env-var setting involved. Having an "idiot" profile (the cosmetic public persona, `idiot_profiles` table) has no bearing on this at all and never blocks login, even if that profile is unverified.
+5. Two tokens come back: a 15-minute access token and a 30-day refresh token, each carrying that same `role` claim and a unique ID so either can be individually revoked later.
 
-**A subtlety worth knowing about admin access:** being listed in the `ADMIN_ACCOUNT_IDS` setting does *not* grant admin rights immediately at login — that check only happens when the app calls `/auth/refresh` or `/auth/switch-profile` afterward, which re-derives the role from that list. So a freshly logged-in admin briefly looks like a regular user until their token gets silently refreshed. Separately, once someone's refresh token has the "king" status baked into it, refreshing that token keeps carrying "king" forward without re-checking the database each time — so revoking king status for someone already holding a king-flagged token means finding and revoking that specific token, not just changing the database.
+**A subtlety worth knowing about admin access:** `role` is looked up fresh from the database every time a token is issued or refreshed (login, `/auth/refresh`, `/auth/switch-profile`) — never trusted from whatever an old token happened to already say. So granting or revoking someone's `idiot`/`king` role takes effect the next time their session refreshes (at most ~15 minutes, since that's the access token's lifetime), without needing to hunt down and individually revoke any specific token.
 
 **What "logged in" actually means on every request after that:** each API request either includes a cookie or an `Authorization: Bearer <token>` header (the header path exists mainly for testing tools like Postman — the real app uses the cookie). The server:
 - Rejects the request with "Unauthorized" if no token is present at all.
 - Rejects with "Invalid token" if the token is malformed, expired, or has a bad signature.
 - Rejects with "Token revoked" if the token was logged out / blacklisted.
-- If the token is a "king" token, the server treats the request as coming from an all-powerful super-admin literally named `king` — it skips every other check (including the email-verification requirement) and lets the request through no matter what.
-- Otherwise, the request proceeds as the specific logged-in profile named in the token.
+- Otherwise, the request proceeds as the specific logged-in profile named in the token — king and idiot accounts included, with no special-casing. Their elevated `role` only matters to the specific endpoints/checks that call `isAdminRole()`; every other request behaves exactly like any other logged-in user's.
 
-Some endpoints (like viewing the public feed) use a "soft" version of this check that never rejects the request — if you're logged in it personalizes the response, and if not, it just treats you as an anonymous visitor.
+Some endpoints (like viewing the public feed) use a "soft" version of this check
+(`fakeAuth`, `src/middleware/auth.ts`, lines 41–68) that treats these two cases differently:
+- **No token sent at all** — a genuine guest. The request proceeds as anonymous, showing
+  the logged-out/public view.
+- **A token was sent but fails verification** (expired or malformed) — this is a real,
+  logged-in session that just needs a refresh, not a guest. The request is rejected outright
+  with `401 "Invalid token"`, the same as a hard `isAuth` failure, rather than being silently
+  downgraded to anonymous. This used to fall through to the guest case too — the problem with
+  that was invisibility: a viewer-scoped endpoint like the gist feed (Section 4) would quietly
+  serve the unscoped, guest-visible result with no viewer identity attached and no error, and
+  the frontend's own axios interceptor — which only fires its refresh-and-retry logic on a real
+  401 — never got a signal that anything was wrong. Returning 401 here routes it through that
+  same self-healing refresh-and-retry path every `isAuth`-protected endpoint already gets,
+  instead of quietly serving a logged-in user a stranger's-eye view of the app for one request.
+
+(This is specifically about `fakeAuth`'s HTTP middleware behavior. The separate raw WebSocket
+gateway — Section 7 — has its own, unrelated guest-fallback logic that still silently
+downgrades a bad token to a `GUEST` connection; that hasn't changed.)
 
 ---
 
@@ -114,8 +165,75 @@ Some endpoints (like viewing the public feed) use a "soft" version of this check
 - **Views:** every gist view is logged (`gist_views`), which feeds into...
 - **Shares:** every real share is logged (`gist_shares`, migration `0031`) — `POST /:gist_id/share`, called by the frontend once a share actually completes (a platform link opened, or copy-link/native-share succeeded), not just when a share menu is opened. Takes an optional free-form `platform` label (`"whatsapp"`/`"x"`/`"facebook"`/`"copy_link"`/`"native"`, not enforced against a fixed list) for analytics. No dedup — sharing the same gist twice logs two rows, unlike reports. Feeds `shares_count` on `v_gist_counts`, same pattern as views.
 - **Trending:** a SQL view (`v_gist_trending_3d`) computes a trending score directly in Postgres — `reactions + 2×comments` over the last 3 days. There's no separate "trending algorithm" service; it's a live database query.
+- **Trending schools (the school-filter pills):** `GET /gists/trending-schools` powers the
+  "which other schools are popular right now" pills shown beside the Gist/Amebo tabs.
+  `gistRepo.getTrendingSchools` (`src/modules/gist/gist.repo.ts`, lines 921–939) sums the same
+  decayed-engagement score the main ranked feed uses (reactions×1 + comments×3 + shares×5,
+  decayed by age) per campus, across every `APPROVED` gist from the last 72 hours, and ranks
+  campuses by that total — there's deliberately no minimum-activity floor, so a school can
+  rank purely off one viral gist. Only student posts have a campus at all, so this query
+  `INNER JOIN`s `student_profiles` rather than `LEFT JOIN`ing like every other gist query.
+  - **Cached, not live per-request:** `GistService`'s `getCachedTrendingSchools`
+    (`src/modules/gist/gist.service.ts`, lines 3–22) keeps one shared, un-keyed in-process
+    cache entry with a 20-minute TTL (`TRENDING_SCHOOLS_TTL_MS`) — this query scans every gist
+    from the last 72 hours, and "which schools are trending" doesn't need per-request
+    freshness. It fetches more than it shows (`TRENDING_SCHOOLS_FETCH_LIMIT = 8`) so that
+    excluding the viewer's own campus still leaves enough left to fill the usual 3 pills.
+    Recomputed lazily on the first request after it goes stale, not on a timer.
+  - **Excludes the viewer's own campus:** `GistService.trendingSchools` (same file, lines
+    63–69) filters the cached list against `excludeCampusTag` — a school never gets suggested
+    as a pill to its own students (that's just the Gist tab). The exclusion campus comes from
+    `req.user.campus_tag` off the session token (`GistController.trendingSchools`,
+    `gist.controller.ts`, lines 489–503), same server-side-only sourcing as the main feed's
+    own scoping (below) — never a client-supplied value. A guest gets the plain top-N with
+    nothing excluded.
 - **Requires OTP verification:** creating, editing, and reporting gists all require the account to have completed email verification first.
 - **Shared-link context (`GET /:gist_id/context`):** built for the frontend's public share pages — returns the target gist plus up to 15 (configurable, capped at 30) chronological neighbors before and after it in one call. The target is returned **regardless of its moderation status** (the one deliberate exception in the whole gist system — even a `REJECTED` or still-`SUBMITTED` gist resolves here, so a shared link never 401s or 404s for a stranger), while the sibling gists on either side stay `APPROVED`-only like everywhere else. Uses `fakeAuth` (attaches `req.user` if a session exists, never rejects otherwise) so guests can hit it too. Also logs a view and broadcasts `gist:viewed` on success, same as the normal single-gist view endpoint.
+
+### Feed scoping: Gist, Amebo, and School
+
+**Plain-English:** The main feed can show three different slices of gists, controlled by the
+app's tab bar. "Gist" shows posts from your own campus (plus anyone who isn't a student, who
+shows up everywhere). "Amebo" shows everything, no campus filtering at all. "School" shows one
+*other* specific campus's posts, picked from the trending-school pills. Which campus counts as
+"yours" is never something the app just tells the server — it's always looked up server-side
+from who you actually are, so there's no way to trick the feed into showing you a school you
+don't belong to.
+
+**Technical details** (`GistController.list`, `src/modules/gist/gist.controller.ts`, lines
+291–347; scoping applied in `gistRepo.listRecent`, `src/modules/gist/gist.repo.ts`, lines
+459–494):
+- The client sends `?feed_mode=gist|school|amebo` (anything else, or omitted, falls back to
+  `amebo`). It does **not** send a campus — there used to be a `campus_tag` query param path
+  that trusted the client's own value, which meant a spoofed/edited request could filter the
+  feed to any school at all; that's gone. The only way `campusTag` gets set now is server-side.
+- **`gist` mode:** the viewer's own campus is read straight off their session token
+  (`req.user.campus_tag` — see Section 3 for why that's safe and DB-lookup-free now) and used
+  as the filter. A guest, or a logged-in non-student (KREATOR/KOMPANY/SCHOOL/IDIOT — none of
+  whom have a campus of their own), gracefully degrades to the same unfiltered behavior as
+  `amebo` rather than returning an emptier feed than a guest would get.
+- **`school` mode:** the campus comes from `?school=<tag>` — this is the one case where a
+  campus tag *is* client-supplied, but it's just picking which pill was tapped (any other
+  student's public campus, already advertised via the trending-schools pills above), not
+  claiming an identity. A missing/empty `school` param falls back to unfiltered, same
+  reasoning as `gist` mode's guest fallback.
+- **`amebo` mode:** no campus filtering at all — `scopeMode` stays `'none'`.
+- **The actual SQL filter**, once a campus is in play (`scopeMode` is `'home'` or `'school'`
+  and a `campusTag` is set): `AND (sp.campus_tag = $N::text OR sp.avitag IS NULL)`. The
+  `sp.avitag IS NULL` half is what actually means "this poster isn't a student at all, so
+  campus filtering doesn't apply to them" — the `LEFT JOIN student_profiles sp ON sp.avitag =
+  g.avitag` a few lines up means every `sp.*` column, including `sp.campus_tag`, comes back
+  `NULL` for a non-student poster's row, not just `sp.avitag`.
+  - **A real, shipped bug lived here** (fixed in a commit titled "Fix campus filter checking
+    the wrong NULL column"): the clause used to check `sp.campus_tag IS NULL` instead of
+    `sp.avitag IS NULL`. Those sound interchangeable but aren't — `sp.campus_tag IS NULL` is
+    also true for a **real student** whose `student_profiles` row exists but happens to have
+    no `campus_tag` value set (an incomplete profile, a data gap), not just for a genuine
+    non-student. That student's gists were passing the "not a student, exempt from filtering"
+    branch and leaking into *every* campus's Gist tab, regardless of which campus the viewer
+    actually belonged to — a real, campus-isolation-breaking bug, not a cosmetic one. Checking
+    `sp.avitag IS NULL` instead is only ever true when there's no `student_profiles` row
+    joined at all, which is the only case this exemption was ever meant to cover.
 
 ### Step-by-step: exactly what happens when someone posts a gist
 
@@ -190,9 +308,27 @@ All three are fed from one central function, `WSGateway.broadcast(topic, payload
 - There's a special `avatar-preupload` endpoint for uploading a profile picture *before* the profile itself exists yet — useful during a multi-step signup wizard where the user picks their picture before finishing the rest of their profile.
 
 **Gist media specifically now uploads a different way** (`media.controller.ts`'s `signature`/`finalize`, added after the note above was originally written): the file's actual bytes never touch this server or the frontend's own proxy at all — the browser uploads **directly to Cloudinary**. This exists because routing large files (especially video) through a serverless-hosted proxy hits hard platform request-size ceilings (e.g. Vercel's ~4.5MB serverless function body limit) that have nothing to do with any limit this backend configures — a real, previously-silent failure mode for anything but small images.
-  - `GET /:gist_id/media/signature?resource_type=video|image` — signs a Cloudinary upload request server-side (using `CLOUDINARY_API_SECRET`, which never leaves the server), scoping the upload to this gist's own folder and, for video, requesting an eager thumbnail transformation. The browser can't redirect the upload elsewhere or skip the thumbnail — Cloudinary rejects any request whose actual params don't exactly match what was signed.
+  - `GET /:gist_id/media/signature` — signs a Cloudinary upload request server-side (using
+    `CLOUDINARY_API_SECRET`, which never leaves the server), scoping the upload to this gist's
+    own folder. The browser can't redirect the upload elsewhere — Cloudinary rejects any
+    request whose actual params don't exactly match what was signed. This used to also sign an
+    `eager` poster-frame transform for video, requested by the client via a `resource_type`
+    query param; that's gone now (see below) — signing is identical for image and video today.
   - The browser then POSTs the file straight to Cloudinary's own API using that signature.
-  - `POST /:gist_id/media/finalize` — called after the direct upload succeeds, with Cloudinary's own result (URL, `public_id`, `bytes`, `duration`). Re-validates against real policy using what Cloudinary reported — not anything the client claims — and deletes the just-uploaded asset from Cloudinary immediately if it's over the cap, rather than silently accepting it.
+  - `POST /:gist_id/media/finalize` — called after the direct upload succeeds, with
+    Cloudinary's own result (URL, `public_id`, `bytes`, `duration`). Re-validates against real
+    policy using what Cloudinary reported — not anything the client claims — and deletes the
+    just-uploaded asset from Cloudinary immediately if it's over the cap, rather than silently
+    accepting it. For video, it also derives the poster-frame thumbnail here as a **lazy
+    Cloudinary delivery-URL transform** —
+    `.../video/upload/so_0,w_400,c_scale,f_jpg/<public_id>.jpg` — instead of requesting an
+    eager transform at upload time. Cloudinary's `eager` transform used to run synchronously,
+    as part of the same upload request, blocking the response until a real video finished
+    transcoding — the browser's own upload-progress UI only tracks bytes sent, which finishes
+    fast, so the progress ring would disappear while the request sat open waiting on the
+    transform, reading to the user as a stalled upload rather than one still in progress.
+    Rendering the same transform lazily, on Cloudinary's CDN the first time the URL is actually
+    requested, gets the identical poster frame with nothing blocking the upload response on it.
   - **Caps:** images 10MB; video 150MB **and** 120 seconds (both enforced — a short but huge file, or a long but small one, can each independently fail). Kampos gists are quick, in-the-moment posts, not a video platform — 2 minutes was chosen to comfortably cover a real phone-recorded clip while roughly matching Twitter/X's own *default*, non-Premium upload cap (140s), not the outlier multi-hour allowance some of their premium tiers get.
   - The older `POST /:gist_id/media` (multipart straight to this server, `GistMediaController.upload`) still exists and still works — the web frontend no longer calls it for real uploads, but it's left in place as-is (e.g. for the mobile app or any other direct API client).
   - **Ownership check (added after a real gap was caught):** every media-mutating endpoint in this controller (`signature`, `finalize`, `upload`, `attachByUrl`, `reorder`, and the media-id-scoped `update`/`remove`) now runs through one shared `assertCanEditGist()` gate first — the gist's actual owner, or an `IDIOT` (admin) profile (same bypass convention `GistController.remove` already uses), or a `403`. Previously **none** of these checked ownership at all — any logged-in user could attach, replace, reorder, or delete media on *anyone's* gist, not just their own. Live-verified: a second test account was correctly blocked (`403 "You can only manage media on your own gist"`) from a gist it didn't own, while the real owner's own requests kept working normally.
@@ -260,6 +396,7 @@ All endpoints are prefixed with `/api/v1` unless noted. "Auth required" means a 
 | POST `/` | required + verified | Create a gist (optional `color_key`, whitelisted — Section 4) |
 | GET `/` | optional | List gists |
 | GET `/trending` | optional | 3-day trending gists |
+| GET `/trending-schools` | optional | Top campuses by 72h engagement, viewer's own campus excluded, 20-min cache — powers the school-filter pills |
 | GET `/search` | optional | Search gists, filter by campus/major |
 | GET `/user/:avitag` | optional | Gists by a specific author |
 | GET `/approved` | optional | Alias for approved gist list |
@@ -326,7 +463,6 @@ These control how the backend connects to its dependencies and behaves — actua
 | `BREVO_EMAIL`, `BREVO_PASSWORD`, `BREVO_FROM` | Outgoing email account |
 | `CLOUDINARY_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Image/video hosting |
 | `DEFAULT_PROFILE_PIC_URL` | Fallback avatar image |
-| `ADMIN_ACCOUNT_IDS` | Accounts granted elevated/admin access |
 | `UNVERIFIED_GIST_MAX`, `VERIFIED_GIST_MAX` | Post length limits |
 | `GOOGLE_CLIENT_ID/SECRET`, `FACEBOOK_CLIENT_ID/SECRET`, `APPLE_*` | Third-party sign-in credentials |
 | `OAUTH_ENC_KEY` | Encrypts stored third-party login tokens |

@@ -1,0 +1,16 @@
+-- profile_status was supposed to be ACTIVE|DEACTIVATED|DELETED|BANNED from
+-- migration 0014_create_profiles_fresh.sql onward, but the live enum never
+-- actually got 'BANNED' — 0004_profiles_status.sql created the type FIRST
+-- with only ('ACTIVE','DEACTIVATED','DELETED'), and 0014's own
+-- `CREATE TYPE profile_status AS ENUM (...,'BANNED')` was wrapped in an
+-- `EXCEPTION WHEN duplicate_object THEN NULL` guard that silently no-op'd
+-- once the type already existed, instead of adding the missing value.
+-- Confirmed directly against the live DB (`SELECT enumlabel FROM pg_enum
+-- WHERE enumtypid = 'profile_status'::regtype`) before writing this fix —
+-- every application-layer type (repo.ts's own `ProfileStatus`,
+-- serverProfilesAdmin.ts's `AdminProfileStatus`) already assumed BANNED
+-- existed; only the actual database enum was missing it.
+--
+-- Own statement, nothing else in this transaction reads/writes the new
+-- value — same reasoning as 0036's DEACTIVATED addition.
+ALTER TYPE profile_status ADD VALUE IF NOT EXISTS 'BANNED';

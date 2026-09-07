@@ -1,12 +1,16 @@
 import type { Request, Response } from "express";
 import { GistService } from './gist.service';
 import { WSGateway } from '../../ws/gateway';
+import { SIGateway } from '../../ws/socketio';
 import { env } from '../../config/env';
 import * as ProfileUtils from '../profile/utils';
 import * as GistMediaRepo from './media.repo';
 import { uploadBuffer } from '../../services/media/cloudinary';
 import { GIST_COLOR_KEYS } from './gist.constants';
 import logger from '../../utils/logger';
+import { isAdminRole } from '../../middleware/idiot';
+import { safeAudit } from '../audit/audit.util';
+import { bumpReportPush } from '../idiot/reportPush';
 
 // Whitelisted rather than trusted as-is so `color_key` can never become a
 // stored-XSS-style free text field via a crafted request — belt-and-braces
@@ -59,6 +63,11 @@ export const GistController = {
       majorTagForGist ?? null,
       safeColorKey
     );
+    // Every new gist starts SUBMITTED (see migrations/0001_init.sql's
+    // default) — i.e. this always means "a gist just entered the
+    // moderation queue," which is exactly what the admin panel's Pending
+    // Posts tab wants to hear about live.
+    try { SIGateway.emitToAdmins('gist:pending', { gist_id: gist.gist_id }); } catch {}
 
     // If files are provided (multipart/form-data), upload and attach as media
     try {
@@ -252,7 +261,7 @@ export const GistController = {
       (full as any).profile = profile;
     }
     const isOwner = req.user?.avitag && req.user.avitag === full.avitag;
-    const isAdmin = req.user?.role === 'IDIOT';
+    const isAdmin = isAdminRole(req.user?.role);
     if (isOwner || isAdmin) {
       const viewer = req.user?.avitag ?? null;
       await GistService.incrementView(id, viewer);
@@ -436,12 +445,13 @@ export const GistController = {
 
   remove: async (req: Request, res: Response) => {
     const id = req.params.gist_id;
-    if (req.user?.role === "IDIOT") {
+    if (isAdminRole(req.user?.role)) {
       const ok = await GistService.deleteAsIdiot(id);
       if (!ok)
         return res
           .status(404)
           .json({ success: false, message: "Gist not found" });
+      await safeAudit({ action: 'GIST_DELETE', target_type: 'GIST', target_id: id, idiot_avitag: req.user!.avitag ?? req.user!.account_id });
       return res.json({ success: true, message: "Deleted" });
     }
     if (!req.user?.avitag)
@@ -582,6 +592,14 @@ export const GistController = {
           message: "Owners cannot report their own gist",
         });
     const isNew = await GistService.report(id, req.user.avitag, reason ?? null);
+    // Only a genuinely new report (not a duplicate from the same reporter,
+    // which report() silently no-ops via ON CONFLICT DO NOTHING) should
+    // ping the admin panel — a repeat report on an already-flagged gist
+    // isn't new information for the queue.
+    if (isNew) {
+      try { SIGateway.emitToAdmins('report:created', { gist_id: id }); } catch {}
+      bumpReportPush();
+    }
     return res.json({
       success: true,
       message: isNew ? "Reported" : "You already reported this",

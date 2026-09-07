@@ -6,6 +6,9 @@ import { ModerationController } from './moderation.controller';
 
 const router = Router();
 
+// Real-time admin socket auth — see ModerationController.socketTicket's doc comment.
+router.get('/socket-ticket', isAuth, isIdiot, ModerationController.socketTicket);
+
 // List pending
 router.get('/gists', isAuth, isIdiot, ModerationController.listPendingGists);
 

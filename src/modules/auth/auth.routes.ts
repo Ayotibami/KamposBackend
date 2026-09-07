@@ -60,6 +60,7 @@ function makeOtpVerifyLimiter() {
 
 router.post('/register', validateBody(registerSchema), AuthController.register);
 router.post('/login', AuthController.login);
+router.post('/reactivate', AuthController.reactivate);
 router.post('/refresh', AuthController.refresh);
 router.post('/logout', isAuth, AuthController.logout);
 router.post('/switch-profile', isAuth, AuthController.switchProfile);

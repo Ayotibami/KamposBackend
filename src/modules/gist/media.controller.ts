@@ -4,6 +4,7 @@ import { GistService } from './gist.service';
 import { uploadBuffer, deleteByPublicId, deleteByPublicIdWithType, signUpload } from '../../services/media/cloudinary';
 import { WSGateway } from '../../ws/gateway';
 import { env } from '../../config/env';
+import { isAdminRole } from '../../middleware/idiot';
 
 // Kampos gists are quick, in-the-moment posts, not a video platform —
 // 2 minutes covers a real phone-recorded clip comfortably (Twitter/X's own
@@ -28,7 +29,7 @@ async function assertCanEditGist(req: Request, res: Response, gist_id: string): 
     res.status(401).json({ success: false, message: 'Unauthorized' });
     return false;
   }
-  if (req.user.role === 'IDIOT') return true;
+  if (isAdminRole(req.user.role)) return true;
   const gist = await GistService.findById(gist_id);
   if (!gist) {
     res.status(404).json({ success: false, message: 'Gist not found' });

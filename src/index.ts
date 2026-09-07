@@ -10,6 +10,8 @@ import { WebSocketServer } from 'ws';
 import { useServer } from 'graphql-ws/use/ws';
 import { execute, subscribe, GraphQLSchema } from 'graphql';
 import { verifyToken } from './config/jwt';
+import cron from 'node-cron';
+import { runDigest } from './modules/idiot/digest';
 
 async function main() {
   try {
@@ -84,6 +86,14 @@ async function main() {
 
     server.listen(env.PORT, () => {
       logger.info(`Server listening on http://localhost:${env.PORT}`);
+    });
+
+    // Admin activity digest — see digest.ts's own doc comment. Runs on the
+    // clock (":00"/":30" past the hour), not "every 30 minutes from
+    // whenever this process happened to boot" — a fixed clock means a
+    // redeploy doesn't shift the schedule around.
+    cron.schedule('0,30 * * * *', () => {
+      void runDigest();
     });
 
     const shutdown = async (signal?: string) => {

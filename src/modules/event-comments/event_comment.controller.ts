@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import * as Repo from './event_comment.repo';
 import { WSGateway } from '../../ws/gateway';
+import { isAdminRole } from '../../middleware/idiot';
 
 export const EventCommentController = {
   create: async (req: Request, res: Response) => {
@@ -37,7 +38,7 @@ export const EventCommentController = {
 
   remove: async (req: Request, res: Response) => {
     const role = req.user?.role;
-    if (role === 'IDIOT') {
+    if (isAdminRole(role)) {
       const ok = await Repo.removeAsAdmin(req.params.comment_id);
       if (!ok) return res.status(404).json({ success: false, message: 'Comment not found' });
       try { WSGateway.broadcast('event_comment:deleted', { comment_id: req.params.comment_id }); } catch {}

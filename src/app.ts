@@ -18,6 +18,14 @@ import schoolProfileRoutes from './modules/profile/schools/routes';
 import idiotProfileRoutes from './modules/profile/idiots/routes';
 import profileUploadRoutes from './modules/profile/upload.routes';
 import moderationRoutes from './modules/idiot/moderation.routes';
+import adminsRoutes from './modules/idiot/admins.routes';
+import usersAdminRoutes from './modules/idiot/users.routes';
+import gistsAdminRoutes from './modules/idiot/gists.routes';
+import profilesAdminRoutes from './modules/idiot/profiles.routes';
+import auditAdminRoutes from './modules/idiot/audit.routes';
+import referenceAdminRoutes from './modules/idiot/reference.routes';
+import statsAdminRoutes from './modules/idiot/stats.routes';
+import pushRoutes from './modules/idiot/push.routes';
 import commentRoutes from './modules/comment/comment.routes';
 import reactionRoutes from './modules/reaction/reaction.routes';
 import eventRoutes from './modules/event/event.routes';
@@ -32,6 +40,7 @@ import * as CommentRepo from './modules/comment/comment.repo';
 import * as ReactionRepo from './modules/reaction/reaction.repo';
 import { PubSub } from './graphql/pubsub';
 import { fakeAuth } from './middleware/auth';
+import { isAdminRole } from './middleware/idiot';
 import path from 'path';
 import miscRoutes from './modules/misc/misc.routes';
 import { mkdirSync } from 'fs';
@@ -116,7 +125,7 @@ export const root = {
     if (approved) return approved;
     const any = await GistService.findWithCountsAnyStatus(id);
     const isOwner = req?.user?.avitag && any && req.user.avitag === any.avitag;
-    const isAdmin = req?.user?.role === 'IDIOT';
+    const isAdmin = isAdminRole(req?.user?.role);
     return (isOwner || isAdmin) ? any : null;
   },
   gists: async ({ limit, cursor }: { limit?: number; cursor?: string }, req: any) => {
@@ -197,6 +206,14 @@ app.use('/api/v1/events', eventRoutes);
 app.use('/api/v1/event-registrations', registrationRoutes);
 app.use('/api/v1/event-comments', eventCommentRoutes);
 app.use('/api/v1/idiot/moderation', moderationRoutes);
+app.use('/api/v1/idiot/admins', adminsRoutes);
+app.use('/api/v1/idiot/users', usersAdminRoutes);
+app.use('/api/v1/idiot/gists', gistsAdminRoutes);
+app.use('/api/v1/idiot/profiles', profilesAdminRoutes);
+app.use('/api/v1/idiot/audit', auditAdminRoutes);
+app.use('/api/v1/idiot/reference', referenceAdminRoutes);
+app.use('/api/v1/idiot/stats', statsAdminRoutes);
+app.use('/api/v1/idiot/notifications', pushRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -17,11 +17,11 @@ export interface CommentWithReactions extends CommentRow {
    * breakdown (a comment reaction is a lighter single tap-to-like, not the
    * full 5-emoji picker gists get). */
   my_reaction: string | null;
-  /** Commenter's profile info, joined in for display — null when the
-   * avitag doesn't resolve to a student profile (only student_profiles has
-   * campus/major; other profile types just show name-less/tag-less). Raw
-   * tags (e.g. "unilag"), not resolved display names — matches how gists
-   * themselves show campus_tag/major_tag directly, no campus/major join. */
+  /** Commenter's display info — COALESCEd across all 5 profile tables (see
+   * PROFILE_COLUMNS below), same "fix the student-only join" pattern
+   * gist.repo.ts's AUTHOR_COLUMNS just got. Null only when the avitag
+   * resolves to no profile at all (a data-integrity edge case, not the
+   * common "non-student commenter" case anymore). */
   first_name: string | null;
   last_name: string | null;
   campus_tag: string | null;
@@ -37,11 +37,42 @@ const REACTION_COLUMNS = (viewerParamIndex: number) => `
   (SELECT type FROM reactions r WHERE r.entity_type = 'COMMENT' AND r.entity_id = c.comment_id AND r.avitag = $${viewerParamIndex}::text LIMIT 1) AS my_reaction
 `;
 
-// Commenter display info — LEFT JOINed so a non-student (or since-deleted)
-// avitag still returns a row, just with these columns null. Just
-// student_profiles, no campus/major reference-table join — raw tags only.
-const PROFILE_JOIN = `LEFT JOIN student_profiles sp ON sp.avitag = c.avitag`;
-const PROFILE_COLUMNS = `sp.first_name, sp.last_name, sp.campus_tag, sp.major_tag, sp.level, sp.image_url`;
+// Commenter display info — LEFT JOINed across all 5 profile types (keyed by
+// avitag, same as gist.repo.ts's AUTHOR_JOIN) so a KREATOR/KOMPANY/SCHOOL/
+// IDIOT commenter gets real name/photo instead of silently falling back to
+// their bare avitag the way a student-only join left them. `accounts` is
+// joined off whichever profile table actually matched, for the AND-gate
+// below (a comment's own row has no account_id column to join from
+// directly, unlike gists).
+const PROFILE_JOIN = `
+  LEFT JOIN student_profiles sp ON sp.avitag = c.avitag
+  LEFT JOIN kreator_profiles kp ON kp.avitag = c.avitag
+  LEFT JOIN kompany_profiles kmp ON kmp.avitag = c.avitag
+  LEFT JOIN school_profiles scp ON scp.avitag = c.avitag
+  LEFT JOIN idiot_profiles idp ON idp.avitag = c.avitag
+  LEFT JOIN accounts acc ON acc.account_id = COALESCE(sp.account_id, kp.account_id, kmp.account_id, scp.account_id, idp.account_id)
+`;
+// first_name/last_name stay real column names (not renamed) — CommentList.tsx
+// already reads c.first_name with an avitag fallback, so COALESCING a
+// non-student's display_name into first_name (and leaving last_name to
+// student-only, same as campus/major/level) fixes the identity gap with no
+// frontend change needed. image_url is COALESCEd across all 5 for the same
+// reason gist.repo.ts's AUTHOR_COLUMNS is.
+const PROFILE_COLUMNS = `
+  COALESCE(sp.first_name, kp.display_name, kmp.display_name, scp.display_name, idp.display_name) AS first_name,
+  sp.last_name, sp.campus_tag, sp.major_tag, sp.level,
+  COALESCE(sp.image_url, kp.image_url, kmp.image_url, scp.image_url, idp.image_url) AS image_url
+`;
+
+// Same AND-gate as gist.repo.ts's AUTHOR_LIVE_GATE — a banned/deactivated/
+// deleted commenter's old comments shouldn't keep showing on other
+// people's gists. Literal 'ACTIVE', not a bind parameter, so it never
+// shifts any existing $N numbering below.
+const PROFILE_LIVE_GATE = `(
+  (COALESCE(sp.profile_status, kp.profile_status, kmp.profile_status, scp.profile_status, idp.profile_status) IS NULL
+    OR COALESCE(sp.profile_status, kp.profile_status, kmp.profile_status, scp.profile_status, idp.profile_status) = 'ACTIVE')
+  AND (acc.account_status IS NULL OR acc.account_status = 'ACTIVE')
+)`;
 
 // Profile fields joined in via a CTE (not a separate follow-up query) so a
 // freshly-posted comment already carries the poster's first_name/level/
@@ -57,7 +88,7 @@ export async function create(
      )
      SELECT inserted.*, ${PROFILE_COLUMNS}
      FROM inserted
-     ${PROFILE_JOIN.replace('c.avitag', 'inserted.avitag')}`,
+     ${PROFILE_JOIN.replace(/c\.avitag/g, 'inserted.avitag')}`,
     [params.gist_id, params.avitag, params.text]
   );
   return rows[0];
@@ -80,6 +111,7 @@ export async function listByGist(
        FROM comments c
        ${PROFILE_JOIN}
        WHERE c.gist_id = $1 AND c.commented_at < (SELECT commented_at FROM comments WHERE comment_id = $2)
+         AND ${PROFILE_LIVE_GATE}
        ORDER BY c.commented_at DESC LIMIT $3`,
       [gist_id, cursor, limit, viewerAvitag ?? null]
     );
@@ -89,7 +121,7 @@ export async function listByGist(
     `SELECT c.*, ${REACTION_COLUMNS(3)}, ${PROFILE_COLUMNS}
      FROM comments c
      ${PROFILE_JOIN}
-     WHERE c.gist_id = $1 ORDER BY c.commented_at DESC LIMIT $2`,
+     WHERE c.gist_id = $1 AND ${PROFILE_LIVE_GATE} ORDER BY c.commented_at DESC LIMIT $2`,
     [gist_id, limit, viewerAvitag ?? null]
   );
   return rows;
@@ -118,6 +150,7 @@ export async function listBatchByGistIds(
        LIMIT $2
      ) c ON TRUE
      ${PROFILE_JOIN}
+     WHERE ${PROFILE_LIVE_GATE}
      ORDER BY c.gist_id, c.commented_at DESC`,
     [gist_ids, limitPerGist, viewerAvitag ?? null]
   );

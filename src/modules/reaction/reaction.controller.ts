@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import * as repo from './reaction.repo';
 import { WSGateway } from '../../ws/gateway';
 import { GistService } from '../gist/gist.service';
+import { isAdminRole } from '../../middleware/idiot';
 
 // The WS `reactions:upsert`/`reactions:remove_by_entity` message path
 // already broadcasts counts:updated — the REST path (what every current
@@ -39,7 +40,7 @@ export const ReactionController = {
   remove: async (req: Request, res: Response) => {
     const role = req.user?.role;
     const reaction_id = req.params.reaction_id;
-    if (role === 'IDIOT') {
+    if (isAdminRole(role)) {
       // Need the entity this reaction was on before it's gone, same reason
       // comment.controller.ts's remove() looks the row up first — the
       // counts broadcast below needs a gist_id, and removeById only ever

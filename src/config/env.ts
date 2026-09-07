@@ -45,7 +45,6 @@ export const env = cleanEnv(process.env, {
   CLOUDINARY_API_KEY: str({ default: "" }),
   CLOUDINARY_API_SECRET: str({ default: "" }),
   DEFAULT_PROFILE_PIC_URL: str({ default: "" }),
-  ADMIN_ACCOUNT_IDS: str({ default: "" }),
   // Matches the frontend's own LIMITS.gist (kampos-web/src/lib/brand.ts) —
   // unverified previously defaulted to 280, which silently rejected any
   // create/edit past that even though the compose UI capped at (and showed)
@@ -65,6 +64,20 @@ export const env = cleanEnv(process.env, {
 
   SENTRY_DSN: str({ default: "" }),
   FCM_SERVER_KEY: str({ default: "" }),
+
+  // Web Push (admin notifications) — a browser-native standard, not a
+  // third-party service: these keys let this backend sign push payloads
+  // itself and send them straight to whichever push relay the subscriber's
+  // own browser vendor already runs (Chrome/Firefox/Edge's, etc.), with no
+  // account or SDK from a provider like OneSignal/Firebase involved.
+  // Generated once via `npx web-push generate-vapid-keys`; empty defaults
+  // so a machine without them configured just can't send pushes yet,
+  // rather than crashing on boot.
+  VAPID_PUBLIC_KEY: str({ default: "" }),
+  VAPID_PRIVATE_KEY: str({ default: "" }),
+  // The `mailto:` contact VAPID requires in every push's signed JWT so a
+  // push service operator has a way to reach whoever's sending, if needed.
+  VAPID_SUBJECT: str({ default: "mailto:kamposkonnect@gmail.com" }),
 });
 
 export const REFRESH_TOKEN_EXPIRES_SECONDS =

@@ -5,6 +5,7 @@ import { pool } from '../../config/db';
 import { avitagSchema } from '../../schemas/profile';
 import { findByAvitag } from './utils';
 import { safeErrorMessage } from '../../utils/errors';
+import { isAdminRole } from '../../middleware/idiot';
 
 const router = Router();
 
@@ -33,7 +34,7 @@ router.post('/upload-picture', isAuth, async (req, res) => {
 
   // Verify ownership
   const { rowCount } = await pool.query(`SELECT 1 FROM ${table} WHERE avitag = $1 AND account_id = $2`, [avitag, req.user!.account_id]);
-  if ((rowCount || 0) === 0 && req.user?.profileType !== 'IDIOT') {
+  if ((rowCount || 0) === 0 && !isAdminRole(req.user?.role)) {
     return res.status(403).json({ success: false, message: 'Forbidden' });
   }
 

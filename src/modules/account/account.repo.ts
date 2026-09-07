@@ -6,12 +6,17 @@ export interface Account {
   password_hash: string | null;
   auth_provider: 'EMAIL' | 'GOOGLE' | 'FACEBOOK' | 'APPLE';
   is_otp_verified: boolean;
-  account_status: 'ACTIVE' | 'DELETED' | 'SUSPENDED';
+  account_status: 'ACTIVE' | 'DEACTIVATED' | 'SUSPENDED' | 'DELETED';
+  /** Set on suspend/ban-style admin actions (and left null for self-service
+   * deactivate/delete, which don't need a "why" the way an admin action
+   * does) — quoted back to the account owner in the login-blocked message. */
+  account_status_reason: string | null;
+  account_status_changed_at: string | null;
   oauth_id: string | null;
   created_at: string;
   updated_at: string;
   last_login: string | null;
-  who: 'king' | 'user';
+  role: 'user' | 'idiot' | 'king';
 }
 
 export async function createAccountEmail(email: string, password_hash: string): Promise<Account> {
@@ -43,8 +48,51 @@ export async function updateLastLogin(account_id: string): Promise<void> {
   await pool.query(`UPDATE accounts SET last_login = NOW(), updated_at = NOW() WHERE account_id = $1`, [account_id]);
 }
 
-export async function softDeleteAccount(account_id: string): Promise<void> {
-  await pool.query(`UPDATE accounts SET account_status = 'DELETED', updated_at = NOW() WHERE account_id = $1`, [account_id]);
+/**
+ * Single setter for every non-ACTIVE account_status (DEACTIVATED,
+ * SUSPENDED, DELETED) — self-service and admin-triggered actions alike all
+ * go through this, since they're mechanically identical writes (just the
+ * target status and whether a reason is present differ). Reactivating
+ * (back to ACTIVE) is deliberately a SEPARATE function below, not a valid
+ * `status` here — that transition also needs to clear the reason, and
+ * self-reactivate has its own extra precondition (must currently be
+ * DEACTIVATED) that doesn't belong in this generic setter.
+ */
+export async function setAccountStatus(
+  account_id: string,
+  status: 'DEACTIVATED' | 'SUSPENDED' | 'DELETED',
+  reason: string | null = null,
+): Promise<void> {
+  await pool.query(
+    `UPDATE accounts
+     SET account_status = $2, account_status_reason = $3, account_status_changed_at = NOW(), updated_at = NOW()
+     WHERE account_id = $1`,
+    [account_id, status, reason],
+  );
+}
+
+/** Admin unsuspending an account — the one ACTIVE-bound transition besides
+ * self-reactivate, kept separate from it since this one has no credential
+ * check of its own (the caller is already an authenticated admin). */
+export async function unsuspendAccount(account_id: string): Promise<void> {
+  await pool.query(
+    `UPDATE accounts
+     SET account_status = 'ACTIVE', account_status_reason = NULL, account_status_changed_at = NOW(), updated_at = NOW()
+     WHERE account_id = $1`,
+    [account_id],
+  );
+}
+
+/** The self-service "turn my account back on" transition — see
+ * AuthService.reactivate, which is the only caller (it already verified
+ * the account is currently DEACTIVATED before calling this). */
+export async function reactivateAccount(account_id: string): Promise<void> {
+  await pool.query(
+    `UPDATE accounts
+     SET account_status = 'ACTIVE', account_status_reason = NULL, account_status_changed_at = NOW(), updated_at = NOW()
+     WHERE account_id = $1`,
+    [account_id],
+  );
 }
 
 export async function markOtpVerified(account_id: string): Promise<void> {
@@ -84,6 +132,17 @@ export async function linkOauthToAccount(account_id: string, provider: 'GOOGLE'|
 
 export async function touchUpdatedAt(account_id: string): Promise<void> {
   await pool.query(`UPDATE accounts SET updated_at = NOW() WHERE account_id = $1`, [account_id]);
+}
+
+export async function updateAccountRole(account_id: string, role: 'user' | 'idiot' | 'king'): Promise<void> {
+  await pool.query(`UPDATE accounts SET role = $1, updated_at = NOW() WHERE account_id = $2`, [role, account_id]);
+}
+
+export async function listAdminAccounts(): Promise<PublicAccount[]> {
+  const { rows } = await pool.query<Account>(
+    `SELECT * FROM accounts WHERE role IN ('idiot','king') ORDER BY created_at ASC`
+  );
+  return rows.map(toPublicAccount);
 }
 
 export type PublicAccount = Omit<Account, 'password_hash'>;

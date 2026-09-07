@@ -32,6 +32,7 @@ const RESERVED_AVITAGS = new Set([
   'kappy',
   'ceo',
   'admin',
+  'villagepeople',
   'test',
 ]);
 
@@ -95,5 +96,49 @@ export const schoolCreateSchema = z.object({
   campus_tag: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   website: z.string().url().optional().nullable(),
+  image_url: z.string().url().optional().nullable(),
+});
+
+// Admin-created profiles (POST /idiot/profiles/:type) — every schema below
+// adds account_id (the target account, not the caller's own — see
+// idiot/profiles.controller.ts's create()), since only an admin can attach
+// a profile to someone ELSE's account; self-signup's own *CreateSchema
+// above always implicitly targets req.user.account_id and never carries
+// this field.
+//
+// studentCreateSchema itself deliberately still leaves campus_tag/major_tag/
+// level optional (self-signup's setup wizard always sends them in practice,
+// so nobody's hit that gap yet, but tightening it there is a separate,
+// wider decision than this admin-only path) — this one alone requires all
+// three, since a student profile an admin hand-creates has no wizard behind
+// it to have collected them.
+export const adminStudentCreateSchema = studentCreateSchema.extend({
+  account_id: z.string().uuid(),
+  campus_tag: z.string().min(1),
+  major_tag: z.string().min(1),
+  level: z.union([z.coerce.number().int(), z.string()]),
+});
+
+export const adminKreatorCreateSchema = kreatorCreateSchema.extend({
+  account_id: z.string().uuid(),
+});
+
+export const adminKompanyCreateSchema = kompanyCreateSchema.extend({
+  account_id: z.string().uuid(),
+});
+
+export const adminSchoolCreateSchema = schoolCreateSchema.extend({
+  account_id: z.string().uuid(),
+});
+
+// No self-signup counterpart exists for this one (idiot PROFILES — the
+// moderation-facing persona, distinct from the account `role` column — are
+// only ever admin-created in the first place, so idiots/routes.ts's own
+// POST / has no validateBody at all today).
+export const adminIdiotCreateSchema = z.object({
+  avitag: avitagSchema,
+  account_id: z.string().uuid(),
+  display_name: z.string().min(1),
+  description: z.string().optional().nullable(),
   image_url: z.string().url().optional().nullable(),
 });

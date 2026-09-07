@@ -8,6 +8,7 @@ import * as commentRepo from '../modules/comment/comment.repo';
 import * as reactionRepo from '../modules/reaction/reaction.repo';
 import { PubSub } from '../graphql/pubsub';
 import { SIGateway } from './socketio';
+import { isAdminRole } from '../middleware/idiot';
 
 export class WSGateway {
   private static wss: WebSocketServer | null = null;
@@ -113,12 +114,12 @@ export class WSGateway {
               case 'comments:delete': {
                 const avitag: string | undefined = (user as any)?.avitag;
                 const role: string | undefined = (user as any)?.role;
-                if (!avitag && role !== 'IDIOT') { ws.send(JSON.stringify({ type: 'comments:delete:error', requestId, message: 'Unauthorized' })); break; }
+                if (!avitag && !isAdminRole(role)) { ws.send(JSON.stringify({ type: 'comments:delete:error', requestId, message: 'Unauthorized' })); break; }
                 const comment_id: string | undefined = msg?.comment_id;
                 if (!comment_id) { ws.send(JSON.stringify({ type: 'comments:delete:error', requestId, message: 'comment_id required' })); break; }
                 const existing = await commentRepo.get(comment_id);
                 let ok = false;
-                if (role === 'IDIOT') ok = await commentRepo.removeAsAdmin(comment_id);
+                if (isAdminRole(role)) ok = await commentRepo.removeAsAdmin(comment_id);
                 else ok = await commentRepo.remove(comment_id, avitag!);
                 if (!ok) { ws.send(JSON.stringify({ type: 'comments:delete:error', requestId, message: 'Not found or forbidden' })); break; }
                 ws.send(JSON.stringify({ type: 'comments:delete:ok', requestId }));
@@ -170,8 +171,8 @@ export class WSGateway {
                 const role: string | undefined = (user as any)?.role;
                 const reaction_id: string | undefined = msg?.reaction_id;
                 if (!reaction_id) { ws.send(JSON.stringify({ type: 'reactions:remove:error', requestId, message: 'reaction_id required' })); break; }
-                // Allow IDIOT to remove any; otherwise fallback to composite removal below
-                if (role === 'IDIOT') {
+                // Allow idiot/king to remove any; otherwise fallback to composite removal below
+                if (isAdminRole(role)) {
                   const ok = await reactionRepo.removeById(reaction_id);
                   if (!ok) { ws.send(JSON.stringify({ type: 'reactions:remove:error', requestId, message: 'Not found' })); break; }
                   ws.send(JSON.stringify({ type: 'reactions:remove:ok', requestId }));
@@ -220,7 +221,7 @@ export class WSGateway {
                 const full = await GistService.findWithCountsAnyStatus(id);
                 if (!full) { ws.send(JSON.stringify({ type: 'gists:get:error', requestId, message: 'Not found' })); break; }
                 const isOwner = (user as any)?.avitag && (user as any).avitag === full.avitag;
-                const isAdmin = (user as any)?.role === 'IDIOT';
+                const isAdmin = isAdminRole((user as any)?.role);
                 if (isOwner || isAdmin) {
                   ws.send(JSON.stringify({ type: 'gists:get:ok', requestId, data: full }));
                 } else {

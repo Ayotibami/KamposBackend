@@ -6,7 +6,7 @@ import * as reportRepo from '../gist/report.repo';
 
 export const ModerationService = {
   // Gists
-  listPendingGists: (limit = 20, offset = 0) => gistRepo.listPendingGists(limit, offset),
+  listPendingGists: (limit = 20, offset = 0) => gistRepo.listPendingGistsWithDetails(limit, offset),
 
   approveGist: async (gist_id: string, idiot_avitag: string) => {
     const updated = await gistRepo.approveGist(gist_id);
@@ -26,7 +26,7 @@ export const ModerationService = {
   },
 
   // Profiles
-  listPendingProfiles: (limit = 20, offset = 0) => profileRepo.listPendingProfiles(limit, offset),
+  listPendingProfiles: (limit = 20, offset = 0) => profileRepo.listPendingProfilesWithDetails(limit, offset),
 
   verifyProfile: async (avitag: string, idiot_avitag: string) => {
     const updated = await profileRepo.verifyProfile(avitag);
@@ -41,7 +41,7 @@ export const ModerationService = {
   },
 
   // Reports
-  listPendingReports: (limit = 20, offset = 0) => reportRepo.listPending(limit, offset),
+  listPendingReports: (limit = 20, offset = 0) => reportRepo.listPendingWithDetails(limit, offset),
 
   acceptReport: async (report_id: string, idiot_avitag: string) => {
     const { report } = await reportRepo.acceptReportAndRejectGist(report_id, idiot_avitag);

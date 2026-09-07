@@ -6,8 +6,7 @@ export interface JwtClaims {
   account_id: string;
   avitag?: string; // active profile (optional until selected)
   profileType?: 'STUDENT' | 'KREATOR' | 'KOMPANY' | 'SCHOOL' | 'IDIOT' | 'king';
-  role?: 'IDIOT' | 'USER' | 'king';
-  who?: string;
+  role?: 'user' | 'idiot' | 'king';
   is_otp_verified?: boolean;
   // Set once, at whichever moment the active profile is chosen (switch-
   // profile) or a token is refreshed — never looked up again per-request
@@ -50,4 +49,15 @@ export function signRefreshToken(payload: Omit<JwtClaims, 'iat' | 'exp'>): strin
 
 export function verifyRefreshToken(token: string): JwtClaims {
   return jwt.verify(token, REFRESH_SECRET) as JwtClaims;
+}
+
+/** A very short-lived (60s) ticket minted purely so an admin's browser can
+ * authenticate a direct, cross-origin Socket.IO handshake — the real
+ * session lives in an httpOnly cookie this app's own JS can never read, so
+ * this is the one value the client is ever handed to prove identity for
+ * that one moment. Verified with the exact same verifyToken() as a normal
+ * access token (same secret, same claim shape); the short expiry — not a
+ * different secret — is what limits its blast radius if it ever leaked. */
+export function signSocketTicket(payload: Omit<JwtClaims, 'iat' | 'exp' | 'jti'>): string {
+  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: '60s' });
 }

@@ -2,7 +2,6 @@ import type { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import * as ProfileUtils from "../profile/utils";
 import { toPublicAccount } from "../account/account.repo";
-import { env } from "../../config/env";
 import { revokeToken, isRevoked } from "./token.service";
 import { verifyRefreshToken } from "../../config/jwt";
 import {
@@ -55,9 +54,42 @@ export const AuthController = {
         data: { account: toPublicAccount(account) },
       });
     } catch (err: any) {
+      // `code` (ACCOUNT_SUSPENDED/ACCOUNT_DELETED/ACCOUNT_DEACTIVATED, see
+      // auth.service.ts's blockedAccountError) lets the frontend show the
+      // right blocked/reactivate UI without parsing message text — only
+      // forwarded here, not folded into safeErrorMessage/safeErrorStatus
+      // themselves, since no other caller of those needs it.
+      const code = typeof err?.code === "string" ? err.code : undefined;
       return res
         .status(safeErrorStatus(err))
-        .json({ success: false, message: safeErrorMessage(err, "Login failed") });
+        .json({ success: false, message: safeErrorMessage(err, "Login failed"), ...(code ? { code } : {}) });
+    }
+  },
+
+  // Companion to login() above, for a DEACTIVATED account specifically —
+  // see AuthService.reactivate for the full precondition/side-effect
+  // story. Same response shape as a normal login success.
+  reactivate: async (req: Request, res: Response) => {
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ success: false, message: "email and password are required" });
+    }
+    try {
+      const { account, accessToken, refreshToken } = await AuthService.reactivate(
+        email,
+        password,
+      );
+      setAuthCookies(res, accessToken, refreshToken);
+      return res.json({
+        success: true,
+        data: { account: toPublicAccount(account) },
+      });
+    } catch (err: any) {
+      return res
+        .status(safeErrorStatus(err))
+        .json({ success: false, message: safeErrorMessage(err, "Reactivation failed") });
     }
   },
 
@@ -99,7 +131,7 @@ export const AuthController = {
           .status(401)
           .json({ success: false, message: "Refresh token revoked" });
       }
-      const { account_id, avitag, profileType, who } = payload;
+      const { account_id, avitag, profileType } = payload;
       if (!account_id) {
         clearAuthCookies(res);
         return res
@@ -121,23 +153,14 @@ export const AuthController = {
         campus_tag = resolved.campus_tag;
         major_tag = resolved.major_tag;
       }
-      // Re-derive role from the current admin list rather than trusting
-      // whatever was baked into the old refresh token's claims — otherwise
-      // someone removed from ADMIN_ACCOUNT_IDS keeps IDIOT privileges on
-      // every refresh for as long as their existing session lasts (up to
-      // REFRESH_TOKEN_EXPIRES_DAYS), since this endpoint would never
-      // re-check. is_otp_verified is re-derived from the DB too, same
-      // reasoning — issueTokenForProfile already does that part.
-      const adminIds = (env.ADMIN_ACCOUNT_IDS || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const role =
-        who === "king"
-          ? "king"
-          : adminIds.includes(account_id)
-            ? "IDIOT"
-            : "USER";
+      // Role is re-derived fresh from the accounts table inside
+      // issueTokenForProfile itself — never trust whatever was baked into
+      // the old refresh token's claims, otherwise someone whose role was
+      // revoked keeps admin privileges on every refresh for as long as
+      // their existing session lasts (up to REFRESH_TOKEN_EXPIRES_DAYS),
+      // since this endpoint would never re-check. is_otp_verified is
+      // re-derived from the DB too, same reasoning.
+      //
       // Issue a NEW access + refresh token pair. The new refresh token
       // resets the 90-day clock (sliding session). The old refresh token is
       // NOT revoked — it simply expires on its own. This is what avoids the
@@ -151,8 +174,6 @@ export const AuthController = {
           account_id,
           avitag,
           profileType,
-          role,
-          who,
           campus_tag,
           major_tag,
         });
@@ -189,11 +210,6 @@ export const AuthController = {
     //   return res.status(403).json({ success: false, message: 'Profile not verified yet' });
     // }
 
-    const adminIds = (env.ADMIN_ACCOUNT_IDS || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const role = adminIds.includes(req.user.account_id) ? "IDIOT" : "USER";
     // Resolved once, here, at the moment the active profile is actually
     // chosen — not on every later feed request. No-op (both come back
     // null) for a non-student profile, which is exactly what a campus-less
@@ -212,7 +228,6 @@ export const AuthController = {
         account_id: req.user.account_id,
         avitag: profile.avitag,
         profileType: profile.profile_type,
-        role,
         campus_tag,
         major_tag,
       });

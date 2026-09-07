@@ -42,7 +42,7 @@ export const OAuthService = {
     }
 
     await accountRepo.updateLastLogin(account.account_id);
-    const token = signToken({ account_id: account.account_id, is_otp_verified: true, role: 'USER' });
+    const token = signToken({ account_id: account.account_id, is_otp_verified: true, role: account.role });
     return { account, token };
   },
 
@@ -80,7 +80,7 @@ export const OAuthService = {
     }
 
     await accountRepo.updateLastLogin(account.account_id);
-    const token = signToken({ account_id: account.account_id, is_otp_verified: true, role: 'USER' });
+    const token = signToken({ account_id: account.account_id, is_otp_verified: true, role: account.role });
     return { account, token };
   },
 
@@ -132,7 +132,7 @@ export const OAuthService = {
     }
 
     await accountRepo.updateLastLogin(account.account_id);
-    const token = signToken({ account_id: account.account_id, is_otp_verified: true, role: 'USER' });
+    const token = signToken({ account_id: account.account_id, is_otp_verified: true, role: account.role });
     return { account, token };
   },
 };
