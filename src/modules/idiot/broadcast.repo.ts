@@ -20,10 +20,11 @@ export interface BroadcastRecipientRow {
   broadcast_id: string;
   account_id: string;
   email: string;
-  status: 'pending' | 'sent' | 'failed';
+  status: 'pending' | 'sending' | 'sent' | 'failed';
   attempts: number;
   last_error: string | null;
   sent_at: string | null;
+  claimed_at: string | null;
 }
 
 /** Every account this broadcast should go to — ACTIVE only. Deliberately
@@ -89,7 +90,7 @@ export async function listBroadcasts(limit = 20, offset = 0): Promise<BroadcastW
        SELECT
          COUNT(*) FILTER (WHERE status = 'sent') AS sent_count,
          COUNT(*) FILTER (WHERE status = 'failed') AS failed_count,
-         COUNT(*) FILTER (WHERE status = 'pending') AS pending_count
+         COUNT(*) FILTER (WHERE status IN ('pending', 'sending')) AS pending_count
        FROM broadcast_recipients WHERE broadcast_id = b.broadcast_id
      ) c ON TRUE
      ORDER BY b.created_at DESC
@@ -110,7 +111,7 @@ export async function getBroadcast(broadcast_id: string): Promise<BroadcastWithC
        SELECT
          COUNT(*) FILTER (WHERE status = 'sent') AS sent_count,
          COUNT(*) FILTER (WHERE status = 'failed') AS failed_count,
-         COUNT(*) FILTER (WHERE status = 'pending') AS pending_count
+         COUNT(*) FILTER (WHERE status IN ('pending', 'sending')) AS pending_count
        FROM broadcast_recipients WHERE broadcast_id = b.broadcast_id
      ) c ON TRUE
      WHERE b.broadcast_id = $1`,
@@ -122,10 +123,33 @@ export async function getBroadcast(broadcast_id: string): Promise<BroadcastWithC
 /** A batch of not-yet-sent recipients across ALL broadcasts, oldest queued
  * first — a backlog from an earlier broadcast that got throttled always
  * finishes before a newer one starts, rather than newer broadcasts
- * starving older ones. */
+ * starving older ones.
+ *
+ * This is a genuine atomic CLAIM, not a plain read — confirmed live that
+ * without this, the immediate send-on-create trigger and the once-a-minute
+ * recurring sender could both SELECT the same 'pending' rows at once (a
+ * real race: firing a broadcast could send each recipient's email 2-3
+ * times before either caller got around to marking anything 'sent').
+ * `FOR UPDATE SKIP LOCKED` inside the subquery is what makes two
+ * concurrent callers physically unable to walk away with the same row —
+ * one gets it, the other's lock check simply excludes it, no blocking,
+ * no double-claim, no manual coordination between the two callers needed.
+ * The outer UPDATE flips status to 'sending' as part of that same atomic
+ * step, and a row that gets claimed but never finishes (a crash mid-send)
+ * becomes claimable again after 5 minutes via the claimed_at check, rather
+ * than sitting stuck forever. */
 export async function claimPendingRecipients(limit: number): Promise<BroadcastRecipientRow[]> {
   const { rows } = await pool.query<BroadcastRecipientRow>(
-    `SELECT * FROM broadcast_recipients WHERE status = 'pending' ORDER BY created_at ASC LIMIT $1`,
+    `UPDATE broadcast_recipients
+     SET status = 'sending', claimed_at = NOW()
+     WHERE recipient_id IN (
+       SELECT recipient_id FROM broadcast_recipients
+       WHERE status = 'pending' OR (status = 'sending' AND claimed_at < NOW() - INTERVAL '5 minutes')
+       ORDER BY created_at ASC
+       LIMIT $1
+       FOR UPDATE SKIP LOCKED
+     )
+     RETURNING *`,
     [limit]
   );
   return rows;
