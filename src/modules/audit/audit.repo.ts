@@ -29,11 +29,12 @@ export type AuditAction =
   | 'ADMIN_EMAIL_SENT'
   | 'REFERENCE_CREATE'
   | 'REFERENCE_UPDATE'
-  | 'REFERENCE_DELETE';
+  | 'REFERENCE_DELETE'
+  | 'BROADCAST_CREATED';
 
 export async function logAudit(params: {
   action: AuditAction;
-  target_type: 'PROFILE' | 'GIST' | 'ACCOUNT' | 'COMMENT' | 'CAMPUS' | 'MAJOR';
+  target_type: 'PROFILE' | 'GIST' | 'ACCOUNT' | 'COMMENT' | 'CAMPUS' | 'MAJOR' | 'BROADCAST';
   target_id: string; // avitag, gist_id, or a campus/major tag
   idiot_avitag: string;
   reason?: string | null;

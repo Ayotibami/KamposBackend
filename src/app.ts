@@ -26,6 +26,7 @@ import auditAdminRoutes from './modules/idiot/audit.routes';
 import referenceAdminRoutes from './modules/idiot/reference.routes';
 import statsAdminRoutes from './modules/idiot/stats.routes';
 import pushRoutes from './modules/idiot/push.routes';
+import broadcastRoutes from './modules/idiot/broadcast.routes';
 import commentRoutes from './modules/comment/comment.routes';
 import reactionRoutes from './modules/reaction/reaction.routes';
 import eventRoutes from './modules/event/event.routes';
@@ -214,6 +215,7 @@ app.use('/api/v1/idiot/audit', auditAdminRoutes);
 app.use('/api/v1/idiot/reference', referenceAdminRoutes);
 app.use('/api/v1/idiot/stats', statsAdminRoutes);
 app.use('/api/v1/idiot/notifications', pushRoutes);
+app.use('/api/v1/idiot/broadcasts', broadcastRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

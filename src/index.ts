@@ -12,6 +12,7 @@ import { execute, subscribe, GraphQLSchema } from 'graphql';
 import { verifyToken } from './config/jwt';
 import cron from 'node-cron';
 import { runDigest } from './modules/idiot/digest';
+import { processPendingBroadcastRecipients } from './modules/idiot/broadcastSender';
 
 async function main() {
   try {
@@ -94,6 +95,14 @@ async function main() {
     // redeploy doesn't shift the schedule around.
     cron.schedule('0,30 * * * *', () => {
       void runDigest();
+    });
+
+    // Broadcast email sender — a batch a minute (see broadcastSender.ts's
+    // own doc comment). This same recurring tick is what lets a broadcast
+    // that hit the email provider's daily quota resume on its own the
+    // moment that quota resets, with nobody needing to remember to retry it.
+    cron.schedule('* * * * *', () => {
+      void processPendingBroadcastRecipients();
     });
 
     const shutdown = async (signal?: string) => {
