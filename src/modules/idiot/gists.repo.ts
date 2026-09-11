@@ -1,5 +1,6 @@
 import { pool } from '../../config/db';
 import type { GistRow, GistWithCounts } from '../gist/gist.repo';
+import { ADMIN_POLL_JOIN_SQL } from '../gist/poll.repo';
 
 /**
  * Row shape for the admin "browse every gist" screen (GET /idiot/gists).
@@ -29,6 +30,10 @@ export interface AdminGistRow extends GistRow {
    * (`rbt` join), added so the admin browse screen can show the same real
    * reaction breakdown the consumer app does, not just a flat total. */
   reactions_by_type: Record<string, number>;
+  /** Null for the vast majority of gists — see gist.repo.ts's GistWithCounts
+   * for the full shape. No `my_vote_option_id` here (unlike the consumer
+   * shape) — see ADMIN_POLL_JOIN_SQL's own doc for why. */
+  poll: { poll_id: string; options: Array<{ option_id: string; option_text: string; votes_count: number }> } | null;
 }
 
 export interface AdminGistFilters {
@@ -59,7 +64,8 @@ const ADMIN_GIST_SELECT = `
          COALESCE(c.reports_count, 0)::int AS reports_count,
          COALESCE(c.shares_count, 0)::int AS shares_count,
          COALESCE(m.media, '[]'::json) AS media,
-         rbt.by_type AS reactions_by_type
+         rbt.by_type AS reactions_by_type,
+         pollj.poll AS poll
   FROM gists g
   LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
   LEFT JOIN kreator_profiles kp ON kp.avitag = g.avitag
@@ -89,6 +95,7 @@ const ADMIN_GIST_SELECT = `
       GROUP BY type
     ) rt
   ) rbt ON TRUE
+  ${ADMIN_POLL_JOIN_SQL}
 `;
 
 // The search/status/campus/avitag predicates common to both branches — $1

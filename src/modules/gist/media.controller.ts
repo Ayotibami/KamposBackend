@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import * as mediaRepo from './media.repo';
+import * as PollRepo from './poll.repo';
 import { GistService } from './gist.service';
 import { uploadBuffer, deleteByPublicId, deleteByPublicIdWithType, signUpload } from '../../services/media/cloudinary';
 import { WSGateway } from '../../ws/gateway';
@@ -27,6 +28,15 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 async function assertCanEditGist(req: Request, res: Response, gist_id: string): Promise<boolean> {
   if (!req.user?.avitag) {
     res.status(401).json({ success: false, message: 'Unauthorized' });
+    return false;
+  }
+  // Checked before the admin bypass below, deliberately — a poll gist has
+  // nowhere in the frontend to even show attached media (see FeedGistCard/
+  // ProfileGistCard's own "poll gists never render MediaBlock" rule), so
+  // this holds for an admin too, not just the gist's own owner.
+  const poll = await PollRepo.findByGistId(gist_id);
+  if (poll) {
+    res.status(400).json({ success: false, message: 'This gist has a poll — it can\'t also have media' });
     return false;
   }
   if (isAdminRole(req.user.role)) return true;

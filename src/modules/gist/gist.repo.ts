@@ -1,4 +1,5 @@
 import { pool } from "../../config/db";
+import { ADMIN_POLL_JOIN_SQL } from "./poll.repo";
 
 // Every profile type a gist's author might be, keyed by avitag — LEFT
 // JOINed so a still-current avitag always resolves to exactly one of
@@ -46,6 +47,39 @@ const AUTHOR_LIVE_GATE = `(
     OR COALESCE(sp.profile_status, kp.profile_status, kmp.profile_status, scp.profile_status, idp.profile_status) = 'ACTIVE')
   AND (acc.account_status IS NULL OR acc.account_status = 'ACTIVE')
 )`;
+
+// Every gist-returning query below attaches poll data the same way it
+// already attaches media/my_reaction/my_report — a LATERAL join, NULL
+// (not an error, not a missing key) when the gist has no poll at all.
+// `viewerParam` is whichever positional parameter THAT query already binds
+// viewerAvitag to (it differs per query — see each call site's own `mr`/
+// `mrp` lateral joins a few lines above wherever this gets used, which
+// already reference the exact same parameter for the exact same reason).
+// A function, not another static template string like AUTHOR_JOIN, purely
+// because this is the one fragment here that needs a parameter number
+// supplied by its caller rather than being identical everywhere.
+function pollJoin(viewerParam: string): string {
+  return `
+     LEFT JOIN LATERAL (
+       SELECT json_build_object(
+         'poll_id', gp.poll_id,
+         'options', COALESCE((
+           SELECT json_agg(json_build_object(
+             'option_id', po.option_id,
+             'option_text', po.option_text,
+             'votes_count', (SELECT COUNT(*)::int FROM poll_votes pv WHERE pv.option_id = po.option_id)
+           ) ORDER BY po.order_index ASC)
+           FROM poll_options po WHERE po.poll_id = gp.poll_id
+         ), '[]'::json),
+         'my_vote_option_id', (
+           SELECT pv2.option_id FROM poll_votes pv2
+           WHERE pv2.poll_id = gp.poll_id AND pv2.voter_avitag = ${viewerParam}::text
+           LIMIT 1
+         )
+       ) AS poll
+       FROM gist_polls gp WHERE gp.gist_id = g.gist_id
+     ) pollj ON TRUE`;
+}
 
 export interface GistRow {
   gist_id: string;
@@ -157,6 +191,17 @@ export interface GistWithCounts extends GistRow {
     uploaded_at: string;
     edited_at: string | null;
   }>;
+  /** Null for every gist without a poll — the vast majority. When present:
+   * `options` always has 2-4 entries (order_index ASC, same as media),
+   * each with a live `votes_count`; `my_vote_option_id` is null for a
+   * guest or a viewer who hasn't voted yet. Mutually exclusive with
+   * `media` at creation time (see schemas/gist.ts) — a gist never has
+   * both. */
+  poll: {
+    poll_id: string;
+    options: Array<{ option_id: string; option_text: string; votes_count: number }>;
+    my_vote_option_id: string | null;
+  } | null;
 }
 
 export async function findWithCountsAnyStatus(
@@ -165,7 +210,7 @@ export async function findWithCountsAnyStatus(
 ): Promise<GistWithCounts | null> {
   const { rows } = await pool.query<GistWithCounts>(
     `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
-            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
      FROM gists g
      ${AUTHOR_JOIN}
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
@@ -201,7 +246,7 @@ export async function findWithCountsAnyStatus(
          WHERE entity_type = 'GIST' AND entity_id = g.gist_id
          GROUP BY type
        ) rt
-     ) rbt ON TRUE
+     ) rbt ON TRUE${pollJoin("$2")}
      WHERE g.gist_id = $1 AND ${AUTHOR_LIVE_GATE}`,
     [gist_id, viewerAvitag ?? null]
   );
@@ -229,7 +274,7 @@ export async function getContext(
   const [beforeRes, afterRes] = await Promise.all([
     pool.query<GistWithCounts>(
       `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
-              COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
+              COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
        FROM gists g
        ${AUTHOR_JOIN}
        LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
@@ -265,7 +310,7 @@ export async function getContext(
            WHERE entity_type = 'GIST' AND entity_id = g.gist_id
            GROUP BY type
          ) rt
-       ) rbt ON TRUE
+       ) rbt ON TRUE${pollJoin("$3")}
        WHERE g.gist_status = 'APPROVED' AND g.created_at < $1 AND ${AUTHOR_LIVE_GATE}
        ORDER BY g.created_at DESC
        LIMIT $2`,
@@ -273,7 +318,7 @@ export async function getContext(
     ),
     pool.query<GistWithCounts>(
       `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
-              COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
+              COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
        FROM gists g
        ${AUTHOR_JOIN}
        LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
@@ -309,7 +354,7 @@ export async function getContext(
            WHERE entity_type = 'GIST' AND entity_id = g.gist_id
            GROUP BY type
          ) rt
-       ) rbt ON TRUE
+       ) rbt ON TRUE${pollJoin("$3")}
        WHERE g.gist_status = 'APPROVED' AND g.created_at > $1 AND ${AUTHOR_LIVE_GATE}
        ORDER BY g.created_at ASC
        LIMIT $2`,
@@ -383,7 +428,7 @@ export async function findWithCounts(
 ): Promise<GistWithCounts | null> {
   const { rows } = await pool.query<GistWithCounts>(
     `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
-            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
      FROM gists g
      ${AUTHOR_JOIN}
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
@@ -419,7 +464,7 @@ export async function findWithCounts(
          WHERE entity_type = 'GIST' AND entity_id = g.gist_id
          GROUP BY type
        ) rt
-     ) rbt ON TRUE
+     ) rbt ON TRUE${pollJoin("$2")}
      WHERE g.gist_id = $1 AND g.gist_status = 'APPROVED' AND ${AUTHOR_LIVE_GATE}`,
     [gist_id, viewerAvitag ?? null]
   );
@@ -537,7 +582,17 @@ export async function listRecent(
     // student with an incomplete profile leak into EVERY campus's Gist
     // tab, regardless of the viewer's own campus — not a viewer-side
     // lookup failure, a structural hole in this exact filter.
-    campusClause = `AND (sp.campus_tag = $${params.length}::text OR sp.avitag IS NULL)`;
+    //
+    // UPPER() on both sides rather than a plain `=`: campus_tag is stored
+    // uppercase (e.g. 'FUL'), but callers reach this from two different
+    // paths with two different casing habits — the viewer's own token
+    // value (already uppercase, matches DB) and a client-supplied
+    // ?school= query param (lowercased by the controller before it gets
+    // here). A case-sensitive compare made the second path silently match
+    // nothing for any campus whose tag isn't literally lowercase already —
+    // confirmed live for FUL. Normalizing both sides makes the match work
+    // regardless of which path supplied the tag or how it was cased.
+    campusClause = `AND (UPPER(sp.campus_tag) = UPPER($${params.length}::text) OR sp.avitag IS NULL)`;
   }
 
   params.push(major);
@@ -550,12 +605,21 @@ export async function listRecent(
   if (decoded) {
     params.push(decoded.seen, decoded.score, decoded.created_at, decoded.gist_id);
     const s = params.length - 3;
-    cursorClause = `AND (feed.seen, feed.score, g.created_at, g.gist_id) < ($${s}::boolean, $${s + 1}::float8, $${s + 2}::timestamptz, $${s + 3}::uuid)`;
+    // A plain tuple `<` comparison only works when every column sorts the
+    // same direction — this feed's ORDER BY mixes ASC (seen) with DESC
+    // (score, created_at, gist_id), so it's spelled out tier-by-tier to
+    // match ORDER BY exactly instead of relying on row-wise comparison.
+    cursorClause = `AND (
+      feed.seen > $${s}::boolean
+      OR (feed.seen = $${s}::boolean AND feed.score < $${s + 1}::float8)
+      OR (feed.seen = $${s}::boolean AND feed.score = $${s + 1}::float8 AND g.created_at < $${s + 2}::timestamptz)
+      OR (feed.seen = $${s}::boolean AND feed.score = $${s + 1}::float8 AND g.created_at = $${s + 2}::timestamptz AND g.gist_id < $${s + 3}::uuid)
+    )`;
   }
 
   const { rows } = await pool.query<GistWithCounts & { _feed_score: number }>(
     `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
-            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type,
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll,
             feed.seen AS _feed_seen, feed.score AS _feed_score
      FROM gists g
      ${AUTHOR_JOIN}
@@ -592,15 +656,34 @@ export async function listRecent(
          WHERE entity_type = 'GIST' AND entity_id = g.gist_id
          GROUP BY type
        ) rt
-     ) rbt ON TRUE
+     ) rbt ON TRUE${pollJoin("$1")}
      LEFT JOIN LATERAL (
        SELECT
          (CASE WHEN $1::text IS NULL THEN false ELSE (
            EXISTS (SELECT 1 FROM reactions r2 WHERE r2.entity_type = 'GIST' AND r2.entity_id = g.gist_id AND r2.avitag = $1::text)
            OR EXISTS (SELECT 1 FROM comments cm2 WHERE cm2.gist_id = g.gist_id AND cm2.avitag = $1::text)
          ) END) AS seen,
-         (COALESCE(c.reactions_count, 0)::float8 * 1 + COALESCE(c.comments_count, 0)::float8 * 3 + COALESCE(c.shares_count, 0)::float8 * 5)
-           / POWER(EXTRACT(EPOCH FROM ($${asOfIdx}::timestamptz - g.created_at)) / 3600.0 + 2, 1.5) AS score
+         -- Rounded to 9 decimal places (::numeric forces exact decimal
+         -- rounding, then cast back to float8) — not for display, purely so
+         -- this survives round-tripping intact. score comes back to the
+         -- client as part of the opaque cursor and gets rebound as a query
+         -- parameter on the very next request; confirmed live that a raw,
+         -- unrounded float8 can lose a handful of ULPs somewhere in that
+         -- JSON-encode -> query-parameter-bind round trip (~1e-18 off,
+         -- nowhere near "real" drift — the same row, same inputs, same
+         -- instant), which is nonetheless enough to flip feed.score =
+         -- cursor.score to false. That single flipped comparison let the
+         -- cursor's own boundary row fall through to the "score < cursor"
+         -- branch below and get admitted into the NEXT page too — the
+         -- previous page's last row silently reappearing as the next
+         -- page's first, confirmed live for real gists on prod. 9 decimals
+         -- is far finer than this ranking needs and far coarser than the
+         -- observed drift, so the rounded value now round-trips exactly.
+         ROUND(
+           ((COALESCE(c.reactions_count, 0)::float8 * 1 + COALESCE(c.comments_count, 0)::float8 * 3 + COALESCE(c.shares_count, 0)::float8 * 5)
+             / POWER(EXTRACT(EPOCH FROM ($${asOfIdx}::timestamptz - g.created_at)) / 3600.0 + 2, 1.5))::numeric,
+           9
+         )::float8 AS score
      ) feed ON TRUE
      WHERE (g.gist_status = 'APPROVED' OR ($1::text IS NOT NULL AND g.avitag = $1::text))
        AND g.created_at <= $${asOfIdx}::timestamptz
@@ -644,7 +727,7 @@ export async function listByUser(
   if (cursor) {
     const { rows } = await pool.query<GistWithCounts>(
       `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
-              COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
+              COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
        FROM gists g
      ${AUTHOR_JOIN}
        LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
@@ -680,7 +763,7 @@ export async function listByUser(
            WHERE entity_type = 'GIST' AND entity_id = g.gist_id
            GROUP BY type
          ) rt
-       ) rbt ON TRUE
+       ) rbt ON TRUE${pollJoin("$4")}
        WHERE g.avitag = $1 AND g.created_at < (SELECT created_at FROM gists WHERE gist_id = $2)
          AND (g.gist_status != 'REJECTED' OR ($4::text IS NOT NULL AND g.avitag = $4::text))
          AND ${AUTHOR_LIVE_GATE}
@@ -691,7 +774,7 @@ export async function listByUser(
   }
   const { rows } = await pool.query<GistWithCounts>(
     `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
-            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
      FROM gists g
      ${AUTHOR_JOIN}
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
@@ -727,7 +810,7 @@ export async function listByUser(
          WHERE entity_type = 'GIST' AND entity_id = g.gist_id
          GROUP BY type
        ) rt
-     ) rbt ON TRUE
+     ) rbt ON TRUE${pollJoin("$3")}
      WHERE g.avitag = $1 AND (g.gist_status != 'REJECTED' OR ($3::text IS NOT NULL AND g.avitag = $3::text))
        AND ${AUTHOR_LIVE_GATE}
      ORDER BY g.created_at DESC LIMIT $2`,
@@ -767,7 +850,7 @@ export async function trending(limit = 20, viewerAvitag?: string, filters?: { ca
   const { rows } = await pool.query<any>(
     `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,counts.reactions_count, counts.comments_count, counts.views_count, counts.reports_count, counts.shares_count,
             t.score, t.reactions_3d, t.comments_3d,
-            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
      FROM v_gist_trending_3d t
      JOIN gists g ON g.gist_id = t.gist_id
      ${AUTHOR_JOIN}
@@ -804,9 +887,9 @@ export async function trending(limit = 20, viewerAvitag?: string, filters?: { ca
          WHERE entity_type = 'GIST' AND entity_id = g.gist_id
          GROUP BY type
        ) rt
-     ) rbt ON TRUE
+     ) rbt ON TRUE${pollJoin("$1")}
      WHERE (g.gist_status = 'APPROVED' OR ($1::text IS NOT NULL AND g.avitag = $1::text))
-       AND ($2::text IS NULL OR sp.campus_tag = $2::text)
+       AND ($2::text IS NULL OR UPPER(sp.campus_tag) = UPPER($2::text))
        AND ($3::text IS NULL OR sp.major_tag = $3::text)
        AND ${AUTHOR_LIVE_GATE}
      ORDER BY t.score DESC
@@ -828,7 +911,7 @@ export async function search(
   const major = filters?.major_tag ?? null;
   const { rows } = await pool.query<GistWithCounts>(
     `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
-            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
      FROM gists g
      ${AUTHOR_JOIN}
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
@@ -864,9 +947,9 @@ export async function search(
          WHERE entity_type = 'GIST' AND entity_id = g.gist_id
          GROUP BY type
        ) rt
-     ) rbt ON TRUE
+     ) rbt ON TRUE${pollJoin("$6")}
      WHERE (g.gist_status = 'APPROVED' OR ($6::text IS NOT NULL AND g.avitag = $6::text))
-       AND ($4::text IS NULL OR sp.campus_tag = $4::text)
+       AND ($4::text IS NULL OR UPPER(sp.campus_tag) = UPPER($4::text))
        AND ($5::text IS NULL OR sp.major_tag = $5::text)
        AND g.gist_text ILIKE $1
        AND ${AUTHOR_LIVE_GATE}
@@ -969,6 +1052,10 @@ export interface PendingGistWithDetails extends GistRow {
   image_url: string | null;
   reports_count: number;
   media: GistWithCounts["media"];
+  /** See GistWithCounts's own `poll` doc — same shape, minus
+   * `my_vote_option_id` (an admin reviewing a pending gist isn't voting on
+   * it — see ADMIN_POLL_JOIN_SQL's own doc). */
+  poll: { poll_id: string; options: Array<{ option_id: string; option_text: string; votes_count: number }> } | null;
 }
 
 export async function listPendingGistsWithDetails(
@@ -980,7 +1067,8 @@ export async function listPendingGistsWithDetails(
             COALESCE(sp.display_name, sp.first_name || ' ' || sp.last_name, kp.display_name, kmp.display_name, scp.display_name, idp.display_name) AS display_name,
             COALESCE(sp.image_url, kp.image_url, kmp.image_url, scp.image_url, idp.image_url) AS image_url,
             COALESCE(rc.reports_count, 0)::int AS reports_count,
-            COALESCE(m.media, '[]'::json) AS media
+            COALESCE(m.media, '[]'::json) AS media,
+            pollj.poll AS poll
      FROM gists g
      LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
      LEFT JOIN kreator_profiles kp ON kp.avitag = g.avitag
@@ -1004,6 +1092,7 @@ export async function listPendingGistsWithDetails(
        ) ORDER BY gm.order_index ASC) AS media
        FROM gist_media gm WHERE gm.gist_id = g.gist_id
      ) m ON TRUE
+     ${ADMIN_POLL_JOIN_SQL}
      WHERE g.gist_status = 'SUBMITTED'
      -- Newest first — this queue now gets live push events (see
      -- ws/socketio.ts's admin room), and a freshly-arrived item has to be

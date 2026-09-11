@@ -5,6 +5,7 @@ import { SIGateway } from '../../ws/socketio';
 import { env } from '../../config/env';
 import * as ProfileUtils from '../profile/utils';
 import * as GistMediaRepo from './media.repo';
+import * as PollRepo from './poll.repo';
 import { uploadBuffer } from '../../services/media/cloudinary';
 import { GIST_COLOR_KEYS } from './gist.constants';
 import logger from '../../utils/logger';
@@ -29,7 +30,7 @@ export const GistController = {
             "Active profile (avitag) is required. Switch profile and retry.",
         });
     }
-    const { gist_text, color_key } = req.body || {};
+    const { gist_text, color_key, poll } = req.body || {};
     const profile = await ProfileUtils.findByAvitag(req.user.avitag);
     const isVerified = !!profile?.is_verified;
     const maxLen = isVerified ? env.VERIFIED_GIST_MAX : env.UNVERIFIED_GIST_MAX;
@@ -40,6 +41,16 @@ export const GistController = {
       return res.status(400).json({ success: false, message: `gist_text exceeds limit (${maxLen} chars for ${isVerified ? 'verified' : 'unverified'} profiles)` });
     }
     const safeColorKey = typeof color_key === 'string' && VALID_GIST_COLOR_KEYS.has(color_key) ? color_key : null;
+    // Mutual exclusion, checked BEFORE the gist is created (not after) so a
+    // rejected request never leaves an orphaned poll-less/media-less gist
+    // behind. The web frontend already keeps these apart in the composer
+    // UI — this is the real enforcement point for a crafted or future
+    // client request, same "the schema-level check isn't the only guard"
+    // reasoning color_key's own whitelist already follows.
+    const hasInlineFiles = !!((req.files as any)?.file || (req.files as any)?.files);
+    if (poll && hasInlineFiles) {
+      return res.status(400).json({ success: false, message: 'A gist can have a poll or media, not both' });
+    }
     // Compose profile_id as avitag:account_id
     const profile_id = `${req.user.avitag}:${req.user.account_id}`;
     // Off the session token, not a fresh lookup — same reasoning as the
@@ -69,8 +80,26 @@ export const GistController = {
     // Posts tab wants to hear about live.
     try { SIGateway.emitToAdmins('gist:pending', { gist_id: gist.gist_id }); } catch {}
 
-    // If files are provided (multipart/form-data), upload and attach as media
-    try {
+    // options is already 2-4 trimmed, non-empty, <=25-char strings by the
+    // time it gets here — createGistSchema's own createPollSchema already
+    // enforced that before this handler ever ran. A failure here (unlikely
+    // — this is a plain insert right after the gist's own, which just
+    // succeeded) leaves a poll-less gist behind rather than nothing at all,
+    // same tradeoff media attachment below already accepts.
+    if (poll?.options?.length) {
+      try {
+        await PollRepo.createPollForGist(gist.gist_id, poll.options.map((option_text: string) => ({ option_text })));
+      } catch (e) {
+        logger.error({ err: e, gist_id: gist.gist_id }, 'Poll creation failed');
+      }
+    }
+
+    // If files are provided (multipart/form-data), upload and attach as
+    // media — skipped entirely for a poll gist, which never reaches this
+    // point with files anyway (the check above already rejected that
+    // combination), but the guard stays explicit rather than relying on
+    // that alone.
+    if (!poll) try {
       const filesAny = req.files as any;
       // Support either 'file' (single) or 'files' (array). express-fileupload maps both to objects or arrays
       let inputs: Array<{ name: string; data: Buffer; mimetype: string; size: number }> = [];

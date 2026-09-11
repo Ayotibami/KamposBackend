@@ -6,6 +6,7 @@ import { validateBody } from '../../middleware/validate';
 import { createGistSchema, updateGistSchema } from '../../schemas/gist';
 import { reorderGistMediaSchema, updateGistMediaSchema } from '../../schemas/gist_media';
 import { GistMediaController } from './media.controller';
+import { PollController } from './poll.controller';
 
 const router = Router();
 
@@ -31,6 +32,7 @@ router.delete('/:gist_id', isAuth, GistController.remove);
 router.post('/:gist_id/report', isAuth, requireOtpVerified, GistController.report);
 router.post('/:gist_id/view', GistController.view);
 router.post('/:gist_id/share', fakeAuth, GistController.share);
+router.post('/:gist_id/poll/vote', isAuth, PollController.vote);
 
 // Media — list/upload/attach-by-url/update/reorder/delete. These were
 // previously only defined in media.routes.ts, which was never actually

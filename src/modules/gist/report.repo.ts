@@ -1,4 +1,5 @@
 import { pool } from '../../config/db';
+import { ADMIN_POLL_JOIN_SQL } from './poll.repo';
 
 export interface GistReportRow {
   report_id: string;
@@ -45,6 +46,10 @@ export interface PendingReportWithDetails extends GistReportRow {
     uploaded_at: string;
     edited_at: string | null;
   }>;
+  /** See gist.repo.ts's GistWithCounts for the full poll shape — no
+   * `my_vote_option_id` here, same reasoning as every other admin-side
+   * poll join (see ADMIN_POLL_JOIN_SQL's own doc). */
+  poll: { poll_id: string; options: Array<{ option_id: string; option_text: string; votes_count: number }> } | null;
 }
 
 export async function listPendingWithDetails(limit = 20, offset = 0): Promise<PendingReportWithDetails[]> {
@@ -53,7 +58,8 @@ export async function listPendingWithDetails(limit = 20, offset = 0): Promise<Pe
             g.avitag AS gist_avitag, g.gist_text, g.gist_status,
             COALESCE(sp.display_name, sp.first_name || ' ' || sp.last_name, kp.display_name, kmp.display_name, scp.display_name, idp.display_name) AS display_name,
             COALESCE(sp.image_url, kp.image_url, kmp.image_url, scp.image_url, idp.image_url) AS image_url,
-            COALESCE(m.media, '[]'::json) AS media
+            COALESCE(m.media, '[]'::json) AS media,
+            pollj.poll AS poll
      FROM gist_reports r
      JOIN gists g ON g.gist_id = r.gist_id
      LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
@@ -75,6 +81,7 @@ export async function listPendingWithDetails(limit = 20, offset = 0): Promise<Pe
        ) ORDER BY gm.order_index ASC) AS media
        FROM gist_media gm WHERE gm.gist_id = g.gist_id
      ) m ON TRUE
+     ${ADMIN_POLL_JOIN_SQL}
      WHERE r.status = 'PENDING'
      -- Newest first — see gist.repo.ts's listPendingGistsWithDetails for
      -- why (this queue gets the same live push events).

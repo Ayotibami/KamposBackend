@@ -177,6 +177,36 @@ const COMMENT_TEXTS = [
 
 const REACTION_TYPES = ["LIKE", "LOVE", "FIRE", "SAD", "LAUGH"] as const;
 
+// Poll gists get their OWN gist_text (a real question, not one of the
+// statement-style GIST_TEXTS above) — a poll's "question" IS the gist's
+// text, no separate column for it (see migrations/0041), so text that
+// doesn't actually read as a question would look broken sitting above a
+// set of tappable options.
+const POLL_QUESTIONS: Array<{ text: string; options: string[] }> = [
+  { text: "Jollof rice or Fried rice — settle this one time for all 🍚", options: ["Jollof rice", "Fried rice"] },
+  { text: "Which one dey pain pass?", options: ["8am lecture", "Group project wahala", "Carryover course", "Exam clash with festive period"] },
+  { text: "How you dey read for exam?", options: ["Read overnight, no sleep", "Small small every day", "Cram last minute", "I no dey read, I dey pray"] },
+  { text: "Best way to spend ASUU strike?", options: ["Learn a skill", "Find internship/job", "Just rest and vibe", "Start small business"] },
+  { text: "Which hostel wahala pain you well well?", options: ["NEPA/light issue", "Water no dey", "Noisy roommate", "Queue for bathroom"] },
+  { text: "Which one you go choose sef?", options: ["First class, no social life", "2:1 with correct gist and networking"] },
+  { text: "How you dey commute go school?", options: ["Trek", "Okada", "Bus/Danfo", "Personal car/bike"] },
+  { text: "Wetin matter pass for a campus food spot?", options: ["Price", "Portion size", "Taste", "Speed of service"] },
+  { text: "Which day lecturers suppose ban from giving surprise test?", options: ["Monday", "Friday", "Any day sha, just don't"] },
+  { text: "How you take prepare for group project presentation?", options: ["Practice well before time", "Wing it on the spot", "Let the smart one carry us", "Panic till the last minute"] },
+  { text: "Which semester dey harder pass?", options: ["First semester (settling in)", "Final year (project + everything)", "The semester wey carryover dey"] },
+  { text: "Real MVP of exam season?", options: ["Power bank", "Past questions", "Energy drink/coffee", "Prayer"] },
+  { text: "Which app you fit NOT survive final year without?", options: ["WhatsApp", "Google/ChatGPT", "Twitter/X", "TikTok"] },
+  { text: "Best spot to secure seat and actually read?", options: ["Library", "Hostel room", "Faculty building after hours", "Off-campus cafe"] },
+  { text: "How you dey take attendance wahala?", options: ["Sign and disappear", "Stay small, then comot", "Full class, full vibes", "I no fit lie, I just skip"] },
+  { text: "Which result update hits different?", options: ["CGPA increase", "Carryover cleared", "Best in class", "Just passing sef na gree"] },
+  { text: "Who suppose pay for group project printing?", options: ["Split evenly", "Whoever did the most work pays less", "The person wey get money", "We dey argue till deadline"] },
+  { text: "Most important interview prep?", options: ["CV/resume polish", "Mock interviews", "Research the company", "Prayer and fasting"] },
+  { text: "Which NYSC camp rumor you don hear pass?", options: ["Mammy market na everything", "Drills go kill you", "Parade ground heat no dey funny", "Soldiers go make you strong"] },
+  { text: "What kills a group chat faster?", options: ["One person typing long paragraphs", "Nobody replying for days", "Too many 'noted' replies", "Random off-topic memes taking over"] },
+  { text: "Ideal graduation gift?", options: ["Cash, no cap", "Laptop upgrade", "A trip/vacation", "Just peace of mind abeg"] },
+  { text: "How should lecturers grade class participation?", options: ["Attendance alone", "Actually answering questions", "Group project contribution", "Vibes, we all know who's trying"] },
+];
+
 // Overridable via `SEED_GIST_COUNT=50 npm run seed` for a quicker/smaller run.
 const GIST_COUNT = Number(process.env.SEED_GIST_COUNT) || 200;
 
@@ -319,7 +349,85 @@ async function main() {
     onConflict: "ON CONFLICT (entity_type, entity_id, avitag) DO NOTHING",
   });
 
-  console.log(`Done. ${CAMPUSES.length} campuses, ${MAJORS.length} majors, ${createdAvitags.length} students, ${gistIds.length} gists, ${commentRows.length} comments, ${reactionRows.length} reactions.`);
+  console.log(`Seeding poll gists (${POLL_QUESTIONS.length} questions, skipping any already seeded)...`);
+  // Dedup by exact question text, same spirit as the campus/major/student
+  // dedup above — without this, re-running after adding a few NEW
+  // questions to the list (the actual reason this needs to be re-runnable
+  // at all) would also re-insert every question already seeded in a
+  // PREVIOUS run as a brand-new duplicate poll, since gist_text isn't
+  // unique at the database level the way avitag/campus_tag/major_tag are.
+  const existingPollTexts = new Set(
+    (
+      await pool.query<{ gist_text: string }>(
+        `SELECT DISTINCT g.gist_text FROM gists g JOIN gist_polls gp ON gp.gist_id = g.gist_id`,
+      )
+    ).rows.map((r) => r.gist_text),
+  );
+  const newPollQuestions = POLL_QUESTIONS.filter((q) => !existingPollTexts.has(q.text));
+  console.log(`  ${POLL_QUESTIONS.length - newPollQuestions.length} already exist, seeding ${newPollQuestions.length} new.`);
+  // One at a time, not batched like the main gist/comment/reaction inserts
+  // above — each poll gist needs its OWN gist_id threaded straight through
+  // to its own gist_polls row and then its own poll_options rows, all in
+  // the same known order as newPollQuestions. Batching with a single
+  // multi-row RETURNING and correlating back by array position would be
+  // relying on Postgres happening to preserve VALUES-list order (usually
+  // true, never actually guaranteed) — with only a handful of these, the
+  // extra round trips are free, and this way there's nothing to rely on.
+  const optionIdsByPoll = new Map<string, string[]>();
+  for (const q of newPollQuestions) {
+    const avitag = pick(createdAvitags);
+    const { campus_tag, major_tag } = profileByAvitag.get(avitag) ?? { campus_tag: null, major_tag: null };
+    // Deliberately NOT backdated across two weeks like the regular
+    // GIST_TEXTS batch above — every admin gist list (the browse screen,
+    // the moderation queue) sorts newest-first, and a poll spread randomly
+    // across a two-week window mostly just buries it under everything
+    // else. A fresh `new Date()` each iteration (not a synthetic offset)
+    // naturally staggers these a few seconds apart from the real DB round
+    // trips each one takes, which is all that's needed — they land at the
+    // very top of every admin view, in roughly the order they're seeded.
+    const created = new Date();
+    const gistRes = await pool.query<{ gist_id: string }>(
+      `INSERT INTO gists (avitag, gist_text, campus_tag, major_tag, gist_status, created_at)
+       VALUES ($1, $2, $3, $4, 'APPROVED', $5) RETURNING gist_id`,
+      [avitag, q.text, campus_tag, major_tag, created.toISOString()],
+    );
+    const gistId = gistRes.rows[0].gist_id;
+    const pollRes = await pool.query<{ poll_id: string }>(
+      `INSERT INTO gist_polls (gist_id) VALUES ($1) RETURNING poll_id`,
+      [gistId],
+    );
+    const pollId = pollRes.rows[0].poll_id;
+    const optionIds: string[] = [];
+    for (let i = 0; i < q.options.length; i++) {
+      const optRes = await pool.query<{ option_id: string }>(
+        `INSERT INTO poll_options (poll_id, option_text, order_index) VALUES ($1, $2, $3) RETURNING option_id`,
+        [pollId, q.options[i], i],
+      );
+      optionIds.push(optRes.rows[0].option_id);
+    }
+    optionIdsByPoll.set(pollId, optionIds);
+  }
+
+  console.log("Seeding poll votes...");
+  const voteRows: unknown[][] = [];
+  for (const [pollId, optionIds] of optionIdsByPoll) {
+    // 3-18 voters per poll, each landing on a random option — real,
+    // uneven-looking splits instead of every option tied at zero or
+    // suspiciously even. ON CONFLICT below (same one-vote-per-poll
+    // constraint the real app enforces) means a voter picked twice for the
+    // same poll here just keeps their first pick, never double-votes.
+    const voterCount = randomInt(3, 18);
+    const voters = new Set<string>();
+    for (let i = 0; i < voterCount; i++) voters.add(pick(createdAvitags));
+    for (const avitag of voters) {
+      voteRows.push([pollId, pick(optionIds), avitag]);
+    }
+  }
+  await batchInsert("poll_votes", ["poll_id", "option_id", "voter_avitag"], voteRows, {
+    onConflict: "ON CONFLICT (poll_id, voter_avitag) DO NOTHING",
+  });
+
+  console.log(`Done. ${CAMPUSES.length} campuses, ${MAJORS.length} majors, ${createdAvitags.length} students, ${gistIds.length} gists, ${commentRows.length} comments, ${reactionRows.length} reactions, ${optionIdsByPoll.size} polls, ${voteRows.length} poll votes.`);
   console.log(`Every seeded account's password: ${SEED_PASSWORD}`);
   await pool.end();
 }
