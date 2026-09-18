@@ -30,7 +30,7 @@ export const GistController = {
             "Active profile (avitag) is required. Switch profile and retry.",
         });
     }
-    const { gist_text, color_key, poll } = req.body || {};
+    const { gist_text, color_key, poll, is_anonymous, quoted_gist_id } = req.body || {};
     const profile = await ProfileUtils.findByAvitag(req.user.avitag);
     const isVerified = !!profile?.is_verified;
     const maxLen = isVerified ? env.VERIFIED_GIST_MAX : env.UNVERIFIED_GIST_MAX;
@@ -41,6 +41,27 @@ export const GistController = {
       return res.status(400).json({ success: false, message: `gist_text exceeds limit (${maxLen} chars for ${isVerified ? 'verified' : 'unverified'} profiles)` });
     }
     const safeColorKey = typeof color_key === 'string' && VALID_GIST_COLOR_KEYS.has(color_key) ? color_key : null;
+    // Coerced, not trusted as-is, same "belt-and-braces beyond the schema"
+    // reasoning color_key's own whitelist follows above — the schema-level
+    // z.boolean().optional() already rejects a non-boolean before this
+    // handler ever runs, but this stays explicit rather than passing
+    // req.body's raw value straight into the repo layer. No extra
+    // eligibility check needed beyond this: requireOtpVerified (this
+    // route's own middleware, gist.routes.ts) already gates EVERY gist
+    // creation, anonymous or not, on the same account being OTP-verified.
+    const safeIsAnonymous = is_anonymous === true;
+    // Format is already enforced by createGistSchema's z.string().uuid()
+    // before this handler ever runs (same "the schema is the real gate"
+    // trust poll's own options already get) — this is just type-safe
+    // coercion of what comes through, same as is_anonymous above, not a
+    // second validation pass. Whether it's a REAL, still-existing gist is
+    // deliberately NOT enforced at insert time — migration 0044 dropped
+    // the FK on quoted_gist_id so a repost survives the original's
+    // deletion instead of cascading. A crafted/bogus id just means the
+    // JOIN in QUOTED_GIST_JOIN never matches, which resolves to the same
+    // "no longer available" state a real-but-deleted original would —
+    // an acceptable, harmless fallback, not a gap worth a second check.
+    const safeQuotedGistId = typeof quoted_gist_id === 'string' && quoted_gist_id ? quoted_gist_id : null;
     // Mutual exclusion, checked BEFORE the gist is created (not after) so a
     // rejected request never leaves an orphaned poll-less/media-less gist
     // behind. The web frontend already keeps these apart in the composer
@@ -72,7 +93,9 @@ export const GistController = {
       gist_text,
       campusTagForGist ?? null,
       majorTagForGist ?? null,
-      safeColorKey
+      safeColorKey,
+      safeIsAnonymous,
+      safeQuotedGistId
     );
     // Every new gist starts SUBMITTED (see migrations/0001_init.sql's
     // default) — i.e. this always means "a gist just entered the

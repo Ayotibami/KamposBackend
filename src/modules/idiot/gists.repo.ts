@@ -1,5 +1,6 @@
 import { pool } from '../../config/db';
-import type { GistRow, GistWithCounts } from '../gist/gist.repo';
+import type { GistRow, GistWithCounts, QuotedGistPreviewRow } from '../gist/gist.repo';
+import { QUOTED_GIST_JOIN, QUOTED_GIST_COLUMN } from '../gist/gist.repo';
 import { ADMIN_POLL_JOIN_SQL } from '../gist/poll.repo';
 
 /**
@@ -24,6 +25,7 @@ export interface AdminGistRow extends GistRow {
   views_count: number;
   reports_count: number;
   shares_count: number;
+  reposts_count: number;
   media: GistWithCounts['media'];
   /** Per-type reaction breakdown (e.g. { LIKE: 3, FIRE: 1 }) — same
    * jsonb_object_agg pattern as gist.repo.ts's findWithCounts/listByUser
@@ -34,6 +36,14 @@ export interface AdminGistRow extends GistRow {
    * for the full shape. No `my_vote_option_id` here (unlike the consumer
    * shape) — see ADMIN_POLL_JOIN_SQL's own doc for why. */
   poll: { poll_id: string; options: Array<{ option_id: string; option_text: string; votes_count: number }> } | null;
+  /** The quoted gist on a Yarn back — same QUOTED_GIST_JOIN/COLUMN
+   * gist.repo.ts's own consumer-facing queries use, reused verbatim
+   * rather than a second copy of that SQL. Deliberately NOT run through
+   * redactIfAnonymous here, same as this whole endpoint's own real
+   * avitag/display_name/image_url above — a moderator needs the real
+   * identity behind a quoted gist too, anonymous or not, regardless of
+   * whether it's the top-level gist or nested one. */
+  quoted_gist: QuotedGistPreviewRow | null;
 }
 
 export interface AdminGistFilters {
@@ -63,9 +73,11 @@ const ADMIN_GIST_SELECT = `
          COALESCE(c.views_count, 0)::int AS views_count,
          COALESCE(c.reports_count, 0)::int AS reports_count,
          COALESCE(c.shares_count, 0)::int AS shares_count,
+         COALESCE(c.reposts_count, 0)::int AS reposts_count,
          COALESCE(m.media, '[]'::json) AS media,
          rbt.by_type AS reactions_by_type,
-         pollj.poll AS poll
+         pollj.poll AS poll,
+         ${QUOTED_GIST_COLUMN}
   FROM gists g
   LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
   LEFT JOIN kreator_profiles kp ON kp.avitag = g.avitag
@@ -73,6 +85,7 @@ const ADMIN_GIST_SELECT = `
   LEFT JOIN school_profiles scp ON scp.avitag = g.avitag
   LEFT JOIN idiot_profiles idp ON idp.avitag = g.avitag
   LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
+  ${QUOTED_GIST_JOIN(null)}
   LEFT JOIN LATERAL (
     SELECT json_agg(json_build_object(
       'media_id', gm.media_id,

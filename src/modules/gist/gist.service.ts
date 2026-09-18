@@ -35,9 +35,11 @@ export const GistService = {
     gist_text: string,
     campus_tag: string | null,
     major_tag: string | null,
-    color_key: string | null = null
+    color_key: string | null = null,
+    is_anonymous = false,
+    quoted_gist_id: string | null = null
   ) => {
-    return gistRepo.create(avitag, account_id, profile_id, profile_type, gist_text, campus_tag, major_tag, color_key);
+    return gistRepo.create(avitag, account_id, profile_id, profile_type, gist_text, campus_tag, major_tag, color_key, is_anonymous, quoted_gist_id);
   },
   updateText: (gist_id: string, avitag: string, gist_text: string) =>
     gistRepo.updateText(gist_id, avitag, gist_text),

@@ -1,5 +1,6 @@
 import { pool } from '../../config/db';
 import { ADMIN_POLL_JOIN_SQL } from './poll.repo';
+import { QUOTED_GIST_JOIN, QUOTED_GIST_COLUMN, type QuotedGistPreviewRow } from './gist.repo';
 
 export interface GistReportRow {
   report_id: string;
@@ -33,6 +34,13 @@ export interface PendingReportWithDetails extends GistReportRow {
   gist_avitag: string;
   gist_text: string;
   gist_status: 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+  /** Never redacted here, unlike the consumer-facing endpoints (see
+   * gist.repo.ts's redactIfAnonymous) — a moderator reviewing a report
+   * needs the real poster identity regardless of this flag; display_name/
+   * image_url above are always the true ones. Only used to render a
+   * "posted anonymously" badge so the reviewer knows this poster's
+   * identity is hidden from everyone else, not that it's hidden here too. */
+  is_anonymous: boolean;
   display_name: string | null;
   image_url: string | null;
   media: Array<{
@@ -50,16 +58,23 @@ export interface PendingReportWithDetails extends GistReportRow {
    * `my_vote_option_id` here, same reasoning as every other admin-side
    * poll join (see ADMIN_POLL_JOIN_SQL's own doc). */
   poll: { poll_id: string; options: Array<{ option_id: string; option_text: string; votes_count: number }> } | null;
+  /** The reported gist's own quoted gist, if it's a Yarn back — same
+   * QUOTED_GIST_JOIN/COLUMN gist.repo.ts's consumer-facing queries use.
+   * Not redacted, same "a moderator needs the real identity" reasoning
+   * is_anonymous's own doc above already gives for the top-level poster —
+   * applies just as much to whoever's gist got quoted. */
+  quoted_gist: QuotedGistPreviewRow | null;
 }
 
 export async function listPendingWithDetails(limit = 20, offset = 0): Promise<PendingReportWithDetails[]> {
   const { rows } = await pool.query<PendingReportWithDetails>(
     `SELECT r.*,
-            g.avitag AS gist_avitag, g.gist_text, g.gist_status,
+            g.avitag AS gist_avitag, g.gist_text, g.gist_status, g.is_anonymous,
             COALESCE(sp.display_name, sp.first_name || ' ' || sp.last_name, kp.display_name, kmp.display_name, scp.display_name, idp.display_name) AS display_name,
             COALESCE(sp.image_url, kp.image_url, kmp.image_url, scp.image_url, idp.image_url) AS image_url,
             COALESCE(m.media, '[]'::json) AS media,
-            pollj.poll AS poll
+            pollj.poll AS poll,
+            ${QUOTED_GIST_COLUMN}
      FROM gist_reports r
      JOIN gists g ON g.gist_id = r.gist_id
      LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
@@ -82,6 +97,7 @@ export async function listPendingWithDetails(limit = 20, offset = 0): Promise<Pe
        FROM gist_media gm WHERE gm.gist_id = g.gist_id
      ) m ON TRUE
      ${ADMIN_POLL_JOIN_SQL}
+     ${QUOTED_GIST_JOIN(null)}
      WHERE r.status = 'PENDING'
      -- Newest first — see gist.repo.ts's listPendingGistsWithDetails for
      -- why (this queue gets the same live push events).

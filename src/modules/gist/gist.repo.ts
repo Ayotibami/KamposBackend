@@ -81,6 +81,105 @@ function pollJoin(viewerParam: string): string {
      ) pollj ON TRUE`;
 }
 
+// Yarn back (quote-repost): every gist-returning query below also attaches
+// the FULL quoted gist (when g.quoted_gist_id is set) as a nested JSON
+// object — its own author identity (same "COALESCE across all 5 profile
+// tables" pattern AUTHOR_JOIN/AUTHOR_COLUMNS already use for the outer
+// gist, just re-aliased with a `q` prefix so it can't collide with the
+// outer query's own sp/kp/kmp/scp/idp joins), its own media, and its own
+// poll. Everything except the poll's `my_vote_option_id` is correlated
+// purely off g.quoted_gist_id, no bind parameter needed — the poll is why
+// this is a function (viewerParam) and not a plain constant like
+// AUTHOR_JOIN: `my_vote_option_id` needs to know WHO's asking, same
+// reason the outer gist's own pollJoin() above takes one. Pass whichever
+// `$N` placeholder that query already binds viewerAvitag to (its own
+// pollJoin call already reveals the right one); pass null for an
+// admin/moderation query that has no per-viewer concept at all (no
+// `my_vote_option_id` in that case — same reasoning ADMIN_POLL_JOIN_SQL's
+// own doc gives for the outer gist there).
+//
+// Redaction (is_anonymous) is deliberately NOT done here in SQL — it
+// happens once, in JS, via redactIfAnonymous's own recursive handling of
+// `quoted_gist` below, the same single enforcement point every other
+// identity field in this file already goes through. This fragment's job
+// is only to fetch the real row; hiding it is that function's job alone.
+export function QUOTED_GIST_JOIN(viewerParam: string | null): string {
+  return `
+  LEFT JOIN gists qg ON qg.gist_id = g.quoted_gist_id
+  LEFT JOIN student_profiles qsp ON qsp.avitag = qg.avitag
+  LEFT JOIN kreator_profiles qkp ON qkp.avitag = qg.avitag
+  LEFT JOIN kompany_profiles qkmp ON qkmp.avitag = qg.avitag
+  LEFT JOIN school_profiles qscp ON qscp.avitag = qg.avitag
+  LEFT JOIN idiot_profiles qidp ON qidp.avitag = qg.avitag
+  LEFT JOIN LATERAL (
+    SELECT json_agg(json_build_object(
+      'media_id', qgm.media_id,
+      'media_type', qgm.media_type,
+      'media_url', qgm.media_url,
+      'thumbnail_url', qgm.thumbnail_url,
+      'width', qgm.width,
+      'height', qgm.height,
+      'order_index', qgm.order_index,
+      'uploaded_at', qgm.uploaded_at,
+      'edited_at', qgm.edited_at
+    ) ORDER BY qgm.order_index ASC) AS media
+    FROM gist_media qgm WHERE qgm.gist_id = qg.gist_id
+  ) qgm_agg ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT json_build_object(
+      'poll_id', qgp.poll_id,
+      'options', COALESCE((
+        SELECT json_agg(json_build_object(
+          'option_id', qpo.option_id,
+          'option_text', qpo.option_text,
+          'votes_count', (SELECT COUNT(*)::int FROM poll_votes qpv WHERE qpv.option_id = qpo.option_id)
+        ) ORDER BY qpo.order_index ASC)
+        FROM poll_options qpo WHERE qpo.poll_id = qgp.poll_id
+      ), '[]'::json)${
+        viewerParam
+          ? `,
+      'my_vote_option_id', (
+        SELECT qpv2.option_id FROM poll_votes qpv2
+        WHERE qpv2.poll_id = qgp.poll_id AND qpv2.voter_avitag = ${viewerParam}::text
+        LIMIT 1
+      )`
+          : ""
+      }
+    ) AS poll
+    FROM gist_polls qgp WHERE qgp.gist_id = qg.gist_id
+  ) qpollj ON TRUE
+`;
+}
+
+// NULL (not an error, not a missing key) when g.quoted_gist_id is null OR
+// points at a gist that's since been deleted (ON DELETE SET NULL means
+// the latter never actually happens post-migration-0043, but qg.gist_id
+// IS NOT NULL is the correct guard either way — it's checking whether the
+// LEFT JOIN to `gists qg` above actually matched anything, not assuming
+// it always does). Selected as its own column (not folded into a LATERAL
+// like QUOTED_GIST_JOIN's media/poll) since json_build_object here only
+// needs values already sitting in scope from that join, no extra
+// correlated subquery of its own required.
+export const QUOTED_GIST_COLUMN = `
+  CASE WHEN qg.gist_id IS NOT NULL THEN json_build_object(
+    'gist_id', qg.gist_id,
+    'avitag', qg.avitag,
+    'account_id', qg.account_id,
+    'profile_id', qg.profile_id,
+    'profile_type', qg.profile_type,
+    'gist_text', qg.gist_text,
+    'color_key', qg.color_key,
+    'is_anonymous', qg.is_anonymous,
+    'campus_tag', qsp.campus_tag,
+    'major_tag', qsp.major_tag,
+    'level', qsp.level,
+    'first_name', COALESCE(qsp.first_name, qkp.display_name, qkmp.display_name, qscp.display_name, qidp.display_name),
+    'image_url', COALESCE(qsp.image_url, qkp.image_url, qkmp.image_url, qscp.image_url, qidp.image_url),
+    'media', COALESCE(qgm_agg.media, '[]'::json),
+    'poll', qpollj.poll
+  ) ELSE NULL END AS quoted_gist
+`;
+
 export interface GistRow {
   gist_id: string;
   avitag: string;
@@ -104,6 +203,16 @@ export interface GistRow {
   edit_count: number;
   is_reported: boolean;
   gist_status?: "SUBMITTED" | "APPROVED" | "REJECTED";
+  /** Pseudonymous, not truly anonymous — the real avitag/account_id/profile
+   * always stay on the row (this column alone never hides anything from
+   * the database itself, only from OTHER viewers' API responses). See
+   * redactIfAnonymous's own doc for where that's actually enforced. */
+  is_anonymous: boolean;
+  /** Yarn back — the gist this one is quoting, if any. Create-only, same
+   * as is_anonymous/color_key: no update path ever sets it. ON DELETE SET
+   * NULL (see migration 0043) — a deleted original just leaves this null
+   * rather than taking the repost down with it. */
+  quoted_gist_id?: string | null;
 }
 
 export interface GistCounts {
@@ -113,11 +222,12 @@ export interface GistCounts {
   views_count: number;
   reports_count: number;
   shares_count: number;
+  reposts_count: number;
 }
 
 export async function getCounts(gist_id: string): Promise<GistCounts | null> {
   const { rows } = await pool.query<GistCounts>(
-    `SELECT gist_id, reactions_count, comments_count, views_count, reports_count, shares_count FROM v_gist_counts WHERE gist_id = $1`,
+    `SELECT gist_id, reactions_count, comments_count, views_count, reports_count, shares_count, reposts_count FROM v_gist_counts WHERE gist_id = $1`,
     [gist_id]
   );
   return rows[0] ?? null;
@@ -146,7 +256,43 @@ export async function getCountsFull(gist_id: string): Promise<{
   return { counts, reactions_by_type };
 }
 
- 
+
+/** The quoted gist nested on a Yarn back — a compact stand-in for the
+ * original, not a second full GistWithCounts (no counts/my_reaction of
+ * its own; the frontend's QuotedGistPreview only ever needs identity +
+ * content + media + poll). Null when the outer gist isn't a repost, or
+ * was but the original has since been deleted (quoted_gist_id survives
+ * that — see migration 0044 — precisely so this is distinguishable from
+ * "never was a repost" at all). */
+export interface QuotedGistPreviewRow {
+  gist_id: string;
+  avitag: string;
+  account_id: string;
+  profile_id: string;
+  profile_type: string;
+  gist_text: string;
+  color_key: string | null;
+  is_anonymous: boolean;
+  campus_tag: string | null;
+  major_tag: string | null;
+  level: number | null;
+  first_name: string | null;
+  image_url: string | null;
+  media: GistWithCounts["media"];
+  /** Votable — QUOTED_GIST_JOIN's poll join carries `my_vote_option_id`
+   * for a real viewerParam (every consumer-facing call site passes one);
+   * the key is absent entirely (not just null) for an admin/moderation
+   * query (QUOTED_GIST_JOIN(null)), same "an admin isn't voting"
+   * reasoning ADMIN_POLL_JOIN_SQL's own doc already gives for the outer
+   * gist — hence optional here rather than `string | null` outright,
+   * this one type covers both call shapes. */
+  poll: {
+    poll_id: string;
+    options: Array<{ option_id: string; option_text: string; votes_count: number }>;
+    my_vote_option_id?: string | null;
+  } | null;
+}
+
 export interface GistWithCounts extends GistRow {
   first_name: string | null;
   image_url: string | null;
@@ -155,6 +301,8 @@ export interface GistWithCounts extends GistRow {
   views_count: number;
   reports_count: number;
   shares_count: number;
+  reposts_count: number;
+  quoted_gist: QuotedGistPreviewRow | null;
   /** The viewer's own reaction on this gist, if any — null when there's no
    * viewer (unauthenticated) or they haven't reacted. Lets the client show
    * the right reaction as already-selected without a separate per-gist
@@ -204,15 +352,93 @@ export interface GistWithCounts extends GistRow {
   } | null;
 }
 
+// Every field here is genuinely identifying and reaches the frontend today
+// (avitag/first_name/image_url render the header; major_tag/level render
+// the tag row) — campus_tag is deliberately NOT in this list, see this
+// function's own doc below on why. account_id/profile_id/profile_type
+// never reach the frontend at all, but are blanked too as defense in
+// depth: no reason a raw internal ID should sit in a public API response
+// for a post that's meant to hide who posted it.
+type RedactableGistFields = Pick<
+  GistRow,
+  "avitag" | "account_id" | "profile_id" | "profile_type" | "is_anonymous"
+> & {
+  first_name?: string | null;
+  image_url?: string | null;
+  major_tag?: string | null;
+  level?: number | null;
+  /** The nested quoted gist on a Yarn back has the exact same shape of
+   * identity to hide, redacted independently against the same
+   * viewerAvitag — see redactIfAnonymous's own doc on why this recurses
+   * into it rather than leaving it alone. */
+  quoted_gist?: RedactableGistFields | null;
+};
+
+// A placeholder, not an empty string — an empty avitag would make
+// `href="/${avitag}"` on the frontend resolve to "/", which at least
+// doesn't 404 into someone else's page, but "anonymous" reads as
+// deliberate rather than a blank-string bug if anything downstream ever
+// logs or renders it raw. No real account can hold this avitag (the
+// signup flow validates avitags against a stricter pattern than a plain
+// dictionary word), so an `isOwn`-style `gist.avitag === viewer` check
+// can never accidentally match a real viewer against it.
+const ANONYMOUS_AVITAG_PLACEHOLDER = "anonymous";
+
+/**
+ * The actual enforcement point for "anonymous" meaning something real:
+ * every consumer-facing query below calls this on its way out, so the true
+ * avitag/name/photo/major/level NEVER leave this process in an API
+ * response to anyone but the poster themselves — not "hidden by the
+ * frontend," genuinely redacted before the JSON is even built. This is
+ * pseudonymous, not truly anonymous: the row in the `gists` table itself
+ * is untouched (real avitag/account_id, same as any other gist), so the
+ * poster's own request (avitag === viewerAvitag, the bypass below) and
+ * Village People's admin queries (idiot/gists.repo.ts, which never calls
+ * this at all) both still see exactly who posted it.
+ *
+ * campus_tag is deliberately left alone — a whole campus isn't identifying
+ * the way a name/photo/department/level is, and it's genuinely useful
+ * context for reading the post (especially on the cross-campus Amebo tab).
+ * gist_text/media/poll/reactions/comments are never touched here either —
+ * anonymity hides who posted, not what they posted.
+ *
+ * Recurses into `quoted_gist` first, before checking the outer row's own
+ * is_anonymous — a Yarn back and the gist it quotes are two independent
+ * posts with two independent identities, so each gets checked against
+ * viewerAvitag on its own terms. Quoting someone else's anonymous gist
+ * must not leak who they are just because their post is now nested one
+ * level down instead of top-level; conversely, MY OWN identity on the
+ * outer gist is unaffected by whatever the quoted poster chose.
+ */
+function redactIfAnonymous<T extends RedactableGistFields>(row: T, viewerAvitag?: string | null): T {
+  const withRedactedQuote: T = row.quoted_gist
+    ? { ...row, quoted_gist: redactIfAnonymous(row.quoted_gist, viewerAvitag) }
+    : row;
+  if (!withRedactedQuote.is_anonymous || withRedactedQuote.avitag === viewerAvitag) return withRedactedQuote;
+  return {
+    ...withRedactedQuote,
+    avitag: ANONYMOUS_AVITAG_PLACEHOLDER,
+    account_id: "",
+    profile_id: "",
+    profile_type: "",
+    first_name: null,
+    image_url: null,
+    major_tag: null,
+    level: null,
+  };
+}
+
 export async function findWithCountsAnyStatus(
   gist_id: string,
   viewerAvitag?: string
 ): Promise<GistWithCounts | null> {
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
-            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
+    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count, c.reposts_count,
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll,
+            ${QUOTED_GIST_COLUMN}
      FROM gists g
      ${AUTHOR_JOIN}
+     ${QUOTED_GIST_JOIN("$2")}
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -250,7 +476,7 @@ export async function findWithCountsAnyStatus(
      WHERE g.gist_id = $1 AND ${AUTHOR_LIVE_GATE}`,
     [gist_id, viewerAvitag ?? null]
   );
-  return rows[0] ?? null;
+  return rows[0] ? redactIfAnonymous(rows[0], viewerAvitag) : null;
 }
 
 /**
@@ -273,10 +499,12 @@ export async function getContext(
 
   const [beforeRes, afterRes] = await Promise.all([
     pool.query<GistWithCounts>(
-      `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
-              COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
+      `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count, c.reposts_count,
+              COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll,
+            ${QUOTED_GIST_COLUMN}
        FROM gists g
        ${AUTHOR_JOIN}
+     ${QUOTED_GIST_JOIN("$3")}
        LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
        LEFT JOIN LATERAL (
          SELECT json_agg(json_build_object(
@@ -317,10 +545,12 @@ export async function getContext(
       [target.created_at, before, viewerAvitag ?? null]
     ),
     pool.query<GistWithCounts>(
-      `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
-              COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
+      `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count, c.reposts_count,
+              COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll,
+            ${QUOTED_GIST_COLUMN}
        FROM gists g
        ${AUTHOR_JOIN}
+     ${QUOTED_GIST_JOIN("$3")}
        LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
        LEFT JOIN LATERAL (
          SELECT json_agg(json_build_object(
@@ -362,7 +592,11 @@ export async function getContext(
     ),
   ]);
 
-  return { target, before: beforeRes.rows, after: afterRes.rows };
+  return {
+    target,
+    before: beforeRes.rows.map((r) => redactIfAnonymous(r, viewerAvitag)),
+    after: afterRes.rows.map((r) => redactIfAnonymous(r, viewerAvitag)),
+  };
 }
 
 export async function create(
@@ -374,10 +608,12 @@ export async function create(
   campus_tag: string | null,
   major_tag: string | null,
   color_key: string | null,
+  is_anonymous = false,
+  quoted_gist_id: string | null = null,
 ): Promise<GistRow> {
   const { rows } = await pool.query<GistRow>(
-    `INSERT INTO gists (avitag, account_id, profile_id, profile_type, gist_text, campus_tag, major_tag, color_key) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-    [avitag, account_id, profile_id, profile_type, gist_text, campus_tag, major_tag, color_key]
+    `INSERT INTO gists (avitag, account_id, profile_id, profile_type, gist_text, campus_tag, major_tag, color_key, is_anonymous, quoted_gist_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+    [avitag, account_id, profile_id, profile_type, gist_text, campus_tag, major_tag, color_key, is_anonymous, quoted_gist_id]
   );
   return rows[0];
 }
@@ -427,10 +663,12 @@ export async function findWithCounts(
   viewerAvitag?: string
 ): Promise<GistWithCounts | null> {
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
-            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
+    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count, c.reposts_count,
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll,
+            ${QUOTED_GIST_COLUMN}
      FROM gists g
      ${AUTHOR_JOIN}
+     ${QUOTED_GIST_JOIN("$2")}
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -468,7 +706,7 @@ export async function findWithCounts(
      WHERE g.gist_id = $1 AND g.gist_status = 'APPROVED' AND ${AUTHOR_LIVE_GATE}`,
     [gist_id, viewerAvitag ?? null]
   );
-  return rows[0] ?? null;
+  return rows[0] ? redactIfAnonymous(rows[0], viewerAvitag) : null;
 }
 
 interface FeedCursor {
@@ -618,11 +856,13 @@ export async function listRecent(
   }
 
   const { rows } = await pool.query<GistWithCounts & { _feed_score: number }>(
-    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
+    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count, c.reposts_count,
             COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll,
+            ${QUOTED_GIST_COLUMN},
             feed.seen AS _feed_seen, feed.score AS _feed_score
      FROM gists g
      ${AUTHOR_JOIN}
+     ${QUOTED_GIST_JOIN("$1")}
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -703,7 +943,7 @@ export async function listRecent(
     // divider) and _feed_cursor (opaque, just handed back verbatim).
     const { _feed_score, ...rest } = r;
     return {
-      ...rest,
+      ...redactIfAnonymous(rest, viewerAvitag),
       _feed_cursor: Buffer.from(
         JSON.stringify({ seen: r._feed_seen, score: _feed_score, created_at: r.created_at, gist_id: r.gist_id, as_of: asOf })
       ).toString("base64"),
@@ -726,10 +966,12 @@ export async function listByUser(
 ): Promise<GistWithCounts[]> {
   if (cursor) {
     const { rows } = await pool.query<GistWithCounts>(
-      `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
-              COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
+      `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count, c.reposts_count,
+              COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll,
+            ${QUOTED_GIST_COLUMN}
        FROM gists g
      ${AUTHOR_JOIN}
+     ${QUOTED_GIST_JOIN("$4")}
        LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
        LEFT JOIN LATERAL (
          SELECT json_agg(json_build_object(
@@ -766,17 +1008,20 @@ export async function listByUser(
        ) rbt ON TRUE${pollJoin("$4")}
        WHERE g.avitag = $1 AND g.created_at < (SELECT created_at FROM gists WHERE gist_id = $2)
          AND (g.gist_status != 'REJECTED' OR ($4::text IS NOT NULL AND g.avitag = $4::text))
+         AND (NOT g.is_anonymous OR ($4::text IS NOT NULL AND g.avitag = $4::text))
          AND ${AUTHOR_LIVE_GATE}
        ORDER BY g.created_at DESC LIMIT $3`,
       [avitag, cursor, limit, viewerAvitag ?? null]
     );
-    return rows;
+    return rows.map((r) => redactIfAnonymous(r, viewerAvitag));
   }
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
-            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
+    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count, c.reposts_count,
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll,
+            ${QUOTED_GIST_COLUMN}
      FROM gists g
      ${AUTHOR_JOIN}
+     ${QUOTED_GIST_JOIN("$3")}
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -812,11 +1057,12 @@ export async function listByUser(
        ) rt
      ) rbt ON TRUE${pollJoin("$3")}
      WHERE g.avitag = $1 AND (g.gist_status != 'REJECTED' OR ($3::text IS NOT NULL AND g.avitag = $3::text))
+       AND (NOT g.is_anonymous OR ($3::text IS NOT NULL AND g.avitag = $3::text))
        AND ${AUTHOR_LIVE_GATE}
      ORDER BY g.created_at DESC LIMIT $2`,
     [avitag, limit, viewerAvitag ?? null]
   );
-  return rows;
+  return rows.map((r) => redactIfAnonymous(r, viewerAvitag));
 }
 
 /**
@@ -830,7 +1076,8 @@ export async function countByUser(avitag: string, viewerAvitag?: string): Promis
   const { rows } = await pool.query<{ count: number }>(
     `SELECT COUNT(*)::int AS count
      FROM gists g
-     WHERE g.avitag = $1 AND (g.gist_status != 'REJECTED' OR ($2::text IS NOT NULL AND g.avitag = $2::text))`,
+     WHERE g.avitag = $1 AND (g.gist_status != 'REJECTED' OR ($2::text IS NOT NULL AND g.avitag = $2::text))
+       AND (NOT g.is_anonymous OR ($2::text IS NOT NULL AND g.avitag = $2::text))`,
     [avitag, viewerAvitag ?? null]
   );
   return Number(rows[0]?.count ?? 0);
@@ -848,12 +1095,14 @@ export async function trending(limit = 20, viewerAvitag?: string, filters?: { ca
   const campus = filters?.campus_tag ?? null;
   const major = filters?.major_tag ?? null;
   const { rows } = await pool.query<any>(
-    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,counts.reactions_count, counts.comments_count, counts.views_count, counts.reports_count, counts.shares_count,
+    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,counts.reactions_count, counts.comments_count, counts.views_count, counts.reports_count, counts.shares_count, counts.reposts_count,
             t.score, t.reactions_3d, t.comments_3d,
-            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll,
+            ${QUOTED_GIST_COLUMN}
      FROM v_gist_trending_3d t
      JOIN gists g ON g.gist_id = t.gist_id
      ${AUTHOR_JOIN}
+     ${QUOTED_GIST_JOIN("$1")}
      LEFT JOIN v_gist_counts counts ON counts.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -896,7 +1145,7 @@ export async function trending(limit = 20, viewerAvitag?: string, filters?: { ca
      LIMIT $4`,
     [viewerAvitag ?? null, campus, major, limit]
   );
-  return rows;
+  return rows.map((r) => redactIfAnonymous(r, viewerAvitag));
 }
 
 export async function search(
@@ -910,10 +1159,12 @@ export async function search(
   const campus = filters?.campus_tag ?? null;
   const major = filters?.major_tag ?? null;
   const { rows } = await pool.query<GistWithCounts>(
-    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count,
-            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll
+    `SELECT g.*, ${AUTHOR_COLUMNS}, sp.campus_tag, sp.major_tag, sp.level,c.reactions_count, c.comments_count, c.views_count, c.reports_count, c.shares_count, c.reposts_count,
+            COALESCE(m.media, '[]'::json) AS media, mr.type AS my_reaction, mrp.reported AS my_report, rbt.by_type AS reactions_by_type, pollj.poll AS poll,
+            ${QUOTED_GIST_COLUMN}
      FROM gists g
      ${AUTHOR_JOIN}
+     ${QUOTED_GIST_JOIN("$6")}
      LEFT JOIN v_gist_counts c ON c.gist_id = g.gist_id
      LEFT JOIN LATERAL (
        SELECT json_agg(json_build_object(
@@ -957,7 +1208,7 @@ export async function search(
      LIMIT $2 OFFSET $3`,
     [q, limit, offset, campus, major, viewerAvitag ?? null]
   );
-  return rows;
+  return rows.map((r) => redactIfAnonymous(r, viewerAvitag));
 }
 
 /** Returns false (and inserts nothing) when this reporter already has a
@@ -1056,6 +1307,13 @@ export interface PendingGistWithDetails extends GistRow {
    * `my_vote_option_id` (an admin reviewing a pending gist isn't voting on
    * it — see ADMIN_POLL_JOIN_SQL's own doc). */
   poll: { poll_id: string; options: Array<{ option_id: string; option_text: string; votes_count: number }> } | null;
+  /** The quoted gist on a Yarn back — same QUOTED_GIST_JOIN/COLUMN every
+   * consumer-facing query above already uses. Not redacted (no
+   * redactIfAnonymous call anywhere in this function) — a moderator
+   * reviewing a pending repost needs the real identity behind the quoted
+   * gist too, same reasoning report.repo.ts's own listPendingWithDetails
+   * already documents for the top-level poster. */
+  quoted_gist: QuotedGistPreviewRow | null;
 }
 
 export async function listPendingGistsWithDetails(
@@ -1068,7 +1326,8 @@ export async function listPendingGistsWithDetails(
             COALESCE(sp.image_url, kp.image_url, kmp.image_url, scp.image_url, idp.image_url) AS image_url,
             COALESCE(rc.reports_count, 0)::int AS reports_count,
             COALESCE(m.media, '[]'::json) AS media,
-            pollj.poll AS poll
+            pollj.poll AS poll,
+            ${QUOTED_GIST_COLUMN}
      FROM gists g
      LEFT JOIN student_profiles sp ON sp.avitag = g.avitag
      LEFT JOIN kreator_profiles kp ON kp.avitag = g.avitag
@@ -1093,6 +1352,7 @@ export async function listPendingGistsWithDetails(
        FROM gist_media gm WHERE gm.gist_id = g.gist_id
      ) m ON TRUE
      ${ADMIN_POLL_JOIN_SQL}
+     ${QUOTED_GIST_JOIN(null)}
      WHERE g.gist_status = 'SUBMITTED'
      -- Newest first — this queue now gets live push events (see
      -- ws/socketio.ts's admin room), and a freshly-arrived item has to be

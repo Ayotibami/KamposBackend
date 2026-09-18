@@ -1,0 +1,26 @@
+-- 0044_gist_quoted_gist_survive_deletion.sql
+-- Dropping the FK's own referential-integrity enforcement — not the
+-- column, and not the index — so quoted_gist_id survives the original
+-- gist being deleted instead of getting auto-nulled by ON DELETE SET
+-- NULL. That auto-null was the wrong default for this feature: it made
+-- "quoted a gist that's since been deleted" indistinguishable from
+-- "never was a repost at all," which is exactly the distinction the
+-- frontend needs to show a "this gist is no longer available" state
+-- instead of silently rendering as a plain gist.
+--
+-- With the FK gone, quoted_gist_id just keeps pointing at whatever id it
+-- was created with, forever. gist.repo.ts's QUOTED_GIST_JOIN (a LEFT
+-- JOIN) naturally comes back empty once that gist no longer exists, and
+-- QUOTED_GIST_COLUMN already resolves to NULL for `quoted_gist` in that
+-- case — the frontend tells "orphaned repost" apart from "not a repost"
+-- by quoted_gist_id being present while quoted_gist is null.
+--
+-- The tradeoff: a crafted create request could set quoted_gist_id to an
+-- id that never existed at all, not just one that's since been deleted —
+-- previously blocked by the FK at insert time. Both cases now render
+-- identically (the "no longer available" placeholder), which is a
+-- reasonable fallback either way, not a real regression — this app
+-- doesn't FK-enforce avitag references either (AUTHOR_JOIN already
+-- tolerates a poster profile not existing), so this is consistent with
+-- how referential integrity is already handled here, not a new pattern.
+ALTER TABLE gists DROP CONSTRAINT IF EXISTS gists_quoted_gist_id_fkey;
