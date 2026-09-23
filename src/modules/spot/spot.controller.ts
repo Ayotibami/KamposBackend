@@ -175,6 +175,21 @@ export const SpotController = {
     return res.json({ success: true, data });
   },
 
+  // A profile page's own Spot grid — same "count only on the first page"
+  // trick gist.controller.ts's own byUser uses (a repeat COUNT(*) on every
+  // later page would just be thrown away).
+  listByUser: async (req: Request, res: Response) => {
+    const avitag = req.params.avitag;
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 20), 1), 50);
+    const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
+    const viewerAvitag = req.user?.avitag;
+    const [data, total] = await Promise.all([
+      SpotRepo.listByUser(avitag, limit, cursor, viewerAvitag),
+      cursor ? Promise.resolve(undefined) : SpotRepo.countByUser(avitag, viewerAvitag),
+    ]);
+    return res.json({ success: true, data, ...(total !== undefined ? { total } : {}) });
+  },
+
   get: async (req: Request, res: Response) => {
     const id = req.params.spot_id;
     const viewerAvitag = req.user?.avitag;

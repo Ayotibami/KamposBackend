@@ -328,6 +328,20 @@ export async function listByUser(
   return rows;
 }
 
+/** The true total behind listByUser's cursor pagination — same reasoning as
+ * gist.repo.ts's own countByUser: the frontend needs a real "N Spots" count,
+ * not just "however many pages happen to be loaded so far". Same visibility
+ * rule as listByUser (own profile counts ACTIVE+REJECTED+REMOVED, everyone
+ * else counts ACTIVE only). */
+export async function countByUser(avitag: string, viewerAvitag?: string): Promise<number> {
+  const statusClause = viewerAvitag === avitag ? `status IN ('ACTIVE','REJECTED','REMOVED')` : `status = 'ACTIVE'`;
+  const { rows } = await pool.query<{ count: string }>(
+    `SELECT COUNT(*) FROM spots WHERE avitag = $1 AND ${statusClause}`,
+    [avitag]
+  );
+  return Number(rows[0]?.count ?? 0);
+}
+
 /** Self-delete — a soft status change to REMOVED, not a hard DELETE (unlike
  * gist.repo.ts's own remove()). Keeping the row distinguishes "the poster
  * pulled this themselves" from REJECTED ("an admin took it down") in the

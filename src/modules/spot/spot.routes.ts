@@ -12,6 +12,7 @@ router.post("/:spot_id/finalize", isAuth, SpotController.finalize);
 
 // List & discovery
 router.get("/", fakeAuth, SpotController.list);
+router.get("/user/:avitag", fakeAuth, SpotController.listByUser);
 
 // Single
 router.get("/:spot_id", fakeAuth, SpotController.get);
