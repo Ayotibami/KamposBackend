@@ -82,7 +82,7 @@ export const SpotController = {
     if (!spot) return;
     const avitag = req.user!.avitag!;
 
-    const { media_url, public_id, resource_type, bytes, duration, width, height, caption } = req.body || {};
+    const { media_url, public_id, resource_type, bytes, duration, width, height, caption, trim_start, trim_end } = req.body || {};
 
     if (typeof media_url !== "string" || typeof public_id !== "string" || !public_id) {
       return res.status(400).json({ success: false, message: "media_url and public_id are required" });
@@ -112,16 +112,47 @@ export const SpotController = {
       });
     }
 
+    // Trim — optional, and never a re-upload/re-encode: Cloudinary applies
+    // so_/eo_ (start/end offset) as a lazy, on-the-fly delivery transform,
+    // generated on first request and CDN-cached after, same as the so_0
+    // poster-frame trick two lines below — not an eager transform computed
+    // at upload time (this codebase already hit that exact processing-delay
+    // pain once, see the thumbnail_url comment's history). The original,
+    // untrimmed bytes stay on Cloudinary under `public_id` regardless —
+    // trimming again later would just mean a different so_/eo_ pair.
+    let trimStartSeconds: number | null = null;
+    let trimEndSeconds: number | null = null;
+    if (typeof trim_start === "number" && typeof trim_end === "number") {
+      const tooLong = durationSeconds > 0 && trim_end > durationSeconds + 1; // +1s float/rounding slack
+      if (trim_start < 0 || trim_end <= trim_start || tooLong) {
+        return res.status(400).json({ success: false, message: "Invalid trim range" });
+      }
+      trimStartSeconds = trim_start;
+      trimEndSeconds = trim_end;
+    }
+    const effectiveDurationSeconds = trimStartSeconds !== null && trimEndSeconds !== null
+      ? trimEndSeconds - trimStartSeconds
+      : durationSeconds;
+
     const safeCaption = typeof caption === "string" && caption.trim() ? caption.trim().slice(0, CAPTION_MAX_LEN) : null;
     // Lazy delivery-URL transform, not rendered eagerly — same `so_0` poster-
     // frame trick media.controller.ts's own `finalize` uses for gist video.
-    const thumbnail_url = `https://res.cloudinary.com/${env.CLOUDINARY_NAME}/video/upload/so_0,w_400,c_scale,f_jpg/${public_id}.jpg`;
+    // Poster now taken from the trimmed start (not always frame 0) once a
+    // trim is applied — the original frame 0 may no longer be part of the
+    // clip anyone actually sees.
+    const posterOffset = trimStartSeconds ?? 0;
+    const thumbnail_url = `https://res.cloudinary.com/${env.CLOUDINARY_NAME}/video/upload/so_${posterOffset},w_400,c_scale,f_jpg/${public_id}.jpg`;
+    const uploadMarker = "/upload/";
+    const uploadIdx = media_url.indexOf(uploadMarker);
+    const deliveredMediaUrl = trimStartSeconds !== null && trimEndSeconds !== null && uploadIdx !== -1
+      ? `${media_url.slice(0, uploadIdx + uploadMarker.length)}so_${trimStartSeconds},eo_${trimEndSeconds}/${media_url.slice(uploadIdx + uploadMarker.length)}`
+      : media_url;
 
     const finalized = await SpotRepo.finalize(spot_id, avitag, {
-      media_url,
+      media_url: deliveredMediaUrl,
       thumbnail_url,
       public_id,
-      duration_seconds: durationSeconds || null,
+      duration_seconds: effectiveDurationSeconds || null,
       width: typeof width === "number" ? width : null,
       height: typeof height === "number" ? height : null,
       caption: safeCaption,
