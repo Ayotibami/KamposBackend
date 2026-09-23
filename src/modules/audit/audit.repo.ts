@@ -17,6 +17,11 @@ export type AuditAction =
   | 'GIST_REJECT'
   | 'REPORT_ACCEPT'
   | 'REPORT_REJECT'
+  | 'SPOT_REJECT'
+  | 'SPOT_REACTIVATE'
+  | 'SPOT_DELETE'
+  | 'SPOT_REPORT_ACCEPT'
+  | 'SPOT_REPORT_REJECT'
   | 'ADMIN_GRANT'
   | 'ADMIN_REVOKE'
   | 'GIST_DELETE'
@@ -34,8 +39,8 @@ export type AuditAction =
 
 export async function logAudit(params: {
   action: AuditAction;
-  target_type: 'PROFILE' | 'GIST' | 'ACCOUNT' | 'COMMENT' | 'CAMPUS' | 'MAJOR' | 'BROADCAST';
-  target_id: string; // avitag, gist_id, or a campus/major tag
+  target_type: 'PROFILE' | 'GIST' | 'SPOT' | 'ACCOUNT' | 'COMMENT' | 'CAMPUS' | 'MAJOR' | 'BROADCAST';
+  target_id: string; // avitag, gist_id/spot_id, or a campus/major tag
   idiot_avitag: string;
   reason?: string | null;
 }) {
@@ -61,6 +66,11 @@ export interface AuditLogRow {
    * gist's own text, so a "Deleted a gist" row shows what was actually
    * removed instead of a bare gist_id. */
   target_gist_preview: string | null;
+  /** Same idea, target_type = 'SPOT' — a Spot has no text body the way a
+   * gist does, so this is its caption instead (often null — captions are
+   * optional on Spot), falling back to nothing rather than guessing at
+   * placeholder text; the UI shows the bare spot_id when this is null. */
+  target_spot_preview: string | null;
   /** Same idea, target_type = 'COMMENT'. */
   target_comment_preview: string | null;
   /** Populated only when target_type = 'PROFILE' — a real display name
@@ -125,6 +135,7 @@ export async function listAuditLogs(filters: AuditLogFilters): Promise<AuditLogR
     `SELECT al.id::text, al.action, al.target_type, al.target_id, al.idiot_avitag, al.reason, al.created_at,
             acc.email AS target_email,
             LEFT(g.gist_text, 140) AS target_gist_preview,
+            LEFT(s.caption, 140) AS target_spot_preview,
             LEFT(c.text, 140) AS target_comment_preview,
             COALESCE(sp.first_name, kp.display_name, kmp.display_name, scp.display_name, idp.display_name) AS target_profile_name,
             camp.campus_name AS target_campus_name,
@@ -132,6 +143,7 @@ export async function listAuditLogs(filters: AuditLogFilters): Promise<AuditLogR
      FROM audit_logs al
      LEFT JOIN accounts acc ON al.target_type = 'ACCOUNT' AND acc.account_id::text = al.target_id
      LEFT JOIN gists g ON al.target_type = 'GIST' AND g.gist_id::text = al.target_id
+     LEFT JOIN spots s ON al.target_type = 'SPOT' AND s.spot_id::text = al.target_id
      LEFT JOIN comments c ON al.target_type = 'COMMENT' AND c.comment_id::text = al.target_id
      LEFT JOIN student_profiles sp ON al.target_type = 'PROFILE' AND sp.avitag = al.target_id
      LEFT JOIN kreator_profiles kp ON al.target_type = 'PROFILE' AND kp.avitag = al.target_id

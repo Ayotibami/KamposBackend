@@ -6,7 +6,7 @@ import { env } from '../../config/env';
 import * as ProfileUtils from '../profile/utils';
 import * as GistMediaRepo from './media.repo';
 import * as PollRepo from './poll.repo';
-import { uploadBuffer } from '../../services/media/cloudinary';
+import { uploadBuffer, deleteByPublicIdWithType } from '../../services/media/cloudinary';
 import { GIST_COLOR_KEYS } from './gist.constants';
 import logger from '../../utils/logger';
 import { isAdminRole } from '../../middleware/idiot';
@@ -18,6 +18,23 @@ import { bumpReportPush } from '../idiot/reportPush';
 // alongside the schema-level z.enum in schemas/gist.ts, which already
 // rejects anything outside this set before the request even reaches here.
 const VALID_GIST_COLOR_KEYS = new Set<string>(GIST_COLOR_KEYS);
+
+/** Deletes every Cloudinary asset behind a gist's own media rows — shared by
+ * `remove`'s admin AND owner branches (see that handler's own doc comment
+ * for why both need it). Best-effort, same as every other Cloudinary
+ * cleanup in this codebase (see finalize's own oversized-upload cleanup): a
+ * stuck asset is a lesser problem than a delete that fails/rolls back
+ * because Cloudinary happened to hiccup. allSettled, not Promise.all, so
+ * one failed deletion never stops the rest. Call this AFTER the DB delete
+ * has actually succeeded — never before, and never for a delete that ends
+ * up failing (e.g. a gist that turned out not to belong to this owner). */
+async function cleanUpGistMedia(media: GistMediaRepo.GistMediaRow[]): Promise<void> {
+  await Promise.allSettled(
+    media
+      .filter((m) => m.public_id)
+      .map((m) => deleteByPublicIdWithType(m.public_id!, m.media_type === 'VIDEO' ? 'video' : 'image'))
+  );
+}
 
 export const GistController = {
   create: async (req: Request, res: Response) => {
@@ -497,12 +514,27 @@ export const GistController = {
 
   remove: async (req: Request, res: Response) => {
     const id = req.params.gist_id;
+    // Read this gist's own media BEFORE deleting, regardless of which
+    // branch below actually does the delete — the DELETE cascades to
+    // gist_media (its child table), so the public_ids needed for Cloudinary
+    // cleanup are gone the moment the row is. public_id has been captured
+    // on every gist_media row since migration 0019 ("Add Cloudinary
+    // public_id to gist_media for proper deletions") — this is the first
+    // place that actually acts on it for a full delete (the only existing
+    // use before this was a single-item swap during an edit, see
+    // media.controller.ts's own updateMedia branch). Applies to BOTH an
+    // admin's hard delete AND a poster's own self-delete — Gist has no soft
+    // "removed by owner" status the way Spot does (see spot.repo.ts's own
+    // remove()); every gist delete, by anyone, is a real row removal, so
+    // both paths leaked Cloudinary storage identically until this.
+    const media = await GistMediaRepo.listByGist(id);
     if (isAdminRole(req.user?.role)) {
       const ok = await GistService.deleteAsIdiot(id);
       if (!ok)
         return res
           .status(404)
           .json({ success: false, message: "Gist not found" });
+      await cleanUpGistMedia(media);
       await safeAudit({ action: 'GIST_DELETE', target_type: 'GIST', target_id: id, idiot_avitag: req.user!.avitag ?? req.user!.account_id });
       return res.json({ success: true, message: "Deleted" });
     }
@@ -513,6 +545,7 @@ export const GistController = {
       return res
         .status(404)
         .json({ success: false, message: "Gist not found or forbidden" });
+    await cleanUpGistMedia(media);
     return res.json({ success: true, message: "Deleted" });
   },
 

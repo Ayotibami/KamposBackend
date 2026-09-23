@@ -361,6 +361,47 @@ export async function rejectAsAdmin(spot_id: string): Promise<boolean> {
   return (rowCount || 0) > 0;
 }
 
+/** Undoes an admin's own takedown — REJECTED back to ACTIVE. Deliberately
+ * ONLY reverses rejectAsAdmin's own state, never REMOVED (the poster's own
+ * self-delete): reviving something the poster deliberately took down
+ * themselves isn't an admin's call to make unilaterally, same reasoning
+ * that's kept REJECTED and REMOVED as separate statuses since day one (see
+ * migration 0045's own comment — "distinguishes a moderator's action from
+ * the poster's own self-delete"). No reason param, same as Gist's own
+ * approveGist — an admin undoing their own action doesn't need to justify
+ * it the way taking something down does. */
+export async function reactivateAsAdmin(spot_id: string): Promise<boolean> {
+  const { rowCount } = await pool.query(`UPDATE spots SET status = 'ACTIVE' WHERE spot_id = $1 AND status = 'REJECTED'`, [
+    spot_id,
+  ]);
+  return (rowCount || 0) > 0;
+}
+
+/** True hard delete — a real DELETE, not a status flip, unlike rejectAsAdmin
+ * above (the soft "Take Down" — see spot.controller.ts's own remove doc for
+ * why that one stays reversible-in-spirit). Returns the deleted row's own
+ * public_id (or null if nothing matched) so the caller can clean up the
+ * underlying Cloudinary asset too — a bare DB delete alone (this codebase's
+ * ORIGINAL admin hard-delete shape, mirrored from gist.repo.ts's
+ * removeAsIdiot) leaves the actual video file sitting on Cloudinary forever,
+ * unreferenced but never erased, which defeats the entire point of a HARD
+ * delete for the case that actually motivated building one (a genuine legal
+ * takedown, not just hiding something from the feed). Works regardless of
+ * the spot's current status (unlike rejectAsAdmin, which only ever acts on
+ * an ACTIVE row) — there's no "already deleted" state to guard against short
+ * of the row already being gone. Cascades to
+ * spot_comments/spot_views/spot_shares/spot_reports via their own ON DELETE
+ * CASCADE FKs (migration 0045) — a hard delete takes that spot's whole
+ * moderation history with it, a real tradeoff weighed and accepted rather
+ * than an accident. */
+export async function removeAsAdmin(spot_id: string): Promise<{ public_id: string | null } | null> {
+  const { rows } = await pool.query<{ public_id: string | null }>(
+    `DELETE FROM spots WHERE spot_id = $1 RETURNING public_id`,
+    [spot_id]
+  );
+  return rows[0] ?? null;
+}
+
 /** ON CONFLICT DO NOTHING against the (spot_id, reporter_avitag) unique
  * constraint (migration 0045) — the actual enforcement of "one report per
  * person," not just the my_report-gated UI. Returns whether this was a

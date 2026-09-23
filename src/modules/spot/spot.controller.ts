@@ -3,6 +3,7 @@ import * as SpotRepo from "./spot.repo";
 import { signUpload, deleteByPublicIdWithType } from "../../services/media/cloudinary";
 import { env } from "../../config/env";
 import { isAdminRole } from "../../middleware/idiot";
+import { safeAudit } from "../audit/audit.util";
 import { MAX_VIDEO_DURATION_SECONDS, MAX_VIDEO_BYTES, CAPTION_MAX_LEN } from "./spot.constants";
 
 /** Shared gate for the two draft-mutating endpoints (signature, finalize):
@@ -216,6 +217,14 @@ export const SpotController = {
       // trail (see spot.repo.ts's remove() doc).
       const ok = await SpotRepo.rejectAsAdmin(id);
       if (!ok) return res.status(404).json({ success: false, message: "Spot not found" });
+      const { reason } = req.body || {};
+      await safeAudit({
+        action: "SPOT_REJECT",
+        target_type: "SPOT",
+        target_id: id,
+        idiot_avitag: req.user.avitag ?? req.user.account_id,
+        reason: typeof reason === "string" && reason.trim() ? reason.trim().slice(0, 500) : null,
+      });
       return res.json({ success: true, message: "Removed" });
     }
     const ok = await SpotRepo.remove(id, req.user.avitag);

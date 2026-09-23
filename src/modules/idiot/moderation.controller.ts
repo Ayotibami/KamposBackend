@@ -83,4 +83,28 @@ export const ModerationController = {
     if (!row) return res.status(404).json({ success: false, message: 'Report not found or already reviewed' });
     return res.json({ success: true, data: row });
   },
+
+  listPendingSpotReports: async (req: Request, res: Response) => {
+    const limit = Number(req.query.limit ?? 20);
+    const offset = Number(req.query.offset ?? 0);
+    const data = await ModerationService.listPendingSpotReports(limit, offset);
+    res.json({ success: true, data });
+  },
+
+  acceptSpotReport: async (req: Request, res: Response) => {
+    const { report_id } = req.params;
+    try {
+      const report = await ModerationService.acceptSpotReport(report_id, req.user!.avitag ?? req.user!.account_id);
+      return res.json({ success: true, data: report });
+    } catch (err: any) {
+      return res.status(safeErrorStatus(err, 400)).json({ success: false, message: safeErrorMessage(err, 'Unable to accept report') });
+    }
+  },
+
+  rejectSpotReport: async (req: Request, res: Response) => {
+    const { report_id } = req.params;
+    const row = await ModerationService.rejectSpotReport(report_id, req.user!.avitag ?? req.user!.account_id);
+    if (!row) return res.status(404).json({ success: false, message: 'Report not found or already reviewed' });
+    return res.json({ success: true, data: row });
+  },
 };

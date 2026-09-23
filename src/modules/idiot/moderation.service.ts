@@ -3,6 +3,7 @@ import * as profileRepo from '../profile/profile.repo';
 import { safeAudit } from '../audit/audit.util';
 import { WSGateway } from '../../ws/gateway';
 import * as reportRepo from '../gist/report.repo';
+import * as spotReportRepo from '../spot/report.repo';
 
 export const ModerationService = {
   // Gists
@@ -54,6 +55,23 @@ export const ModerationService = {
     const row = await reportRepo.rejectReport(report_id, idiot_avitag);
     if (!row) return null;
     await safeAudit({ action: 'REPORT_REJECT', target_type: 'GIST', target_id: row.gist_id, idiot_avitag });
+    return row;
+  },
+
+  // Spot reports — same shape as the gist reports trio above, just against
+  // spot/report.repo.ts and spots.status instead of gists.gist_status.
+  listPendingSpotReports: (limit = 20, offset = 0) => spotReportRepo.listPendingWithDetails(limit, offset),
+
+  acceptSpotReport: async (report_id: string, idiot_avitag: string) => {
+    const { report } = await spotReportRepo.acceptReportAndRejectSpot(report_id, idiot_avitag);
+    await safeAudit({ action: 'SPOT_REPORT_ACCEPT', target_type: 'SPOT', target_id: report.spot_id, idiot_avitag });
+    return report;
+  },
+
+  rejectSpotReport: async (report_id: string, idiot_avitag: string) => {
+    const row = await spotReportRepo.rejectReport(report_id, idiot_avitag);
+    if (!row) return null;
+    await safeAudit({ action: 'SPOT_REPORT_REJECT', target_type: 'SPOT', target_id: row.spot_id, idiot_avitag });
     return row;
   },
 };
