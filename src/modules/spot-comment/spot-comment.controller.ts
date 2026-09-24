@@ -20,7 +20,7 @@ export const SpotCommentController = {
     const spot_id = req.params.spot_id;
     const limit = Number(req.query.limit ?? 20);
     const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
-    const data = await repo.listBySpot(spot_id, limit, cursor);
+    const data = await repo.listBySpot(spot_id, limit, cursor, req.user?.avitag);
     return res.json({ success: true, data });
   },
 

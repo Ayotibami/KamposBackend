@@ -10,10 +10,24 @@ export interface SpotCommentRow {
   edit_count: number;
 }
 
-// Plain comments, no reaction join — comment-level likes were explicitly
-// deferred for v1 (unlike comment.repo.ts's REACTION_COLUMNS for gist
-// comments), so this is a straight profile-display join, nothing more.
+// Comment-level likes — reuses the exact same generic `reactions` table
+// gist comments already react against (entity_type = 'COMMENT', keyed by
+// comment_id), not a new table or a new enum value. comment_id is a UUID
+// unique across BOTH comments and spot_comments (separate tables, but UUIDs
+// never collide), so the same 'COMMENT' bucket works for either without
+// ambiguity. Mirrors comment.repo.ts's own REACTION_COLUMNS exactly — a
+// single tap-to-like, always type 'LOVE' (see spotStore.ts's own
+// reactSpotComment), not the full 5-emoji picker gist POSTS get.
+const REACTION_COLUMNS = (viewerParamIndex: number) => `
+  (SELECT COUNT(*)::int FROM reactions r WHERE r.entity_type = 'COMMENT' AND r.entity_id = c.comment_id) AS reactions_count,
+  (SELECT type FROM reactions r WHERE r.entity_type = 'COMMENT' AND r.entity_id = c.comment_id AND r.avitag = $${viewerParamIndex}::text LIMIT 1) AS my_reaction
+`;
+
 export interface SpotCommentWithProfile extends SpotCommentRow {
+  reactions_count: number;
+  /** The viewer's own reaction on this comment, if any — 'LOVE' or null,
+   * same shape as comment.repo.ts's own CommentWithReactions. */
+  my_reaction: string | null;
   first_name: string | null;
   last_name: string | null;
   campus_tag: string | null;
@@ -49,11 +63,15 @@ export async function create(params: {
   avitag: string;
   text: string;
 }): Promise<SpotCommentWithProfile> {
+  // 0/null literal, not a real reaction join — a comment that's just this
+  // instant been created can't possibly have any reactions yet, so there's
+  // no need to actually query the reactions table for a row that was never
+  // going to have a match.
   const { rows } = await pool.query(
     `WITH inserted AS (
        INSERT INTO spot_comments (spot_id, avitag, text) VALUES ($1, $2, $3) RETURNING *
      )
-     SELECT inserted.*, ${PROFILE_COLUMNS}
+     SELECT inserted.*, 0 AS reactions_count, NULL::text AS my_reaction, ${PROFILE_COLUMNS}
      FROM inserted
      ${PROFILE_JOIN.replace(/c\.avitag/g, "inserted.avitag")}`,
     [params.spot_id, params.avitag, params.text]
@@ -69,26 +87,27 @@ export async function get(comment_id: string): Promise<SpotCommentRow | null> {
 export async function listBySpot(
   spot_id: string,
   limit = 20,
-  cursor?: string
+  cursor?: string,
+  viewerAvitag?: string
 ): Promise<SpotCommentWithProfile[]> {
   if (cursor) {
     const { rows } = await pool.query<SpotCommentWithProfile>(
-      `SELECT c.*, ${PROFILE_COLUMNS}
+      `SELECT c.*, ${REACTION_COLUMNS(4)}, ${PROFILE_COLUMNS}
        FROM spot_comments c
        ${PROFILE_JOIN}
        WHERE c.spot_id = $1 AND c.commented_at < (SELECT commented_at FROM spot_comments WHERE comment_id = $2)
          AND ${PROFILE_LIVE_GATE}
        ORDER BY c.commented_at DESC LIMIT $3`,
-      [spot_id, cursor, limit]
+      [spot_id, cursor, limit, viewerAvitag ?? null]
     );
     return rows;
   }
   const { rows } = await pool.query<SpotCommentWithProfile>(
-    `SELECT c.*, ${PROFILE_COLUMNS}
+    `SELECT c.*, ${REACTION_COLUMNS(3)}, ${PROFILE_COLUMNS}
      FROM spot_comments c
      ${PROFILE_JOIN}
      WHERE c.spot_id = $1 AND ${PROFILE_LIVE_GATE} ORDER BY c.commented_at DESC LIMIT $2`,
-    [spot_id, limit]
+    [spot_id, limit, viewerAvitag ?? null]
   );
   return rows;
 }

@@ -546,6 +546,18 @@ export const GistController = {
         .status(404)
         .json({ success: false, message: "Gist not found or forbidden" });
     await cleanUpGistMedia(media);
+    // A breadcrumb, not a moderation action — this branch is the OWNER
+    // deleting their own gist, not an admin, so it gets its own action
+    // (GIST_SELF_DELETE) rather than reusing GIST_DELETE, which would
+    // misleadingly read as an admin action when the activity log shows it
+    // back. Before this, a self-delete left literally no trace anywhere:
+    // the row (and its comments/reactions/reports) is hard-deleted with
+    // nothing logged, so a poster could make reported content disappear
+    // completely, with zero record it ever existed. This doesn't stop
+    // that — it just means an admin reviewing the activity log can at
+    // least see that it happened and when, even though the content itself
+    // is gone.
+    await safeAudit({ action: 'GIST_SELF_DELETE', target_type: 'GIST', target_id: id, idiot_avitag: req.user.avitag });
     return res.json({ success: true, message: "Deleted" });
   },
 

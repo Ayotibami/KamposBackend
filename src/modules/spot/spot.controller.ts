@@ -212,9 +212,9 @@ export const SpotController = {
     if (!req.user?.avitag) return res.status(401).json({ success: false, message: "Unauthorized" });
     const id = req.params.spot_id;
     if (isAdminRole(req.user.role)) {
-      // Admin takedown lands as REJECTED, not REMOVED — distinguishes a
-      // moderator's action from the poster's own self-delete in the audit
-      // trail (see spot.repo.ts's remove() doc).
+      // Admin takedown — soft, reversible via Reactivate (POST
+      // /idiot/spots/:id/reactivate). Unlike the owner branch below, this
+      // stays a status flip, not a real delete.
       const ok = await SpotRepo.rejectAsAdmin(id);
       if (!ok) return res.status(404).json({ success: false, message: "Spot not found" });
       const { reason } = req.body || {};
@@ -227,8 +227,28 @@ export const SpotController = {
       });
       return res.json({ success: true, message: "Removed" });
     }
-    const ok = await SpotRepo.remove(id, req.user.avitag);
-    if (!ok) return res.status(404).json({ success: false, message: "Spot not found or forbidden" });
+    // Owner self-delete — a real hard delete now, same as gist.controller.ts's
+    // own owner branch (see spot.repo.ts's remove() for why this changed
+    // from a soft REMOVED flip). Cleans up the Cloudinary asset too, best-
+    // effort, same pattern as every other Cloudinary cleanup in this
+    // codebase — and leaves a SPOT_SELF_DELETE audit breadcrumb so an admin
+    // can still see that a self-delete happened, even though the content
+    // itself can't be recovered.
+    const deleted = await SpotRepo.remove(id, req.user.avitag);
+    if (!deleted) return res.status(404).json({ success: false, message: "Spot not found or forbidden" });
+    if (deleted.public_id) {
+      try {
+        await deleteByPublicIdWithType(deleted.public_id, "video");
+      } catch {
+        /* best-effort cleanup — the DB row is already gone, which is what actually matters */
+      }
+    }
+    await safeAudit({
+      action: "SPOT_SELF_DELETE",
+      target_type: "SPOT",
+      target_id: id,
+      idiot_avitag: req.user.avitag,
+    });
     return res.json({ success: true, message: "Removed" });
   },
 

@@ -342,16 +342,29 @@ export async function countByUser(avitag: string, viewerAvitag?: string): Promis
   return Number(rows[0]?.count ?? 0);
 }
 
-/** Self-delete — a soft status change to REMOVED, not a hard DELETE (unlike
- * gist.repo.ts's own remove()). Keeping the row distinguishes "the poster
- * pulled this themselves" from REJECTED ("an admin took it down") in the
- * moderation/audit trail, per the status lifecycle we agreed on. */
-export async function remove(spot_id: string, avitag: string): Promise<boolean> {
-  const { rowCount } = await pool.query(
-    `UPDATE spots SET status = 'REMOVED' WHERE spot_id = $1 AND avitag = $2 AND status = 'ACTIVE'`,
+/** Self-delete — a real hard DELETE, same as gist.repo.ts's own remove().
+ * Used to be a soft status change to REMOVED instead, specifically to keep
+ * the row (and its report/comment history) around for an admin to still
+ * review even after the poster made it disappear — but that status was
+ * never reachable from anywhere except this one function, and nothing ever
+ * cleaned up its Cloudinary asset either, so a self-deleted Spot's video
+ * just sat there forever, unreferenced but never erased (the same leak
+ * gist.controller.ts's remove() had on ITS owner branch until that got
+ * fixed too). Now matches Gist exactly: gone is gone, Cloudinary included,
+ * with a SPOT_SELF_DELETE audit breadcrumb left behind at the call site
+ * (spot.controller.ts) so an admin can at least see that it happened, even
+ * though the content itself can't be recovered. No status restriction
+ * (unlike the old REMOVED-only-from-ACTIVE guard) — an owner can delete
+ * their own Spot regardless of its current status, same permissiveness
+ * gist.repo.ts's own remove() already has. Existing REMOVED rows from
+ * before this change are untouched, historical data — this only changes
+ * what happens to a NEW self-delete going forward. */
+export async function remove(spot_id: string, avitag: string): Promise<{ public_id: string | null } | null> {
+  const { rows } = await pool.query<{ public_id: string | null }>(
+    `DELETE FROM spots WHERE spot_id = $1 AND avitag = $2 RETURNING public_id`,
     [spot_id, avitag]
   );
-  return (rowCount || 0) > 0;
+  return rows[0] ?? null;
 }
 
 export async function rejectAsAdmin(spot_id: string): Promise<boolean> {
