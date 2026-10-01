@@ -24,6 +24,7 @@ export type AuditAction =
   | 'SPOT_SELF_DELETE'
   | 'SPOT_REPORT_ACCEPT'
   | 'SPOT_REPORT_REJECT'
+  | 'HOT_POST_SELF_DELETE'
   | 'ADMIN_GRANT'
   | 'ADMIN_REVOKE'
   | 'GIST_DELETE'
@@ -41,8 +42,8 @@ export type AuditAction =
 
 export async function logAudit(params: {
   action: AuditAction;
-  target_type: 'PROFILE' | 'GIST' | 'SPOT' | 'ACCOUNT' | 'COMMENT' | 'CAMPUS' | 'MAJOR' | 'BROADCAST';
-  target_id: string; // avitag, gist_id/spot_id, or a campus/major tag
+  target_type: 'PROFILE' | 'GIST' | 'SPOT' | 'HOT_POST' | 'ACCOUNT' | 'COMMENT' | 'CAMPUS' | 'MAJOR' | 'BROADCAST';
+  target_id: string; // avitag, gist_id/spot_id/hot_post_id, or a campus/major tag
   idiot_avitag: string;
   reason?: string | null;
 }) {

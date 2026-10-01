@@ -13,6 +13,7 @@ import { verifyToken } from './config/jwt';
 import cron from 'node-cron';
 import { runDigest } from './modules/idiot/digest';
 import { processPendingBroadcastRecipients } from './modules/idiot/broadcastSender';
+import { sweepExpiredHotPosts } from './modules/hot/hot.sweep';
 
 async function main() {
   try {
@@ -103,6 +104,15 @@ async function main() {
     // moment that quota resets, with nobody needing to remember to retry it.
     cron.schedule('* * * * *', () => {
       void processPendingBroadcastRecipients();
+    });
+
+    // Hot post cleanup — see hot.sweep.ts's own doc comment: this is pure
+    // storage hygiene, not what makes a post actually disappear (that's
+    // already handled by every read query's own WHERE clause). Hourly, 15
+    // past the hour so it never lands on the exact same tick as the digest
+    // job above.
+    cron.schedule('15 * * * *', () => {
+      void sweepExpiredHotPosts();
     });
 
     const shutdown = async (signal?: string) => {
