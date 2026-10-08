@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import * as ProfileUtils from "../profile/utils";
-import { toPublicAccount } from "../account/account.repo";
+import { toPublicAccount, touchLastActive } from "../account/account.repo";
 import { revokeToken, isRevoked } from "./token.service";
 import { verifyRefreshToken } from "../../config/jwt";
 import {
@@ -178,6 +178,7 @@ export const AuthController = {
           major_tag,
         });
       setAuthCookies(res, accessToken, refreshToken);
+      void touchLastActive(account_id);
       return res.json({ success: true, message: "Refreshed" });
     } catch (err) {
       // Token is genuinely invalid/expired — clear cookies so the client

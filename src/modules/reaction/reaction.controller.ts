@@ -2,7 +2,10 @@ import type { Request, Response } from 'express';
 import * as repo from './reaction.repo';
 import { WSGateway } from '../../ws/gateway';
 import { GistService } from '../gist/gist.service';
+import * as gistRepo from '../gist/gist.repo';
+import * as spotRepo from '../spot/spot.repo';
 import { isAdminRole } from '../../middleware/idiot';
+import { checkGistMilestones, checkSpotMilestone } from '../notification/notification.service';
 
 // The WS `reactions:upsert`/`reactions:remove_by_entity` message path
 // already broadcasts counts:updated — the REST path (what every current
@@ -21,7 +24,26 @@ export const ReactionController = {
     if (!req.user?.avitag) return res.status(401).json({ success: false, message: 'Unauthorized' });
     const { entity_type, entity_id, type } = req.body || {};
     const r = await repo.upsert({ avitag: req.user.avitag, entity_type, entity_id, type });
-    if (entity_type === 'GIST') void broadcastGistCounts(entity_id);
+    if (entity_type === 'GIST') {
+      void broadcastGistCounts(entity_id);
+      // Fire-and-forget — a notification-side failure is never a reason
+      // to fail the reaction itself.
+      void (async () => {
+        const gist = await gistRepo.findById(entity_id);
+        if (!gist) return;
+        const full = await GistService.getCountsFull(entity_id);
+        if (!full.counts) return;
+        void checkGistMilestones({ gistId: entity_id, gistAuthorAvitag: gist.avitag, reactionsCount: full.counts.reactions_count, commentsCount: full.counts.comments_count });
+      })();
+    } else if (entity_type === 'SPOT') {
+      void (async () => {
+        const spot = await spotRepo.findById(entity_id);
+        if (!spot) return;
+        const counts = await spotRepo.getCounts(entity_id);
+        if (!counts) return;
+        void checkSpotMilestone({ spotId: entity_id, posterAvitag: spot.avitag, likesCount: counts.reactions_count });
+      })();
+    }
     return res.status(201).json({ success: true, data: r });
   },
 

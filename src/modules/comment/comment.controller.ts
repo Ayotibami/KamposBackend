@@ -2,8 +2,10 @@ import type { Request, Response } from 'express';
 import * as repo from './comment.repo';
 import { WSGateway } from '../../ws/gateway';
 import { GistService } from '../gist/gist.service';
+import * as gistRepo from '../gist/gist.repo';
 import { isAdminRole } from '../../middleware/idiot';
 import { safeAudit } from '../audit/audit.util';
+import { notifyComment } from '../notification/notification.service';
 
 // Same reasoning as comment:created below — the WS message path already
 // broadcasts counts:updated on create/delete, but the REST path (what
@@ -33,6 +35,12 @@ export const CommentController = {
     // in realtime unless they'd created it themselves over a raw WS message.
     WSGateway.broadcast('comment:created', { comment: created });
     void broadcastGistCounts(gist_id);
+    // Fire-and-forget, same reasoning as the counts broadcast above —
+    // never worth blocking or failing the comment itself over.
+    void (async () => {
+      const gist = await gistRepo.findById(gist_id);
+      if (gist) void notifyComment({ gistAuthorAvitag: gist.avitag, commenterAvitag: avitag, gistId: gist_id, commentText: text });
+    })();
     return res.status(201).json({ success: true, data: created });
   },
 

@@ -12,6 +12,26 @@ import { isAdminRole } from '../middleware/idiot';
 
 export class WSGateway {
   private static wss: WebSocketServer | null = null;
+  // avitag -> every open socket for that person (more than one tab/device
+  // is normal). Only ever holds REAL, authenticated avitags — a guest
+  // connection's `user.avitag` is null and is never registered here.
+  // This is what makes sendToUser below possible at all: broadcast() has
+  // no concept of "one specific person," it only ever knew how to shout
+  // to every open connection at once.
+  private static byAvitag = new Map<string, Set<WebSocket>>();
+
+  private static registerSocket(avitag: string, ws: WebSocket) {
+    const set = this.byAvitag.get(avitag) ?? new Set<WebSocket>();
+    set.add(ws);
+    this.byAvitag.set(avitag, set);
+  }
+
+  private static unregisterSocket(avitag: string, ws: WebSocket) {
+    const set = this.byAvitag.get(avitag);
+    if (!set) return;
+    set.delete(ws);
+    if (set.size === 0) this.byAvitag.delete(avitag);
+  }
 
   static init(server: Server) {
     if (this.wss) return this.wss;
@@ -37,8 +57,13 @@ export class WSGateway {
           const token = auth.slice('Bearer '.length);
           const user = verifyToken(token);
           (ws as any).user = user;
+          if (user.avitag) WSGateway.registerSocket(user.avitag, ws);
           ws.send(JSON.stringify({ type: 'welcome', avitag: user.avitag }));
         }
+        ws.on('close', () => {
+          const u = (ws as any).user;
+          if (u?.avitag) WSGateway.unregisterSocket(u.avitag, ws);
+        });
         // Handle incoming messages
         ws.on('message', async (raw) => {
           try {
@@ -272,6 +297,24 @@ export class WSGateway {
 
     logger.info('WebSocket server initialized');
     return this.wss;
+  }
+
+  /** Send to ONE specific person's live connection(s) only — notifications'
+   * entire reason for needing this, since broadcast() has no way to avoid
+   * shouting a private "Kemi commented on your gist" at every other
+   * connected user too. A silent no-op if that person isn't currently
+   * connected — the caller's own DB row is already the source of truth,
+   * this is purely a "show it live if they're already here" nicety, same
+   * as every other WS push in this app. */
+  static sendToUser(avitag: string, topic: string, payload: any) {
+    const sockets = this.byAvitag.get(avitag);
+    if (!sockets || sockets.size === 0) return;
+    const message = JSON.stringify({ topic, payload, ts: Date.now() });
+    for (const client of sockets) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message, { compress: false });
+      }
+    }
   }
 
   static broadcast(topic: string, payload: any) {

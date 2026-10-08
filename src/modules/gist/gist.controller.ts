@@ -12,6 +12,7 @@ import logger from '../../utils/logger';
 import { isAdminRole } from '../../middleware/idiot';
 import { safeAudit } from '../audit/audit.util';
 import { bumpReportPush } from '../idiot/reportPush';
+import { notifyRepost, queueCoursemateGist } from '../notification/notification.service';
 
 // Whitelisted rather than trusted as-is so `color_key` can never become a
 // stored-XSS-style free text field via a crafted request — belt-and-braces
@@ -119,6 +120,22 @@ export const GistController = {
     // moderation queue," which is exactly what the admin panel's Pending
     // Posts tab wants to hear about live.
     try { SIGateway.emitToAdmins('gist:pending', { gist_id: gist.gist_id }); } catch {}
+
+    // Fire-and-forget, same reasoning as the admin emit above — a
+    // notification failure is never a reason to fail the gist itself.
+    // Coursemate-digest fires for every real gist unconditionally
+    // (anonymous or not — an anonymous POSTER stays hidden, see
+    // queueCoursemateGist's own line-building, but the fact that SOMEONE
+    // close to you posted is still worth surfacing); the repost
+    // notification only fires when this gist actually quotes another.
+    const posterAvitag = req.user.avitag;
+    void queueCoursemateGist({ posterAvitag, gistId: gist.gist_id });
+    if (safeQuotedGistId) {
+      void (async () => {
+        const original = await GistService.findById(safeQuotedGistId);
+        if (original) void notifyRepost({ originalAuthorAvitag: original.avitag, reposterAvitag: posterAvitag, gistId: gist.gist_id, originalGistId: original.gist_id });
+      })();
+    }
 
     // options is already 2-4 trimmed, non-empty, <=25-char strings by the
     // time it gets here — createGistSchema's own createPollSchema already

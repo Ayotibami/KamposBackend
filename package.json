@@ -19,6 +19,7 @@
     "start": "node dist/index.js",
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed-dev-data.ts",
+    "seed:notifications": "tsx scripts/seed-notifications.ts",
     "test": "vitest --run",
     "test:watch": "vitest"
   },

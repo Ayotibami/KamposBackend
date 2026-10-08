@@ -14,6 +14,7 @@ import cron from 'node-cron';
 import { runDigest } from './modules/idiot/digest';
 import { processPendingBroadcastRecipients } from './modules/idiot/broadcastSender';
 import { sweepExpiredHotPosts } from './modules/hot/hot.sweep';
+import { runDigestBatch, checkHotExpiring, runInactivityNudges, runActivationNudges, cleanupOld as cleanupOldNotifications } from './modules/notification/notification.service';
 
 async function main() {
   try {
@@ -113,6 +114,42 @@ async function main() {
     // job above.
     cron.schedule('15 * * * *', () => {
       void sweepExpiredHotPosts();
+    });
+
+    // Notification digest batcher — fixed clock, 8 runs a day (every 3
+    // hours), matching the product spec's own digest cap exactly (24 ÷ 3 =
+    // 8). Each run bundles whatever's piled up in notification_events
+    // since the last one into a single notification per recipient.
+    cron.schedule('0 0,3,6,9,12,15,18,21 * * *', () => {
+      // runDigestBatch already isolates failures per-recipient internally —
+      // this catch is a last line of defense against the function's own
+      // top-level query (findPendingDigestEvents) failing, so a DB hiccup
+      // here logs instead of becoming an unhandled rejection.
+      runDigestBatch().catch((err) => logger.error({ err }, 'runDigestBatch: top-level failure'));
+    });
+
+    // Hot-post-about-to-expire check — every 15 min, frequent enough that
+    // the "<2h left" window (the same threshold the rail's own urgency
+    // badge uses) never gets missed between ticks.
+    cron.schedule('*/15 * * * *', () => {
+      void checkHotExpiring();
+    });
+
+    // Periodic nudges — once a day is enough for both: the inactivity
+    // nudge only cares about 3-day-old inactivity (a day's slop doesn't
+    // matter), and the activation nudge gates itself to the 12pm-4pm
+    // window internally regardless of when this tick lands.
+    cron.schedule('0 9 * * *', () => {
+      void runInactivityNudges();
+    });
+    cron.schedule('0 13 * * *', () => {
+      void runActivationNudges();
+    });
+
+    // 30-day notification cleanup — same storage-hygiene reasoning as
+    // hot.sweep.ts's own job, just for notifications instead of Hot posts.
+    cron.schedule('30 4 * * *', () => {
+      void cleanupOldNotifications();
     });
 
     const shutdown = async (signal?: string) => {

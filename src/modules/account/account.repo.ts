@@ -48,6 +48,21 @@ export async function updateLastLogin(account_id: string): Promise<void> {
   await pool.query(`UPDATE accounts SET last_login = NOW(), updated_at = NOW() WHERE account_id = $1`, [account_id]);
 }
 
+/** Separate from updateLastLogin on purpose — last_login only fires on an
+ * explicit login/OAuth call, never on the much more frequent silent token
+ * refresh (~every 15 min while someone's actually using the app), so it
+ * badly undercounts recent activity. The notification system's inactivity
+ * nudge needs a real "have they actually used the app lately" signal, not
+ * a "when did they last type their password" one — this is updated from
+ * the refresh endpoint instead (see auth.controller.ts's own refresh). No
+ * updated_at touch here deliberately — this is a lightweight, extremely
+ * frequent write, and updated_at is meant to reflect real account
+ * changes, not a timestamp that moves every 15 minutes for every signed-in
+ * user. */
+export async function touchLastActive(account_id: string): Promise<void> {
+  await pool.query(`UPDATE accounts SET last_active_at = NOW() WHERE account_id = $1`, [account_id]);
+}
+
 /**
  * Single setter for every non-ACTIVE account_status (DEACTIVATED,
  * SUSPENDED, DELETED) — self-service and admin-triggered actions alike all
